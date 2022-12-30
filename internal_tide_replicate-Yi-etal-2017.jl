@@ -5,7 +5,7 @@ using Oceananigans.TurbulenceClosures: VerticallyImplicitTimeDiscretization
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using LinearAlgebra
 
-suffix = "20-days"
+suffix = "sinusoidal_20-days"
 
 ## Simulation parameters
 Nx = 400
@@ -87,7 +87,7 @@ u, v, w = model.velocities
 custom_diags = (ε=ε,)
 all_diags = merge(model.velocities, model.tracers, custom_diags)
 
-fname = string("internal_tide_NL2010_", suffix,".jld2")
+fname = string("internal_tide_", suffix,".jld2")
 simulation.output_writers[:fields] = JLD2OutputWriter(model, all_diags,
                                         schedule = TimeInterval(Δtᵒ),
                                         filename = fname,
