@@ -5,14 +5,14 @@ using Oceananigans.TurbulenceClosures: VerticallyImplicitTimeDiscretization
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using LinearAlgebra
 
-suffix = "sinusoidal_20-days"
+suffix = "Yi-et-al-2017-40days"
 
 ## Simulation parameters
 Nx = 400
 Ny = 1
 Nz = 128
 
-tᶠ = 20days # simulation run time
+tᶠ = 40days # simulation run time
 Δtᵒ = 30minutes # interval for saving output
 
 H = 3kilometers # 6.e3 # vertical extent

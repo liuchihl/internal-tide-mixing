@@ -21,7 +21,7 @@ function nan_solid(x, z, u, mask)
     return u
 end
 
-saved_output_filename = "internal_tide_NL2010_2-day-test.jld2"
+saved_output_filename = "internal_tide_Yi-et-al-2017-40days.jld2"
 file = jldopen(saved_output_filename)
 
 ig = file["serialized/grid"]
