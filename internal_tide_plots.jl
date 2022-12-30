@@ -28,28 +28,25 @@ ig = file["serialized/grid"]
 ug = ig.underlying_grid
 ĝ = file["serialized/buoyancy"].gravity_unit_vector
 
-u = FieldTimeSeries(saved_output_filename, "û")
-w = FieldTimeSeries(saved_output_filename, "ŵ")
+û = FieldTimeSeries(saved_output_filename, "uhat")
+ŵ = FieldTimeSeries(saved_output_filename, "what")
 ε = FieldTimeSeries(saved_output_filename, "ε")
-b = FieldTimeSeries(saved_output_filename, "b")
-t = b.times
+B = FieldTimeSeries(saved_output_filename, "B")
+t = B.times
 
-xu, yu, zu = nodes(u[1])
-xw, yw, zw = nodes(w[1])
-xb, yb, zb = nodes(b[1])
+xu, yu, zu = nodes(û[1])
+xw, yw, zw = nodes(ŵ[1])
+xb, yb, zb = nodes(B[1])
 
-B = deepcopy(b)
-N = 1.e-3
 for n in 1:length(t)
     ε[n].data .= log10.(@. ifelse(ε[n].data > 0, ε[n].data, 1.e-100)) # transform ε to logspace
-    B[n].data .= b[n].data .+ N^2 * (xb[:,:,:]*ĝ[1] .+ reshape(zb, (1, 1, Nz))*ĝ[3])
 end
 
 n = Observable(1)
 
 # mask immersed boundaries
 mask = interior(ig.immersed_boundary.mask)[:,1,:]
-uₙ = @lift nan_solid(xu, zu, interior(u[$n], :, 1, :), mask)
+ûₙ = @lift nan_solid(xu, zu, interior(û[$n], :, 1, :), mask)
 εₙ = @lift nan_solid(xb, zb, interior(ε[$n], :, 1, :), mask)
 Bₙ = @lift nan_solid(xb, zb, interior(B[$n], :, 1, :), mask)
 
@@ -64,7 +61,7 @@ begin
 end
 
 U₀ = 0.025
-hm_u = heatmap!(ax_u, xu, zu, uₙ,
+hm_u = heatmap!(ax_u, xu, zu, ûₙ,
     colorrange = (-3U₀, 3U₀), colormap = :balance,
     lowclip=cgrad(:balance)[1], highclip=cgrad(:balance)[end])
 ct_u = contour!(ax_u, xb, zb, Bₙ,

@@ -11,7 +11,7 @@ Nx = 200
 Ny = 1
 Nz = 128
 
-tᶠ = 60minutes # simulation run time
+tᶠ = 2days # simulation run time
 Δtᵒ = 30minutes # interval for saving output
 
 H = 3kilometers # 6.e3 # vertical extent
@@ -106,7 +106,7 @@ ŵ = @at (Center, Center, Face) w*ĝ[3] - u*ĝ[1] # true vertical velocity
 ν = model.closure.ν
 ε = Field(ν*(∂x(u)^2 + ∂x(v)^2 + ∂x(w)^2 + ∂y(u)^2 + ∂y(v)^2 + ∂y(w)^2 + ∂z(u)^2 + ∂z(v)^2 + ∂z(w)^2))
 
-custom_diags = (B=B, û=û, ŵ=ŵ, ε=ε,)
+custom_diags = (B=B, uhat=û, what=ŵ, ε=ε,)
 all_diags = merge(model.velocities, model.tracers, custom_diags)
 
 fname = string("internal_tide_", suffix,".jld2")
