@@ -4,20 +4,20 @@ using Oceananigans.Units
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using LinearAlgebra
 
-suffix = "tilted-test"
+suffix = "40days"
 
 ## Simulation parameters
-Nx = 200
+Nx = 400
 Ny = 1
 Nz = 128
 
-tᶠ = 2days # simulation run time
+tᶠ = 40days # simulation run time
 Δtᵒ = 30minutes # interval for saving output
 
 H = 3kilometers # 6.e3 # vertical extent
-L = 2H # 60.e3 # horizontal extent
+L = 2*2H # 60.e3 # horizontal extent
 
-n = 1 # topographic wave number
+n = 2 # topographic wave number
 h = 200meters # topographic height
 
 ## Create grid
@@ -50,18 +50,23 @@ grid_with_bumps = ImmersedBoundaryGrid(grid, GridFittedBoundary(topog_mask))
 # Environmental parameters
 N = 1.e-3 # Brunt-Väisälä buoyancy frequency
 f₀ = 0.53e-4 # Coriolis frequency
-θ = 0.1 # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
-ĝ = (sin(θ), 0, cos(θ))
+θ = 2.e-3 # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
 
 # Tidal forcing
 U₀ = 0.025
 ω₀ = 1.4e-4
-u_tidal_forcing(x, y, z, t) = U₀*ω₀*cos(ω₀*t)*(+ĝ[3])
-w_tidal_forcing(x, y, z, t) = U₀*ω₀*cos(ω₀*t)*(-ĝ[1])
+u_tidal_forcing(x, y, z, t) = U₀*ω₀*sin(ω₀*t)
+
+# IC such that flow is in phase with predicted linear response, but otherwise quiescent
+Uᵣ = U₀ * ω₀^2/(ω₀^2 - f₀^2 - (N*sin(θ))^2) # quasi-resonant linear barotropic response
+uᵢ(x, y, z) = -Uᵣ
+vᵢ(x, y, z) = 0.
+bᵢ(x, y, z) = 1e-9*rand() # seed infinitesimal perturbations in buoyancy field
 
 s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
 γ = h*π/(s*6kilometers)
-print("Wave steepness of γ=",round(γ, digits=3))
+print("Steepness parameter of γ=",round(γ, digits=3))
 
 # Rotate gravity vector
 buoyancy = Buoyancy(model = BuoyancyTracer(), gravity_unit_vector = ĝ)
@@ -77,18 +82,14 @@ model = NonhydrostaticModel(
     advection = WENO(),
     buoyancy = buoyancy,
     coriolis = coriolis,
-    forcing = (u = u_tidal_forcing, w = w_tidal_forcing),
+    forcing = (u = u_tidal_forcing,),
     closure = ScalarDiffusivity(; ν=1e-4, κ=1e-4),
     tracers = :b,
     timestepper = :RungeKutta3,
     background_fields = (; b=B̄_field),
 )
 
-bᵢ(x, y, z) = 1e-9*rand()
-uᵢ(x, y, z) = 0.
-vᵢ(x, y, z) = U₀*(ω₀*f₀)/(ω₀^2 - f₀^2)
-wᵢ(x, y, z) = 0.
-set!(model, b=bᵢ, u=uᵢ, v=vᵢ, w=wᵢ)
+set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
 Δt = (1/N)*0.03
@@ -109,7 +110,7 @@ ŵ = @at (Center, Center, Face) w*ĝ[3] - u*ĝ[1] # true vertical velocity
 custom_diags = (B=B, uhat=û, what=ŵ, ε=ε,)
 all_diags = merge(model.velocities, model.tracers, custom_diags)
 
-fname = string("internal_tide_", suffix,".jld2")
+fname = string("internal_tide_", suffix,"-theta=",string(θ),".jld2")
 simulation.output_writers[:fields] = JLD2OutputWriter(model, all_diags,
                                         schedule = TimeInterval(Δtᵒ),
                                         filename = fname,
