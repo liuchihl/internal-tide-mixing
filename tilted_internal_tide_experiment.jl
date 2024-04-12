@@ -9,6 +9,19 @@ using Statistics
 using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 
+
+#using CUDA
+
+function log_gpu_memory_usage()
+# Capture the output of CUDA.memory_status()
+    output = IOBuffer()
+    CUDA.memory_status(output)
+
+# Convert the captured output to a string
+    mem_info_str = String(take!(output))
+    return mem_info_str
+end
+
 suffix = "3days"
 
 ## Simulation parameters
@@ -16,7 +29,7 @@ const Nx = 150 #250 500 1000
 const Ny = 300 #500 1000 2000
 const Nz = 100
 
-const tᶠ = 3days # simulation run time
+const tᶠ = 60 # simulation run time
 const Δtᵒ = 30minutes # interval for saving output
 
 const H = 4.926kilometers # 6.e3 # vertical extent
@@ -57,7 +70,7 @@ grid = RectilinearGrid(GPU(),size=(Nx, Ny, Nz),
 # Δyᶜ = yspacings(grid, Center())
 
 # load topography 
-file = matopen("/pub/chihlul1/work/PROJECT/topo.mat")
+file = matopen("topo.mat")
 z_topo = read(file, "z_noslope_periodic") 
 x_topo = read(file, "x_domain")
 y_topo = read(file, "y_domain")
@@ -145,8 +158,8 @@ model = NonhydrostaticModel(
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-#Δt = (1/N)*0.03
-Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
+const Δt = (1/N)*0.03
+#Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
@@ -179,27 +192,27 @@ all_diags = merge(model.velocities, model.tracers, custom_diags)
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx150")
 
 # JLD2OutputWriter  
-simulation.output_writers[:checkpointer] = Checkpointer(
-                                        model,
-                                        schedule=TimeInterval(tᶠ),
-                                        dir="output",
-                                        prefix=string(fname, "_checkpoint"),
-                                        cleanup=true)
+#simulation.output_writers[:checkpointer] = Checkpointer(
+#                                        model,
+#                                        schedule=TimeInterval(tᶠ),
+#                                        dir="output",
+#                                        prefix=string(fname, "_checkpoint"),
+#                                        cleanup=true)
 
-simulation.output_writers[:fields] = JLD2OutputWriter(model, all_diags,
-                                        schedule = TimeInterval(Δtᵒ),
+simulation.output_writers[:fields] = JLD2OutputWriter(model, custom_diags,
+                                        schedule = TimeInterval(30),
                                         filename = string("output/", fname, "_fields.jld2"),
-#					max_filesize = 500MiB, 
-					verbose=true,
+#					                    max_filesize = 500MiB, 
+					                    verbose=true,
                                         overwrite_existing = true)
 
-simulation.output_writers[:slice] = JLD2OutputWriter(model, custom_diags,
-                                        schedule = TimeInterval(Δtᵒ),
-                                        indices = (:,Ny÷2,:), # center of the domain (on the canyon)
-					#max_filesize = 500MiB, #needs to be uncommented when running large simulation
-                                        verbose=true,
-                                        filename = string("output/", fname, "_slices.jld2"),
-                                        overwrite_existing = true)
+#simulation.output_writers[:slice] = JLD2OutputWriter(model, custom_diags,
+#                                        schedule = TimeInterval(Δtᵒ),
+#                                        indices = (:,Ny÷2,:), # center of the domain (on the canyon)
+#					#max_filesize = 500MiB, #needs to be uncommented when running large simulation
+#                                        verbose=true,
+#                                        filename = string("output/", fname, "_slices.jld2"),
+#                                        overwrite_existing = true)
 ##### output netcdf
 #simulation.output_writers[:checkpointer] = Checkpointer(
 #                                        model,
@@ -226,10 +239,10 @@ simulation.output_writers[:slice] = JLD2OutputWriter(model, custom_diags,
 
 ## Progress messages
 progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, 
-                            advective CFL: %.2e, diffusive CFL: %.2e\n",
+                            advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
                             s.model.clock.time, maximum(abs, model.velocities.w),
-                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
+                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model),log_gpu_memory_usage())
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
 ## Running the simulation!
