@@ -10,27 +10,26 @@ using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 
 
-#using CUDA
+using CUDA
 
 function log_gpu_memory_usage()
 # Capture the output of CUDA.memory_status()
     output = IOBuffer()
     CUDA.memory_status(output)
-
 # Convert the captured output to a string
     mem_info_str = String(take!(output))
     return mem_info_str
 end
 
-suffix = "3days"
+suffix = "90s"
 
 ## Simulation parameters
 const Nx = 150 #250 500 1000
 const Ny = 300 #500 1000 2000
 const Nz = 100
 
-const tᶠ = 60 # simulation run time
-const Δtᵒ = 30minutes # interval for saving output
+const tᶠ = 90 # simulation run time
+const Δtᵒ = 30 # interval for saving output
 
 const H = 4.926kilometers # 6.e3 # vertical extent
 const Lx = 15kilometers
@@ -90,8 +89,60 @@ itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 z_interp = [itp(x_topo_lin, y_topo_lin) for x_topo_lin in x_interp, y_topo_lin in y_interp]
 z_interp = z_interp.-minimum(z_interp)
-
 # heatmap(x_interp, y_interp, z_interp'; color = :balance, xlabel = "x", ylabel = "z", aspect_ratio = :equal)
+
+
+
+# grids
+zC = znodes(grid, Center())
+zF = znodes(grid, Face())
+xC = xnodes(grid, Center())
+yC = ynodes(grid, Center())
+# find the grid that is above z_interp at x-y plane
+inx = zeros(Nx,Ny)  # Preallocate inx array to store the indices
+# create an array of indices that captures the frist element above the topography
+for i in 1:Nx
+   for j in 1:Ny
+inx[i,j] = findfirst(x -> x > z_interp[i,j], zC)
+   end
+end
+
+using Plots, StatsBase
+
+function terrain_follow_average(ϕ)
+
+## creating terrain-aligned horizontal average
+
+# Find the tallest point and use histogram to bin the vertical grids first
+binsize = ceil(maximum(diff(zF)));  # smallest binsize has to be larger than the maximun Δz
+row, col = findmax(z_interp)[2][1],findmax(z_interp)[2][2]
+h = fit(Histogram, zC[Int(inx[row,col]):end],[zC[Int(inx[row,col])]:binsize:maximum(zC);])
+bins = diff(h.edges[1])/2 .+ h.edges[1][1:end-1]   # central bin
+# preallocation
+temp = zeros(Nx,Ny,length(h.weights));
+u_TFM=zeros(1,length(h.weights))
+
+# loop over the entire x-y plane to get the depth histogram from the topography to the surface
+for k in 1:length(h.weights)
+    for i in 1:Nx
+        for j in 1:Ny
+            h = fit(Histogram, zC[Int(inx[i,j]):end],[zC[Int(inx[i,j])]:binsize:maximum(zC);])
+            window = 0; 
+            # lg and ug are the lowest and upmost grids within the bin.
+            # For example, if zF = 0, 0.5, 1, 1.5, 2, 2.5, 3, and bins = 0.1, 2.1, 4.1. Within the first bin, lg=0 and ug=2
+            lg = Int(inx[i,j])+window # lowest grid in the bin
+            ug = Int(inx[i,j])+window+h.weights[k]-1 #upmost grid in the bin
+            # temp[i,j,k] = sum(ϕ[i,j,lg:ug].*diff(zF)[lg:ug]) ./ (zF[lg]-zF[ug])
+            temp[i,j,k] = sum(ϕ[i,j,lg:ug].*diff(zF)[lg:ug]) ./ (zF[lg]-zF[ug])
+            window = window + h.weights[k]
+        end
+    end
+end
+ϕ̄ = vec(mean(temp,dims=(1,2))) 
+# uu = vec(mean(temp,dims=(1,2))) 
+# shift the bins to 0
+return ϕ̄, bins.-minimum(bins)    
+end
 
 
 # Create immersed boundary grid
@@ -99,17 +150,6 @@ z_interp = z_interp.-minimum(z_interp)
 grid_real = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp)) 
 velocity_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0));
 
-## creating terrain-aligned horizontal average
-# center z grid
-zc = znodes(grid, Center())
-# find the grid that is above z_interp at x-y plane
-inx = zeros(Nx,Ny)  # Preallocate inx array to store the indices
-# create an array of indices that captures the frist element above the topography
-#for i in 1:Nx
-#    for j in 1:Ny
-#inx[i,j] = findfirst(x -> x > z_interp[i,j], zc)
-#    end
-#end
 
 # Environmental parameters
 const N = 1.e-3 # Brunt-Väisälä buoyancy frequency
@@ -158,8 +198,8 @@ model = NonhydrostaticModel(
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-const Δt = (1/N)*0.03
-#Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
+# const Δt = (1/N)*0.03
+Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
@@ -178,64 +218,85 @@ B = B̄ + b # total buoyancy field
 u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
+ζᶻ = ∂x(v) - ∂y(û)
 
 ν = model.closure.ν
 κ = model.closure.κ
 
+# Oceanostics
 KE = KineticEnergy(model)
-ε_oceanostics = KineticEnergyDissipationRate(model)
+ε = KineticEnergyDissipationRate(model)
+χ = TracerVarianceDissipationRate(model, :b)
 wb = BuoyancyProductionTerm(model)
 
-custom_diags = (B=B, uhat=û, what=ŵ)
-all_diags = merge(model.velocities, model.tracers, custom_diags)
 
-fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx150")
+# Terrain-following horizontal averages
+ε_avg, bin = terrain_follow_average(ε) # includes the surface grid to the grid right above the topography
+χ_avg = terrain_follow_average(χ)[1]
+KE_avg = terrain_follow_average(KE)[1]
+wb_avg = terrain_follow_average(wb)[1]
 
-# JLD2OutputWriter  
-#simulation.output_writers[:checkpointer] = Checkpointer(
-#                                        model,
-#                                        schedule=TimeInterval(tᶠ),
-#                                        dir="output",
-#                                        prefix=string(fname, "_checkpoint"),
-#                                        cleanup=true)
+# Write custom vectors and arrays to disk
+ε_avg_disk(model) = ε_avg
+χ_avg_disk(model) = χ_avg
+KE_avg_disk(model) = KE_avg
+wb_avg_disk(model) = wb_avg
+bathy(model) = z_interp
 
-simulation.output_writers[:fields] = JLD2OutputWriter(model, custom_diags,
-                                        schedule = TimeInterval(30),
-                                        filename = string("output/", fname, "_fields.jld2"),
-#					                    max_filesize = 500MiB, 
-					                    verbose=true,
+
+state_diags = merge(model.velocities, model.tracers)
+Oceanostics_diags = (; KE, ε, wb, χ)
+custom_diags = (; uhat=û, what=ŵ,B=B,vorticity=ζᶻ)
+all_diags = merge(state_diags,Oceanostics_diags,custom_diags) 
+
+
+fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx)
+
+# output 3D field data
+simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, all_diags,
+                                        schedule = TimeInterval(Δtᵒ),
+                                        verbose=true,
+					                    filename = string("output/", fname, "_fields.nc"),
                                         overwrite_existing = true)
+# output 2D slices
+simulation.output_writers[:nc_slice] = NetCDFOutputWriter(model, custom_diags,
+                                       schedule = TimeInterval(Δtᵒ),
+                                       indices = (:,Ny÷2,:), # center of the domain (on the canyon)
+                                       #max_filesize = 500MiB, #needs to be uncommented when running large simulation
+                                       verbose=true,
+                                       filename = string("output/", fname, "_slices.nc"),
+					                   overwrite_existing = true)
 
-#simulation.output_writers[:slice] = JLD2OutputWriter(model, custom_diags,
-#                                        schedule = TimeInterval(Δtᵒ),
-#                                        indices = (:,Ny÷2,:), # center of the domain (on the canyon)
-#					#max_filesize = 500MiB, #needs to be uncommented when running large simulation
-#                                        verbose=true,
-#                                        filename = string("output/", fname, "_slices.jld2"),
-#                                        overwrite_existing = true)
-##### output netcdf
-#simulation.output_writers[:checkpointer] = Checkpointer(
-#                                        model,
-#                                        schedule=TimeInterval(tᶠ),
-#                                        dir="output",
-#                                        prefix=string(fname, "_checkpoint"),
-#					verbose=true,
-#                                        cleanup=true)
+# output terrain-following horizontal averages
+outputs = Dict("ε_avg" => ε_avg_disk, "χ_avg" => χ_avg_disk, 
+        "KE_avg" => KE_avg_disk, "wb_avg" => wb_avg_disk)
 
-#simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, custom_diags,
-#                                        schedule = TimeInterval(Δtᵒ),
-#                                        verbose=true,
-#					filename = string("output/", fname, "_fields.nc"),
-#                                        overwrite_existing = true)
+dims = Dict("ε_avg" => ("zC",), "χ_avg" => ("zC",), "KE_avg" => ("zC",), 
+        "wb_avg" => ("zC",))
+output_attributes = Dict(
+        "ε_avg"  => Dict("long_name" => "Terrain-following horizontal average KE dissipation rate", "units" => "m²/s³"),
+        "χ_avg" => Dict("long_name" => "Terrain-following horizontal average buoyancy variance dissipation rate", "units" => "m²/s³"),
+        "wb_avg"   => Dict("long_name" => "Terrain-following horizontal average buoyancy flux", "units" => "m²/s³"),
+        "KE_avg"   => Dict("long_name" => "Terrain-following horizontal average KE", "units" => "m²/s²")
+        )
 
-#simulation.output_writers[:nc_slice] = NetCDFOutputWriter(model, custom_diags,
-#                                        schedule = TimeInterval(Δtᵒ),
-#                                        indices = (:,Ny÷2,:), # center of the domain (on the canyon)
-#                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
-#                                        verbose=true,
-#                                        filename = string("output/", fname, "_slices.nc"),
-#					overwrite_existing = true)
+simulation.output_writers[:TFH] = NetCDFOutputWriter(model, outputs,
+                                       schedule = TimeInterval(Δtᵒ), dimensions=dims,
+                                       filename = string("output/", fname, "_TF_horizontal_average.nc"),
+                                       output_attributes=output_attributes,
+                                       overwrite_existing = true)
 
+bathymetry = Dict("bathy" => bathy)
+dims = Dict("bathy" => ("xC","yC")) 
+output_attributes = Dict(
+        "bathy"   => Dict("long_name" => "Bathymetry", "units" => "m"))
+simulation.output_writers[:bathy] = NetCDFOutputWriter(model, bathymetry,
+                                       schedule = TimeInterval(0), dimensions=dims,
+                                       filename = "output/bathymetry.nc",
+                                       verbose=true,
+                                       output_attributes=output_attributes,
+                                       overwrite_existing = true)      
+          
 
 ## Progress messages
 progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, 
@@ -255,3 +316,40 @@ run!(simulation)
 ##    Simulation complete.
 ##    Output: $(abspath(simulation.output_writers[:fields].filepath))
 ##"""
+
+
+
+
+
+
+
+# JLD2OutputWriter  
+#simulation.output_writers[:checkpointer] = Checkpointer(
+#                                        model,
+#                                        schedule=TimeInterval(tᶠ),
+#                                        dir="output",
+#                                        prefix=string(fname, "_checkpoint"),
+#                                        cleanup=true)
+
+#simulation.output_writers[:fields] = JLD2OutputWriter(model, custom_diags,
+#                                        schedule = TimeInterval(30),
+#                                        filename = string("output/", fname, "_fields.jld2"),
+#					                    max_filesize = 500MiB, 
+#					                    verbose=true,
+#                                        overwrite_existing = true)
+
+#simulation.output_writers[:slice] = JLD2OutputWriter(model, custom_diags,
+#                                        schedule = TimeInterval(Δtᵒ),
+#                                        indices = (:,Ny÷2,:), # center of the domain (on the canyon)
+#					#max_filesize = 500MiB, #needs to be uncommented when running large simulation
+#                                        verbose=true,
+#                                        filename = string("output/", fname, "_slices.jld2"),
+#                                        overwrite_existing = true)
+##### output netcdf
+#simulation.output_writers[:checkpointer] = Checkpointer(
+#                                        model,
+#                                        schedule=TimeInterval(tᶠ),
+#                                        dir="output",
+#                                        prefix=string(fname, "_checkpoint"),
+#					verbose=true,
+#                                        cleanup=true)
