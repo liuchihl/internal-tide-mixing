@@ -99,11 +99,11 @@ zF = znodes(grid, Face())
 xC = xnodes(grid, Center())
 yC = ynodes(grid, Center())
 # find the grid that is above z_interp at x-y plane
-inx = zeros(Nx,Ny)  # Preallocate inx array to store the indices
+inx = CUDA.zeros(Nx,Ny)  # Preallocate inx array to store the indices
 # create an array of indices that captures the frist element above the topography
 for i in 1:Nx
    for j in 1:Ny
-inx[i,j] = findfirst(x -> x > z_interp[i,j], zC)
+    inx[i,j] = findfirst(x -> x > z_interp[i,j], zC)
    end
 end
 
