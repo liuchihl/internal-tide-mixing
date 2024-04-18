@@ -24,8 +24,8 @@ end
 suffix = "90s"
 
 ## Simulation parameters
-const Nx = 250 #150 500 1000
-const Ny = 500 #300 1000 2000
+const Nx = 150#1000 #150 500 1000
+const Ny = 300#2000 #300 1000 2000
 const Nz = 100
 
 const tᶠ = 90#120 # simulation run time
@@ -253,7 +253,7 @@ all_diags = merge(state_diags,Oceanostics_diags,custom_diags)
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx)
 
 # output 3D field data
-simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, all_diags,
+simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, state_diags,
                                         schedule = TimeInterval(Δtᵒ),
                                         verbose=true,
 					                    filename = string("output/", fname, "_fields.nc"),
