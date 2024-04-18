@@ -28,7 +28,7 @@ const Nx = 150 #250 500 1000
 const Ny = 300 #500 1000 2000
 const Nz = 100
 
-const tᶠ = 90 # simulation run time
+const tᶠ = 1200#120 # simulation run time
 const Δtᵒ = 30 # interval for saving output
 
 const H = 4.926kilometers # 6.e3 # vertical extent
@@ -94,55 +94,55 @@ z_interp = z_interp.-minimum(z_interp)
 
 
 # grids
-zC = znodes(grid, Center())
-zF = znodes(grid, Face())
+zC = adapt(Array,znodes(grid, Center()))
+zF = adapt(Array,znodes(grid, Face()))
 xC = xnodes(grid, Center())
 yC = ynodes(grid, Center())
 # find the grid that is above z_interp at x-y plane
-inx = CUDA.zeros(Nx,Ny)  # Preallocate inx array to store the indices
-# create an array of indices that captures the frist element above the topography
-for i in 1:Nx
-   for j in 1:Ny
-    inx[i,j] = findfirst(x -> x > z_interp[i,j], zC)
-   end
-end
+# inx = zeros(Nx,Ny)  # Preallocate inx array to store the indices
+# # create an array of indices that captures the frist element above the topography
+# for i in 1:Nx
+#    for j in 1:Ny
+#     inx[i,j] = adapt(Array,findfirst(x -> x > z_interp[i,j], zC))
+#    end
+# end
 
-using Plots, StatsBase
+# using Plots, StatsBase
 
-function terrain_follow_average(ϕ)
+# function terrain_follow_average(ϕ)
 
-## creating terrain-aligned horizontal average
+# ## creating terrain-aligned horizontal average
 
-# Find the tallest point and use histogram to bin the vertical grids first
-binsize = ceil(maximum(diff(zF)));  # smallest binsize has to be larger than the maximun Δz
-row, col = findmax(z_interp)[2][1],findmax(z_interp)[2][2]
-h = fit(Histogram, zC[Int(inx[row,col]):end],[zC[Int(inx[row,col])]:binsize:maximum(zC);])
-bins = diff(h.edges[1])/2 .+ h.edges[1][1:end-1]   # central bin
-# preallocation
-temp = zeros(Nx,Ny,length(h.weights));
-u_TFM=zeros(1,length(h.weights))
+# # Find the tallest point and use histogram to bin the vertical grids first
+# binsize = ceil(maximum(diff(zF)));  # smallest binsize has to be larger than the maximun Δz
+# row, col = findmax(z_interp)[2][1],findmax(z_interp)[2][2]
+# h = fit(Histogram, zC[Int(inx[row,col]):end],[zC[Int(inx[row,col])]:binsize:maximum(zC);])
+# bins = diff(h.edges[1])/2 .+ h.edges[1][1:end-1]   # central bin
+# # preallocation
+# temp = adapt(Array,zeros(Nx,Ny,length(h.weights)));
+# CUDA.allowscalar(false) 
 
-# loop over the entire x-y plane to get the depth histogram from the topography to the surface
-for k in 1:length(h.weights)
-    for i in 1:Nx
-        for j in 1:Ny
-            h = fit(Histogram, zC[Int(inx[i,j]):end],[zC[Int(inx[i,j])]:binsize:maximum(zC);])
-            window = 0; 
-            # lg and ug are the lowest and upmost grids within the bin.
-            # For example, if zF = 0, 0.5, 1, 1.5, 2, 2.5, 3, and bins = 0.1, 2.1, 4.1. Within the first bin, lg=0 and ug=2
-            lg = Int(inx[i,j])+window # lowest grid in the bin
-            ug = Int(inx[i,j])+window+h.weights[k]-1 #upmost grid in the bin
-            # temp[i,j,k] = sum(ϕ[i,j,lg:ug].*diff(zF)[lg:ug]) ./ (zF[lg]-zF[ug])
-            temp[i,j,k] = sum(ϕ[i,j,lg:ug].*diff(zF)[lg:ug]) ./ (zF[lg]-zF[ug])
-            window = window + h.weights[k]
-        end
-    end
-end
-ϕ̄ = vec(mean(temp,dims=(1,2))) 
-# uu = vec(mean(temp,dims=(1,2))) 
-# shift the bins to 0
-return ϕ̄, bins.-minimum(bins)    
-end
+# # loop over the entire x-y plane to get the depth histogram from the topography to the surface
+# for k in 1:length(h.weights)
+#     for i in 1:Nx
+#         for j in 1:Ny
+#             hl = fit(Histogram, zC[Int(inx[i,j]):end],[zC[Int(inx[i,j])]:binsize:maximum(zC);]) # histogram in the loop
+#             window = 0; 
+#             # lg and ug are the lowest and upmost grids within the bin.
+#             # For example, if zF = 0, 0.5, 1, 1.5, 2, 2.5, 3, and bins = 0.1, 2.1, 4.1. Within the first bin, lg=0 and ug=2
+#             lg = Int(inx[i,j])+window # lowest grid in the bin
+#             ug = Int(inx[i,j])+window+hl.weights[k]-1 #upmost grid in the bin
+#             CUDA.@allowscalar temp[i,j,k] = sum(adapt(Array,ϕ[i,j,lg:ug]).*diff(zF)[lg:ug]) ./ (zF[lg].-zF[ug]) 
+#             # temp[i,j,k] = sum(ϕ[i,j,lg:ug].*diff(zF)[lg:ug]) ./ (zF[lg].-zF[ug])
+#             window = window + hl.weights[k]
+#         end
+#     end
+# end
+# ϕ̄ = vec(mean(temp,dims=(1,2))) 
+# # uu = vec(mean(temp,dims=(1,2))) 
+# # shift the bins to 0
+# return ϕ̄, bins.-minimum(bins)    
+# end
 
 
 # Create immersed boundary grid
@@ -230,18 +230,18 @@ KE = KineticEnergy(model)
 wb = BuoyancyProductionTerm(model)
 
 
-# Terrain-following horizontal averages
-ε_avg, bin = terrain_follow_average(ε) # includes the surface grid to the grid right above the topography
-χ_avg = terrain_follow_average(χ)[1]
-KE_avg = terrain_follow_average(KE)[1]
-wb_avg = terrain_follow_average(wb)[1]
+# # Terrain-following horizontal averages
+# ε_avg, bin = terrain_follow_average(ε) # includes the surface grid to the grid right above the topography
+# χ_avg = terrain_follow_average(χ)[1]
+# KE_avg = terrain_follow_average(KE)[1]
+# wb_avg = terrain_follow_average(wb)[1]
 
-# Write custom vectors and arrays to disk
-ε_avg_disk(model) = ε_avg
-χ_avg_disk(model) = χ_avg
-KE_avg_disk(model) = KE_avg
-wb_avg_disk(model) = wb_avg
-bathy(model) = z_interp
+# # Write custom vectors and arrays to disk
+# ε_avg_disk(model) = ε_avg
+# χ_avg_disk(model) = χ_avg
+# KE_avg_disk(model) = KE_avg
+# wb_avg_disk(model) = wb_avg
+# bathy(model) = z_interp
 
 
 state_diags = merge(model.velocities, model.tracers)
@@ -267,42 +267,42 @@ simulation.output_writers[:nc_slice] = NetCDFOutputWriter(model, custom_diags,
                                        filename = string("output/", fname, "_slices.nc"),
 					                   overwrite_existing = true)
 
-# output terrain-following horizontal averages
-outputs = Dict("ε_avg" => ε_avg_disk, "χ_avg" => χ_avg_disk, 
-        "KE_avg" => KE_avg_disk, "wb_avg" => wb_avg_disk)
+# # output terrain-following horizontal averages
+# outputs = Dict("ε_avg" => ε_avg_disk, "χ_avg" => χ_avg_disk, 
+#         "KE_avg" => KE_avg_disk, "wb_avg" => wb_avg_disk)
 
-dims = Dict("ε_avg" => ("zC",), "χ_avg" => ("zC",), "KE_avg" => ("zC",), 
-        "wb_avg" => ("zC",))
-output_attributes = Dict(
-        "ε_avg"  => Dict("long_name" => "Terrain-following horizontal average KE dissipation rate", "units" => "m²/s³"),
-        "χ_avg" => Dict("long_name" => "Terrain-following horizontal average buoyancy variance dissipation rate", "units" => "m²/s³"),
-        "wb_avg"   => Dict("long_name" => "Terrain-following horizontal average buoyancy flux", "units" => "m²/s³"),
-        "KE_avg"   => Dict("long_name" => "Terrain-following horizontal average KE", "units" => "m²/s²")
-        )
+# dims = Dict("ε_avg" => ("zC",), "χ_avg" => ("zC",), "KE_avg" => ("zC",), 
+#         "wb_avg" => ("zC",))
+# output_attributes = Dict(
+#         "ε_avg"  => Dict("long_name" => "Terrain-following horizontal average KE dissipation rate", "units" => "m²/s³"),
+#         "χ_avg" => Dict("long_name" => "Terrain-following horizontal average buoyancy variance dissipation rate", "units" => "m²/s³"),
+#         "wb_avg"   => Dict("long_name" => "Terrain-following horizontal average buoyancy flux", "units" => "m²/s³"),
+#         "KE_avg"   => Dict("long_name" => "Terrain-following horizontal average KE", "units" => "m²/s²")
+#         )
 
-simulation.output_writers[:TFH] = NetCDFOutputWriter(model, outputs,
-                                       schedule = TimeInterval(Δtᵒ), dimensions=dims,
-                                       filename = string("output/", fname, "_TF_horizontal_average.nc"),
-                                       output_attributes=output_attributes,
-                                       overwrite_existing = true)
+# simulation.output_writers[:TFH] = NetCDFOutputWriter(model, outputs,
+#                                        schedule = TimeInterval(Δtᵒ), dimensions=dims,
+#                                        filename = string("output/", fname, "_TF_horizontal_average.nc"),
+#                                        output_attributes=output_attributes,
+#                                        overwrite_existing = true)
 
-bathymetry = Dict("bathy" => bathy)
-dims = Dict("bathy" => ("xC","yC")) 
-output_attributes = Dict(
-        "bathy"   => Dict("long_name" => "Bathymetry", "units" => "m"))
-simulation.output_writers[:bathy] = NetCDFOutputWriter(model, bathymetry,
-                                       schedule = TimeInterval(0), dimensions=dims,
-                                       filename = "output/bathymetry.nc",
-                                       verbose=true,
-                                       output_attributes=output_attributes,
-                                       overwrite_existing = true)      
+# bathymetry = Dict("bathy" => bathy)
+# dims = Dict("bathy" => ("xC","yC")) 
+# output_attributes = Dict(
+#         "bathy"   => Dict("long_name" => "Bathymetry", "units" => "m"))
+# simulation.output_writers[:bathy] = NetCDFOutputWriter(model, bathymetry,
+#                                        schedule = TimeInterval(0), dimensions=dims,
+#                                        filename = "output/bathymetry.nc",
+#                                        verbose=true,
+#                                        output_attributes=output_attributes,
+#                                        overwrite_existing = true)      
           
 
 ## Progress messages
-progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, 
+progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
                             advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-                            s.model.clock.time, maximum(abs, model.velocities.w),
+                            s.model.clock.time, maximum(abs, model.velocities.w), Δt,
                             AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model),log_gpu_memory_usage())
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
