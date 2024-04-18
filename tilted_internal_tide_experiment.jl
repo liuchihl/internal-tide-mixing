@@ -24,11 +24,11 @@ end
 suffix = "90s"
 
 ## Simulation parameters
-const Nx = 150 #250 500 1000
-const Ny = 300 #500 1000 2000
+const Nx = 250 #150 500 1000
+const Ny = 500 #300 1000 2000
 const Nz = 100
 
-const tᶠ = 1200#120 # simulation run time
+const tᶠ = 90#120 # simulation run time
 const Δtᵒ = 30 # interval for saving output
 
 const H = 4.926kilometers # 6.e3 # vertical extent
