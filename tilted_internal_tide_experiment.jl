@@ -198,8 +198,8 @@ model = NonhydrostaticModel(
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-# const Δt = (1/N)*0.03
-Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
+const Δt = (1/N)*0.03
+# Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
