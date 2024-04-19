@@ -24,14 +24,14 @@ end
 suffix = "90s"
 
 ## Simulation parameters
-const Nx = 150#1000 #150 500 1000
-const Ny = 300#2000 #300 1000 2000
-const Nz = 100
+const Nx = 150#1000 #150 500 750 1000
+const Ny = 300#2000 #300 1000 1500 2000
+const Nz = 250 # 100
 
 const tᶠ = 90#120 # simulation run time
 const Δtᵒ = 30 # interval for saving output
 
-const H = 4.926kilometers # 6.e3 # vertical extent
+const H = 3.5kilometers # 4.926e3, 6.e3 # vertical extent
 const Lx = 15kilometers
 const Ly = 30kilometers
 
@@ -93,12 +93,12 @@ z_interp = z_interp.-minimum(z_interp)
 
 
 
-# grids
-zC = adapt(Array,znodes(grid, Center()))
-zF = adapt(Array,znodes(grid, Face()))
-xC = xnodes(grid, Center())
-yC = ynodes(grid, Center())
-# find the grid that is above z_interp at x-y plane
+# # grids
+# zC = adapt(Array,znodes(grid, Center()))
+# zF = adapt(Array,znodes(grid, Face()))
+# xC = xnodes(grid, Center())
+# yC = ynodes(grid, Center())
+# # find the grid that is above z_interp at x-y plane
 # inx = zeros(Nx,Ny)  # Preallocate inx array to store the indices
 # # create an array of indices that captures the frist element above the topography
 # for i in 1:Nx
@@ -236,12 +236,13 @@ wb = BuoyancyProductionTerm(model)
 # KE_avg = terrain_follow_average(KE)[1]
 # wb_avg = terrain_follow_average(wb)[1]
 
-# # Write custom vectors and arrays to disk
+# # # Write custom vectors and arrays to disk
 # ε_avg_disk(model) = ε_avg
 # χ_avg_disk(model) = χ_avg
 # KE_avg_disk(model) = KE_avg
 # wb_avg_disk(model) = wb_avg
-# bathy(model) = z_interp
+# bin_disk(model) = bin
+# # bathy(model) = z_interp
 
 
 state_diags = merge(model.velocities, model.tracers)
@@ -253,10 +254,10 @@ all_diags = merge(state_diags,Oceanostics_diags,custom_diags)
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx)
 
 # output 3D field data
-simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, state_diags,
+simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, all_diags,
                                         schedule = TimeInterval(Δtᵒ),
                                         verbose=true,
-					                    filename = string("output/", fname, "_fields.nc"),
+					filename = string("output/", fname, "_fields.nc"),
                                         overwrite_existing = true)
 # output 2D slices
 simulation.output_writers[:nc_slice] = NetCDFOutputWriter(model, custom_diags,
@@ -265,19 +266,21 @@ simulation.output_writers[:nc_slice] = NetCDFOutputWriter(model, custom_diags,
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                        verbose=true,
                                        filename = string("output/", fname, "_slices.nc"),
-					                   overwrite_existing = true)
+			               overwrite_existing = true)
 
 # # output terrain-following horizontal averages
 # outputs = Dict("ε_avg" => ε_avg_disk, "χ_avg" => χ_avg_disk, 
-#         "KE_avg" => KE_avg_disk, "wb_avg" => wb_avg_disk)
+#         "KE_avg" => KE_avg_disk, "wb_avg" => wb_avg_disk, "bin" => bin_disk)
 
 # dims = Dict("ε_avg" => ("zC",), "χ_avg" => ("zC",), "KE_avg" => ("zC",), 
-#         "wb_avg" => ("zC",))
+#         "wb_avg" => ("zC",), "bin" => ("bin",))
 # output_attributes = Dict(
 #         "ε_avg"  => Dict("long_name" => "Terrain-following horizontal average KE dissipation rate", "units" => "m²/s³"),
 #         "χ_avg" => Dict("long_name" => "Terrain-following horizontal average buoyancy variance dissipation rate", "units" => "m²/s³"),
 #         "wb_avg"   => Dict("long_name" => "Terrain-following horizontal average buoyancy flux", "units" => "m²/s³"),
-#         "KE_avg"   => Dict("long_name" => "Terrain-following horizontal average KE", "units" => "m²/s²")
+#         "KE_avg"   => Dict("long_name" => "Terrain-following horizontal average KE", "units" => "m²/s²"),
+#         "bin"   => Dict("long_name" => "Vertical bins", "units" => "m")
+
 #         )
 
 # simulation.output_writers[:TFH] = NetCDFOutputWriter(model, outputs,
