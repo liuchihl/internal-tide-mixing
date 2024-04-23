@@ -26,7 +26,7 @@ suffix = "90s"
 ## Simulation parameters
 const Nx = 150#1000 #150 500 750 1000
 const Ny = 300#2000 #300 1000 1500 2000
-const Nz = 250 # 100
+const Nz = 100 # 250
 
 const tᶠ = 90#120 # simulation run time
 const Δtᵒ = 30 # interval for saving output
@@ -206,8 +206,8 @@ simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
 # # (CFL) number close to `0.5` while ensuring the time-step does not increase beyond the
 # # maximum allowable value for numerical stability.
 
-wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
-simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
+#wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
+#simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
 
 
 ## Diagnostics
@@ -251,22 +251,22 @@ custom_diags = (; uhat=û, what=ŵ,B=B,vorticity=ζᶻ)
 all_diags = merge(state_diags,Oceanostics_diags,custom_diags) 
 
 
-fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx)
+fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx,"_Nz",Nz)
 
 # output 3D field data
-simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, all_diags,
+simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, state_diags,
                                         schedule = TimeInterval(Δtᵒ),
                                         verbose=true,
 					filename = string("output/", fname, "_fields.nc"),
                                         overwrite_existing = true)
 # output 2D slices
-simulation.output_writers[:nc_slice] = NetCDFOutputWriter(model, custom_diags,
-                                       schedule = TimeInterval(Δtᵒ),
-                                       indices = (:,Ny÷2,:), # center of the domain (on the canyon)
-                                       #max_filesize = 500MiB, #needs to be uncommented when running large simulation
-                                       verbose=true,
-                                       filename = string("output/", fname, "_slices.nc"),
-			               overwrite_existing = true)
+#simulation.output_writers[:nc_slice] = NetCDFOutputWriter(model, custom_diags,
+#                                       schedule = TimeInterval(Δtᵒ),
+#                                       indices = (:,Ny÷2,:), # center of the domain (on the canyon)
+#                                       #max_filesize = 500MiB, #needs to be uncommented when running large simulation
+#                                       verbose=true,
+#                                       filename = string("output/", fname, "_slices.nc"),
+#			               overwrite_existing = true)
 
 # # output terrain-following horizontal averages
 # outputs = Dict("ε_avg" => ε_avg_disk, "χ_avg" => χ_avg_disk, 
