@@ -8,14 +8,14 @@ using Statistics
 using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 
-suffix = "3days"
+suffix = "1days"
 
 ## Simulation parameters
  Nx = 20  #150 #250 500 1000
- Ny = 40 #300 #500 1000 2000
- Nz = 50 #250
+ Ny = 20 #300 #500 1000 2000
+ Nz = 80 #250
 
- tᶠ = 0.5days # simulation run time
+ tᶠ = 1days # simulation run time
  Δtᵒ = 30minutes # interval for saving output
 
  H = 3.5kilometers # 4.926e3, 6.e3 # vertical extent
@@ -159,8 +159,8 @@ inx = zeros(Nx,Ny)  # Preallocate inx array to store the indices
 # heatmap(x_interp, y_interp, z_interp'; color = :balance, xlabel = "x", ylabel = "z", aspect_ratio = :equal)
 
 # Environmental parameters
-N = 1.e-3 # Brunt-Väisälä buoyancy frequency
-f₀ = 0.53e-4 # Coriolis frequency
+N = 1.e-3 # Brunt-Väisälä buoyancy frequency        
+f₀ = -0.53e-4 # Coriolis frequency
 θ = 3.6e-3 # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
 
@@ -175,30 +175,31 @@ z₀ = 0.1 # m (roughness length)
 
 z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
 cᴰ = (κ_von / log(z₁ / z₀))^2 # Drag coefficient
+# non-immersed and immersed boundary conditions
+@inline drag_u(x, y, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
+@inline drag_v(x, y, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * v
+@inline immersed_drag_u(x, y, z, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
+@inline immersed_drag_v(x, y, z, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * v
+drag_bc_u = FluxBoundaryCondition(drag_u, field_dependencies=(:u, :v), parameters=(; cᴰ))
+drag_bc_v = FluxBoundaryCondition(drag_v, field_dependencies=(:u, :v), parameters=(; cᴰ))
+immersed_drag_bc_u = FluxBoundaryCondition(immersed_drag_u, field_dependencies=(:u, :v), parameters=(; cᴰ))
+immersed_drag_bc_v = FluxBoundaryCondition(immersed_drag_v, field_dependencies=(:u, :v), parameters=(; cᴰ))
 
-@inline drag_u(x, y, z, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
-@inline drag_v(x, y, z, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * v
-drag_bc_u = FluxBoundaryCondition(drag_u, field_dependencies=(:u, :v), parameters=(; cᴰ,))
-drag_bc_v = FluxBoundaryCondition(drag_v, field_dependencies=(:u, :v), parameters=(; cᴰ,))
-
-u_immerse = ImmersedBoundaryCondition(top=drag_bc_u)
-v_immerse = ImmersedBoundaryCondition(top=drag_bc_v)
+u_immerse = ImmersedBoundaryCondition(top=immersed_drag_bc_u)
+v_immerse = ImmersedBoundaryCondition(top=immersed_drag_bc_v)
 
 u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, immersed=u_immerse)
 v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, immersed=v_immerse)
-w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))      # ImpenetrableBoundaryCondition is used as default at other non-immersed boundary points
+# ImpenetrableBoundaryCondition is used as default at other non-immersed boundary points
+w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
 
 # no-flux boundary condition
 normal = -N^2*cos(θ)    # normal slope 
 cross = -N^2*sin(θ)     # cross slope
-B_immerse = ImmersedBoundaryCondition(top=GradientBoundaryCondition(normal),
-                                west = GradientBoundaryCondition(-cross), east = GradientBoundaryCondition(cross))
+B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(normal),
+                    west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(-cross))
 B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),immersed=B_immerse);
 
-
-# # with background field, gradient boundary condition needs to be specified to make buoyancy flux at the boundary =0
-# T_bcs = FieldBoundaryConditions(top = GradientBoundaryCondition(),
-#                                 bottom = GradientBoundaryCondition(0.01));
 
 # Rotate gravity vector
 buoyancy = Buoyancy(model = BuoyancyTracer(), gravity_unit_vector = -[ĝ...])
@@ -309,9 +310,8 @@ wb = BuoyancyProductionTerm(model)
             
 
 Oceanostics_diags = (; KE, ε, wb, χ)
-custom_diags = (; uhat=û, what=ŵ,B=B)
-state_diags = merge(model.velocities, model.tracers, 
-            model.background_fields.tracers,custom_diags) 
+custom_diags = (; uhat=û, what=ŵ,B=B, B_bar=B̄)
+state_diags = merge(model.velocities, model.tracers,custom_diags) 
 
 
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx)
@@ -335,7 +335,7 @@ simulation.output_writers[:slice_xz_nc] = NetCDFOutputWriter(model, state_diags,
                                        indices = (:,Ny÷2,:), # center of the domain (on the canyon)
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                        verbose=true,
-                                       filename = string("output/", fname, "_slices.nc"),
+                                       filename = string("output/", fname, "_slices_westeastswitch.nc"),
 			                  		   overwrite_existing = true)
 
 
