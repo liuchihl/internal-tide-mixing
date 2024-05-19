@@ -30,7 +30,7 @@ suffix = "5days"
  Ny = 1000 #500 1000 2000
  Nz = 250
 
- tᶠ = 10days # simulation run time
+ tᶠ = 30days # simulation run time
  Δtᵒ = 30minutes # interval for saving output
 
  H = 3.5kilometers # 6.e3 # vertical extent
@@ -226,27 +226,27 @@ if output_writer
 # checkpoint  
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(5days),
+                                        schedule=TimeInterval(10days),
                                         dir=dir,
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=false)
 # output 3D field data
-simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, ε=ε, χ=χ, b=b),
-                                        schedule = TimeInterval(5Δtᵒ),
-                                        verbose=true,
-                                        filename = string(dir, fname, "_fields_5_15days.nc"),
-                                        overwrite_existing = true)
+# simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, ε=ε, χ=χ, b=b),
+#                                         schedule = TimeInterval(5Δtᵒ),
+#                                         verbose=true,
+#                                         filename = string(dir, fname, "_fields_5_15days.nc"),
+#                                         overwrite_existing = true)
 # output 3D field time window average data
-output_interval = (2π/ω₀/86400)days
+output_interval = 10days #(2π/ω₀/86400)days
 simulation.output_writers[:nc_fields_timeavg] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, b=b),
                                         verbose=true,
-                                        filename = string(dir, fname, "_fields_timeavg.nc"),
+                                        filename = string(dir, fname, "_fields_timeavg_10_100.nc"),
                                         overwrite_existing = true,
                                         schedule = AveragedTimeInterval(output_interval,window=(2π/ω₀/86400)days, stride=2))
 # output 2D slices
 #1) xz
 simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, all_diags,
-                                        schedule = TimeInterval(Δtᵒ),
+                                        schedule = TimeInterval(2Δtᵒ),
                                         indices = (:,Ny÷2,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
@@ -255,7 +255,7 @@ simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, all_diags,
 #2) xy
 ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
 simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, all_diags,
-                                        schedule = TimeInterval(Δtᵒ),
+                                        schedule = TimeInterval(2Δtᵒ),
                                         indices = (:,:,ind), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
@@ -263,7 +263,7 @@ simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, all_diags,
                                         overwrite_existing = false)
 #3) yz
 simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, all_diags,
-                                        schedule = TimeInterval(Δtᵒ),
+                                        schedule = TimeInterval(2Δtᵒ),
                                         indices = (Nx÷2,:,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
