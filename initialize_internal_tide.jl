@@ -30,7 +30,7 @@ suffix = "5days"
  Ny = 1000 #500 1000 2000
  Nz = 250
 
- tᶠ = 30days # simulation run time
+ tᶠ = 20days # simulation run time
  Δtᵒ = 30minutes # interval for saving output
 
  H = 3.5kilometers # 6.e3 # vertical extent
@@ -219,9 +219,11 @@ state_diags = merge(model.velocities, model.tracers)
 Oceanostics_diags = (; KE, ε, wb, χ)
 custom_diags = (; uhat=û, what=ŵ,B=B)
 all_diags = merge(state_diags,Oceanostics_diags,custom_diags)
+slice_diags = (;ε, χ, uhat=û, what=ŵ, B=B)
 
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx,"_Nz",Nz)
-dir = "output/supercritical_tilt/"
+# dir = "output/supercritical_tilt/"
+dir = "output/no_tilt/"
 if output_writer
 # checkpoint  
 simulation.output_writers[:checkpointer] = Checkpointer(
@@ -240,35 +242,35 @@ simulation.output_writers[:checkpointer] = Checkpointer(
 output_interval = 10days #(2π/ω₀/86400)days
 simulation.output_writers[:nc_fields_timeavg] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, b=b),
                                         verbose=true,
-                                        filename = string(dir, fname, "_fields_timeavg_10_100.nc"),
+                                        filename = string(dir, fname, "_fields_timeavg_0_20.nc"),
                                         overwrite_existing = true,
                                         schedule = AveragedTimeInterval(output_interval,window=(2π/ω₀/86400)days, stride=2))
 # output 2D slices
 #1) xz
-simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, all_diags,
+simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
                                         schedule = TimeInterval(2Δtᵒ),
                                         indices = (:,Ny÷2,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_xz.nc"),
-                                        overwrite_existing = false)
+                                        filename = string(dir, fname, "_slices_0_20_xz.nc"),
+                                        overwrite_existing = true)
 #2) xy
 ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, all_diags,
+simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
                                         schedule = TimeInterval(2Δtᵒ),
                                         indices = (:,:,ind), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_xy.nc"),
-                                        overwrite_existing = false)
+                                        filename = string(dir, fname, "_slices_0_20_xy.nc"),
+                                        overwrite_existing = true)
 #3) yz
-simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, all_diags,
+simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
                                         schedule = TimeInterval(2Δtᵒ),
                                         indices = (Nx÷2,:,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_yz.nc"),
-                                        overwrite_existing = false)
+                                        filename = string(dir, fname, "_slices_0_20_yz.nc"),
+                                        overwrite_existing = true)
 end
 ## Progress messages
 progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,

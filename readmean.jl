@@ -1,3 +1,4 @@
+# This script calculates the terrain-following averaged quantities by interpolation
 using Printf
 using Oceananigans
 using Oceananigans.Units
@@ -5,13 +6,15 @@ using Oceananigans.TurbulenceClosures: VerticallyImplicitTimeDiscretization
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using CairoMakie
 using NCDatasets
+using BSplineKit
 using Statistics
-# using BSplineKit
 using LinearAlgebra
 using Interpolations
 using MAT
+using Dierckx
 # load field data, ideally we want to output avg values
-filename_field = "output/supercritical_tilt/internal_tide_5days-theta=0.0036_realtopo3D_Nx500_Nz250_fields.nc"
+# filename_field = "output/supercritical_tilt/internal_tide_5days-theta=0.0036_realtopo3D_Nx500_Nz250_fields_timeavg_10_30.nc"
+filename_field = "output/no_tilt/internal_tide_5days-theta=0_realtopo3D_Nx500_Nz250_fields_timeavg_0_20.nc"
 ds_field = Dataset(filename_field,"r")
 
 # grids
@@ -21,97 +24,64 @@ xC = ds_field["xC"]; Nx=length(xC)
 yC = ds_field["yC"]; Ny=length(yC)
 t = ds_field["time"];
 
-B = ds_field["B"];
+# B = ds_field["B"];
+b = ds_field["b"];
 uhat = ds_field["uhat"];
-ε = ds_field["ε"];
-χ = ds_field["χ"];
+# ε = ds_field["ε"];
+# χ = ds_field["χ"];
 
 
 
-# load topography 
-file = matopen("topo.mat")
-z_topo = read(file, "z_noslope_periodic") 
-x_topo = read(file, "x_domain")
-y_topo = read(file, "y_domain")
-# grids has to be evenly spaced
-x_topo_lin = range(x_topo[1],x_topo[end],size(z_topo,1))
-y_topo_lin = range(y_topo[1],y_topo[end],size(z_topo,2))
-close(file)
-# high-resolution grids
-x_interp = range(x_topo[1],x_topo[end], length=Nx)
-#Ny=2Nx
-y_interp = range(y_topo[1],y_topo[end], length=Ny)
-
-using Interpolations
-# Interpolation object (caches coefficients and such)
-itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
-# Interpolate z_topo onto a higher-resolution grid
-itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
-z_interp = [itp(x_topo_lin, y_topo_lin) for x_topo_lin in x_interp, y_topo_lin in y_interp]
-z_interp = z_interp.-minimum(z_interp)
-
-
-
-### calculate the terrain following avg
-# hab = ones(Nx,Ny).*reshape(zC,1,1,Nz) .- z_interp  # height above bottom [Nx,Ny,Nz]
-# hh = hab .* (hab .> 0)    # mask hab
-# hh[hh.==0] .= NaN
-# hab_interp = 0:20:3000 # define the desired vertical grids to be interpolated on
-# itp = interpolate((xC,yC,zC), u[1:end-4,1:end-4,1:end-4], Gridded(Linear()))
-# u_interp = itp(xC,yC,15:40:3000)
-# new_height = 0:40:3000
-# B_interp = zeros(Nx,Ny,length(new_height))
-# hab_interp = zeros(Nx,Ny,Nz)
-# # hab_interp = 0:20:3000
-
-# for i in 1:Nx
-#     for j in 1:Ny
-# hab = zC .- z_interp[i,j]  # height above bottom [Nz]
-# itp = interpolate((hab,), ε[i,j,:,6], Gridded(Linear()))
-# itp_extrapolated = extrapolate(itp, Interpolations.Flat())
-#         for inx in 1:length(new_height)
-#             B_interp[i,j,inx] = itp_extrapolated(new_height[inx])
-#         end
-#     end
-# end
-
-
-
-using Interpolations
-using Base.Threads: @threads
-
-function terrain_following(new_height, inx, v1, v2, v3, v4, v5)
-# new_height: desired hab
-# inx: time step
-# v1,v2,....: output variables such as u, v, w, etc.. 
-    # preallocate
-
-    v1_interp = zeros(Nx, Ny, length(new_height))
-    v2_interp = zeros(Nx, Ny, length(new_height))
-    v3_interp = zeros(Nx, Ny, length(new_height))
-    v4_interp = zeros(Nx, Ny, length(new_height))
-    v5_interp = zeros(Nx, Ny, length(new_height))
-@threads for i in 1:Nx      # not really increasing speed
-            for j in 1:Ny
-                hab = zC .- z_interp[i,j]  # height above bottom [Nz]
-                itp = interpolate((hab,), v1[i, j, :, inx], Gridded(Linear()))
-                itp_extrapolated = extrapolate(itp, Interpolations.Flat())
-                # broadcast the extrapolation function over it
-                v1_interp[i, j, :] .= itp_extrapolated.(new_height)
-                v2_interp[i, j, :] .= itp_extrapolated.(new_height)
-                v3_interp[i, j, :] .= itp_extrapolated.(new_height)
-                v4_interp[i, j, :] .= itp_extrapolated.(new_height)
-                v5_interp[i, j, :] .= itp_extrapolated.(new_height)
-
-            end
-        end
-    return dropdims(mean(v1_interp,dims=(1,2)) , dims=(1,2))
+function deriv(x,y)
+    spl = BSplineKit.interpolate(x, y, BSplineOrder(6))
+    D1f = diff(spl, Derivative(1))   # change
+        return D1f.(x)
 end
 
-# call the function to calculate terrain-following average
-new_height = 0:40:3000
-inx = 6
-ε_interp = terrain_following(ε, new_height, inx);
+# @time mapslices(x -> deriv(x,zC[:]), b[:,:,:,3], dims=3)
+
+dbdz = zeros(size(b));
+@time for i in 1:Nx
+    for j in 1:Ny
+        for k = 1:length(t[:])
+        dbdz[i,j,:,k] = deriv(zC[:],vec(b[i,j,:,k]))
+        end
+    end
+end
+
+
+
+### load hab
+filename_hab = "output/hab.nc"
+ds_hab = Dataset(filename_hab,"r")
+hab = ds_hab["hab"].var[:,:,:];
+
+# terrain following average algorithms
+@views function terrain_following_fast(hab, u, new_height, Nx, Ny)
+
+    mean_values = zeros(length(new_height), size(u, 4))
+    hab_interp = zeros(size(zC))
+    for i in 1:Nx
+        for j in 1:Ny
+            hab_interp = hab[i, j, :]
+            for tt = 1:size(u,4)
+            itp = Interpolations.interpolate((hab_interp,), u[i, j, :, tt], Gridded(Linear()))
+            itp_extrapolated = Interpolations.extrapolate(itp, Interpolations.Flat())
+            
+            # Directly accumulate the interpolated values into the mean array
+            mean_values[:, tt] .+= itp_extrapolated.(new_height)
+            end
+        end
+    end
+    mean_values ./= (Nx * Ny)
+
+    return mean_values
+end
+
+# call the function to get the terrain following averaged velocity (assuming u is a 4D matrix) 
+new_height = 0:10:3000
+ @time u_avg = terrain_following_fast(hab, uhat[:,:,:,:], new_height, Nx, Ny);
+  dbdz_avg = terrain_following_fast(hab, dbdz[:,:,:,:], new_height, Nx, Ny);
 
 
 # This creates a new NetCDF file 
@@ -130,8 +100,8 @@ vv[:] = ε_interp
 # write attributes
 vv.attrib["units"] = "m²/s"
 
-close(ds_create)
-close(ds_field)
+# close(ds_create)
+# close(ds_field)
 
 
 

@@ -9,7 +9,6 @@ using Statistics
 using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 
-
 using CUDA
 
 function log_gpu_memory_usage()
@@ -21,14 +20,14 @@ function log_gpu_memory_usage()
     return mem_info_str
 end
 
-suffix = "3days"
+suffix = "5days"
 
 ## Simulation parameters
 const Nx = 500 #250 500 1000
 const Ny = 1000 #500 1000 2000
 const Nz = 250
 
-const tᶠ = 3days # simulation run time
+const tᶠ = 5days # simulation run time
 const Δtᵒ = 30minutes # interval for saving output
 
 const H = 3.5kilometers # 6.e3 # vertical extent
@@ -67,7 +66,7 @@ grid = RectilinearGrid(GPU(),size=(Nx, Ny, Nz),
 )
 # yᶜ = ynodes(grid, Center())
 # Δyᶜ = yspacings(grid, Center())
-zC = znodes(grid, Center())
+zC = adapt(Array,znodes(grid, Center()))
 
 # load topography 
 file = matopen("topo.mat")
@@ -111,7 +110,7 @@ velocity_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0));
 const z₀ = 0.1 # m (roughness length)
 const κ_von = 0.4  # von Karman constant
 
-z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+CUDA.@allowscalar z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
 const cᴰ = (κ_von / log(z₁ / z₀))^2 # Drag coefficient
 # non-immersed and immersed boundary conditions
 @inline drag_u(x, y, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
@@ -207,14 +206,14 @@ ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
 
 # Oceanostics
 KE = KineticEnergy(model)
-PE = PotentialEnergy(model)
+# PE = PotentialEnergy(model)
 ε = KineticEnergyDissipationRate(model)
 χ = TracerVarianceDissipationRate(model, :b)
 wb = BuoyancyProductionTerm(model)
 
 
 state_diags = merge(model.velocities, model.tracers)
-Oceanostics_diags = (; KE, PE, ε, wb, χ)
+Oceanostics_diags = (; KE, ε, wb, χ)
 custom_diags = (; uhat=û, what=ŵ,B=B)
 all_diags = merge(state_diags,Oceanostics_diags,custom_diags)
 
@@ -223,14 +222,14 @@ fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
                                         schedule=TimeInterval(tᶠ),
-                                        dir="output",
+                                        dir="output/supercritical_tilt",
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=true)
 # output 3D field data
 simulation.output_writers[:nc_fields] = NetCDFOutputWriter(model, (; uhat=û ,B=B, ε=ε, χ=χ),
-                                        schedule = TimeInterval(48Δtᵒ),
+                                        schedule = TimeInterval(43Δtᵒ),
                                         verbose=true,
-                                        filename = string("output/", fname, "_fields.nc"),
+                                        filename = string("output/supercritical_tilt/", fname, "_fields.nc"),
                                         overwrite_existing = true)
 # output 2D slices
 #1) xz
@@ -239,25 +238,25 @@ simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, all_diags,
                                         indices = (:,Ny÷2,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string("output/", fname, "_slices_xz.nc"),
+                                        filename = string("output/supercritical_tilt/", fname, "_slices_xz.nc"),
                                         overwrite_existing = true)
 #2) xy
-# CUDA.@allowscalar ind = argmin(abs.(adapt(Array,zC) .- 1300))   # 1300 m height above bottom
+ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
 
 simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, all_diags,
                                         schedule = TimeInterval(Δtᵒ),
-                                        indices = (:,:,Int(140)), # center of the domain (on the canyon)
+                                        indices = (:,:,ind), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string("output/", fname, "_slices_xy.nc"),
+                                        filename = string("output/supercritical_tilt/", fname, "_slices_xy.nc"),
                                         overwrite_existing = true)
 #3) yz
-simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, all_diags,
+simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, all_diags,
                                         schedule = TimeInterval(Δtᵒ),
                                         indices = (Nx÷2,:,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string("output/", fname, "_slices_yz.nc"),
+                                        filename = string("output/supercritical_tilt/", fname, "_slices_yz.nc"),
                                         overwrite_existing = true)
 
 ## Progress messages
