@@ -40,16 +40,21 @@ end
 
 # @time mapslices(x -> deriv(x,zC[:]), b[:,:,:,3], dims=3)
 
-dbdz = zeros(size(b));
-@time for i in 1:Nx
-    for j in 1:Ny
-        for k = 1:length(t[:])
-        dbdz[i,j,:,k] = deriv(zC[:],vec(b[i,j,:,k]))
+
+function tracer_derivative(z,var)
+    Nx = size(var,1)
+    Ny = size(var,2)
+    dvardz = zeros(size(var));
+    for i in 1:Nx
+        for j in 1:Ny
+            for k = 1:size(var,4)
+            dvardz[i,j,:,k] = deriv(z,vec(var[i,j,:,k]))
+            end
         end
     end
+    return dvardz
 end
-
-
+@time dbdz =  tracer_derivative(zC[:],b)
 
 ### load hab
 filename_hab = "output/hab.nc"
@@ -81,7 +86,8 @@ end
 # call the function to get the terrain following averaged velocity (assuming u is a 4D matrix) 
 new_height = 0:10:3000
  @time u_avg = terrain_following_fast(hab, uhat[:,:,:,:], new_height, Nx, Ny);
-  dbdz_avg = terrain_following_fast(hab, dbdz[:,:,:,:], new_height, Nx, Ny);
+ @time dbdz_avg = terrain_following_fast(hab, dbdz[:,:,:,:], new_height, Nx, Ny);
+ @time b_avg = terrain_following_fast(hab, b[:,:,:,:], new_height, Nx, Ny);
 
 
 # This creates a new NetCDF file 
