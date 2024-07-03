@@ -17,14 +17,14 @@ using GLMakie
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "50days"
+suffix = "20days"
 
 ## Simulation parameters
  Nx = 1  #150 #250 500 1000
  Ny = 1 #300 #500 1000 2000
  Nz = 250 #250
 
- tᶠ = 500days # simulation run time
+ tᶠ = 20days # simulation run time
  Δtᵒ = 0.5days # interval for saving output
 
  H = 2kilometers
@@ -82,8 +82,8 @@ normal = -N^2*cos(θ)    # normal slope
 # cross = -N^2*sin(θ)     # cross slope
 B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(0),
                     west = GradientBoundaryCondition(0), east = GradientBoundaryCondition(0))
-B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(0),
-                                top = GradientBoundaryCondition(-normal), 
+B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),
+                                top = GradientBoundaryCondition(0), 
                                 immersed=B_immerse);
 
 
@@ -92,8 +92,8 @@ buoyancy = Buoyancy(model = BuoyancyTracer(), gravity_unit_vector = -[ĝ...])
 coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 
 # Linear background stratification (in ẑ)
-@inline ẑ(z, ĝ) = z*ĝ[3]
-@inline constant_stratification(z, t, p) = p.N² * ẑ(z, p.ĝ)
+@inline ẑ(x, z, ĝ) = x*ĝ[1] .+ z*ĝ[3]
+@inline constant_stratification(x, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
 B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
 
 # using Oceananigans.Operators: ∂zᶠᶜᶠ, ℑxzᶠᵃᶜ, ∂zᶜᶜᶠ, ℑzᵃᵃᶜ, ℑxzᶠᵃᶜ, Δzᶜᶜᶠ, Δzᶜᶜᶜ, Δzᶜᶜᶠ
@@ -141,15 +141,15 @@ u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 Bz = @at (Center, Center, Center) ∂z(B)            
 
-fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_forcing_coarse")
+fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_forcing_coarse_top0_bottomnonzero")
 
 
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(50days),
+                                        schedule=TimeInterval(100days),
                                         dir=fname,
                                         prefix=string(fname, "_checkpoint"),
-                                        cleanup=false)
+                                        cleanup=true)
 #  #1) xz
 # simulation.output_writers[:slice_xz_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b),
 #                                        schedule = TimeInterval(Δtᵒ),
@@ -165,7 +165,7 @@ simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, 
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                        verbose=true,
                                        filename = string("output/", fname, "_z.nc"),
-			                  		   overwrite_existing = false)
+			                  		   overwrite_existing = true)
 
 ## Progress messages
 
@@ -177,7 +177,7 @@ progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
 ## Running the simulation!
-run!(simulation; pickup=true)
+run!(simulation; pickup=false)
 
 
 
