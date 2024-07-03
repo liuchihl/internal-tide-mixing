@@ -59,7 +59,7 @@ grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse))
 
 # Environmental parameters
 N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
-f₀ = -5.5e-5            # Coriolis frequency
+f₀ = 0#-5.5e-5            # Coriolis frequency
 θ = 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
 κ₀ = 5.2e-4             # Far-Field diffusivity
@@ -80,7 +80,7 @@ w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))
 # no-flux boundary condition
 normal = -N^2*cos(θ)    # normal slope 
 # cross = -N^2*sin(θ)     # cross slope
-B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(0),
+B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(normal),
                     west = GradientBoundaryCondition(0), east = GradientBoundaryCondition(0))
 B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),
                                 top = GradientBoundaryCondition(0), 
@@ -128,7 +128,7 @@ set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 Δt = (1/N)*0.03
 # Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
-wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
+wizard = TimeStepWizard(cfl=20, diffusive_cfl=0.2)
 simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(1000))
 
 ## Diagnostics
@@ -146,7 +146,7 @@ fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_forcing_c
 
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(100days),
+                                        schedule=TimeInterval(200days),
                                         dir=fname,
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=true)
@@ -159,7 +159,7 @@ simulation.output_writers[:checkpointer] = Checkpointer(
 #                                        filename = string("output/", fname, "_slices.nc"),
 # 			                  		   overwrite_existing = true)
  #1) z
-simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b),
+simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b, uhat=û),
                                        schedule = TimeInterval(Δtᵒ),
                                        indices = (1,1,:), # center of the domain (on the canyon)
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
