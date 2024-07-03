@@ -17,14 +17,14 @@ using GLMakie
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "5days"
+suffix = "50days"
 
 ## Simulation parameters
  Nx = 1  #150 #250 500 1000
  Ny = 1 #300 #500 1000 2000
  Nz = 250 #250
 
- tᶠ = 5days # simulation run time
+ tᶠ = 500days # simulation run time
  Δtᵒ = 0.5days # interval for saving output
 
  H = 2kilometers
@@ -113,7 +113,7 @@ model = NonhydrostaticModel(
     closure = closure,
     tracers = :b,
     timestepper = :RungeKutta3,
-    background_fields = (; background_closure_fluxes=true, b=B̄_field),
+    background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
 )
 
 # IC such that flow is in phase with predicted linear response, but otherwise quiescent
@@ -146,10 +146,10 @@ fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_forcing_c
 
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(1000days),
+                                        schedule=TimeInterval(50days),
                                         dir=fname,
                                         prefix=string(fname, "_checkpoint"),
-                                        cleanup=true)
+                                        cleanup=false)
 #  #1) xz
 # simulation.output_writers[:slice_xz_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b),
 #                                        schedule = TimeInterval(Δtᵒ),
@@ -165,7 +165,7 @@ simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, 
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                        verbose=true,
                                        filename = string("output/", fname, "_z.nc"),
-			                  		   overwrite_existing = true)
+			                  		   overwrite_existing = false)
 
 ## Progress messages
 
@@ -177,7 +177,7 @@ progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
 ## Running the simulation!
-run!(simulation; pickup=false)
+run!(simulation; pickup=true)
 
 
 
