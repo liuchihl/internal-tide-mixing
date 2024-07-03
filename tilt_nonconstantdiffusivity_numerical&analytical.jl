@@ -17,18 +17,18 @@ using GLMakie
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "20days"
+suffix = "50days"
 
 ## Simulation parameters
- Nx = 1  #150 #250 500 1000
+ Nx = 4  #150 #250 500 1000
  Ny = 1 #300 #500 1000 2000
  Nz = 250 #250
 
- tᶠ = 20days # simulation run time
+ tᶠ = 50days # simulation run time
  Δtᵒ = 0.5days # interval for saving output
 
  H = 2kilometers
- Lx = 500meters#15kilometers
+ Lx = 1500meters#15kilometers
  Ly = 500meters
 
 ## Create grid
@@ -47,12 +47,12 @@ kwarp(k, N) = (N + 1 - k) / N
 z_faces(k) = - H * (ζ(k, Nz, 1) * Σ(k, Nz, 10) - 1)
 
 
-grid = RectilinearGrid(size=(Nz), 
+grid = RectilinearGrid(size=(Nx, Nz), 
         x = (0, Lx),
         y = (0, Ly),
         z = z_faces,
-        halo = (4),
-        topology = (Oceananigans.Flat, Oceananigans.Flat, Bounded)
+        halo = (1, 4),
+        topology = (Oceananigans.Periodic, Oceananigans.Flat, Bounded)
 )
 bottomimmerse = 0   # if immersed boundary is at z=0, no effect of gradient BC is found
 grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse)) 
@@ -70,13 +70,15 @@ h = 230meter            # decay scale of diffusivity
 ν₁ = κ₁
 
 # diffusivity
-@inline κ(z,t) = κ₀ + κ₁*exp(-z / h)
+@inline κ(x,z,t) = κ₀ + κ₁*exp(-z / h)
 closure = ScalarDiffusivity(;κ=κ, ν=κ)
 
-u_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
-v_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
-w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
+# u_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
+# v_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
+# w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))  
 
+noslip_freeslip = FieldBoundaryConditions(bottom = ValueBoundaryCondition(0.0),top = FluxBoundaryCondition(nothing))
+noslip = FieldBoundaryConditions(ValueBoundaryCondition(0.0))
 # no-flux boundary condition
 normal = -N^2*cos(θ)    # normal slope 
 # cross = -N^2*sin(θ)     # cross slope
@@ -101,14 +103,14 @@ B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^
 # Tidal forcing 
 U₀ = 0#0.025
 ω₀ = 1.4e-4
-u_tidal_forcing(z, t) = U₀*ω₀*sin(ω₀*t)
+u_tidal_forcing(x, z, t) = U₀*ω₀*sin(ω₀*t)
 
 model = NonhydrostaticModel(
     grid = grid_immerse,
     advection = WENO(),
     buoyancy = buoyancy,
     coriolis = coriolis,
-    boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs,  b = B_bcs,),
+    boundary_conditions=(u=noslip_freeslip, v=noslip_freeslip, w=noslip,  b = B_bcs,),
     forcing = (u = u_tidal_forcing,),
     closure = closure,
     tracers = :b,
@@ -118,9 +120,9 @@ model = NonhydrostaticModel(
 
 # IC such that flow is in phase with predicted linear response, but otherwise quiescent
 Uᵣ = U₀ * ω₀^2/(ω₀^2 - f₀^2 - (N*sin(θ))^2) # quasi-resonant linear barotropic response
-uᵢ(z) = -Uᵣ
-vᵢ(z) = 0.
-bᵢ(z) = 1e-5*N^2*z + 1e-9*rand() # seed infinitesimal perturbations in buoyancy field
+uᵢ(x,z) = -Uᵣ
+vᵢ(x,z) = 0.
+bᵢ(x,z) = 1e-5*N^2*z + 1e-9*rand() # seed infinitesimal perturbations in buoyancy field
 
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
@@ -128,7 +130,7 @@ set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 Δt = (1/N)*0.03
 # Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
-wizard = TimeStepWizard(cfl=20, diffusive_cfl=0.2)
+wizard = TimeStepWizard(cfl=100, diffusive_cfl=0.2)
 simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(1000))
 
 ## Diagnostics
@@ -141,12 +143,12 @@ u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 Bz = @at (Center, Center, Center) ∂z(B)            
 
-fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_forcing_coarse_top0_bottomnonzero")
+fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4")
 
 
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(200days),
+                                        schedule=TimeInterval(10days),
                                         dir=fname,
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=true)
@@ -159,7 +161,7 @@ simulation.output_writers[:checkpointer] = Checkpointer(
 #                                        filename = string("output/", fname, "_slices.nc"),
 # 			                  		   overwrite_existing = true)
  #1) z
-simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b, uhat=û),
+simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b, uhat=û, u=u),
                                        schedule = TimeInterval(Δtᵒ),
                                        indices = (1,1,:), # center of the domain (on the canyon)
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
