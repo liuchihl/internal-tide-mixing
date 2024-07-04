@@ -17,19 +17,19 @@ using GLMakie
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "10days"
+suffix = "500days"
 
 ## Simulation parameters
  Nx = 4  #150 #250 500 1000
  Ny = 4 #300 #500 1000 2000
- Nz = 250 #250
+ Nz = 80 #250
 
- tᶠ = 10days # simulation run time
- Δtᵒ = 0.5days # interval for saving output
+ tᶠ = 500days # simulation run time
+ Δtᵒ = 5hours#0.5days # interval for saving output
 
  H = 2kilometers
- Lx = 1500meters#15kilometers
- Ly = 1500meters
+ Lx = 500meters#15kilometers
+ Ly = 500meters
 
 ## Create grid
 # Creates a vertical grid with near-constant spacing `refinement * Lz / Nz` near the bottom:
@@ -44,25 +44,31 @@ kwarp(k, N) = (N + 1 - k) / N
 # large refinement gets better resolution at the bottom but coarser at the surface
 # large stretching: resolution difference between the bottom and surface increases
 # z_faces(k) = - H * (ζ(k, Nz, 1.8) * Σ(k, Nz, 10) - 1)
-z_faces(k) = - H * (ζ(k, Nz, 1) * Σ(k, Nz, 10) - 1)
+z_faces(k) = - H * (ζ(k, Nz, 1.3) * Σ(k, Nz, 10) - 1)
 
 
 grid = RectilinearGrid(size=(Nx, Ny, Nz), 
         x = (0, Lx),
         y = (0, Ly),
         z = z_faces,
-        halo = (4,4, 4),
+        halo = (2,2,2),
         topology = (Oceananigans.Periodic, Oceananigans.Periodic, Bounded)
 )
 bottomimmerse = 0   # if immersed boundary is at z=0, no effect of gradient BC is found
 grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse)) 
 
+
+# Sinusoidal topography of height h and mode number n
+# topog = [0 0 0 0; 0 0 0 0; 0 0 0 0; 1 1 1 1]
+# # Create immersed boundary grid
+# grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBoundary(topog))
+
 # Environmental parameters
 N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
-f₀ = -5.5e-5            # Coriolis frequency
+f₀ = -5.5e-4            # Coriolis frequency
 θ = 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
-κ₀ = 5.2e-4             # Far-Field diffusivity
+κ₀ = 6e-3#5.2e-4             # Far-Field diffusivity
 κ₁ = 1.8e-3             # Bottom enhancement of diffusivity
 h = 230meter            # decay scale of diffusivity
 σ = 1                   # Prandtl number
@@ -127,11 +133,11 @@ bᵢ(x, y, z) = 1e-5*N^2*z + 1e-9*rand() # seed infinitesimal perturbations in b
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-Δt = (1/N)*0.03
+Δt = 300#(1/N)*0.03
 # Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
-wizard = TimeStepWizard(cfl=1, diffusive_cfl=0.2)
-simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(100))
+# wizard = TimeStepWizard(cfl=.5, diffusive_cfl=.5)
+# simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(1))
 
 ## Diagnostics
 b = model.tracers.b
@@ -148,7 +154,7 @@ fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4_Ny4")
 
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(200days),
+                                        schedule=TimeInterval(500days),
                                         dir=fname,
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=true)
@@ -171,11 +177,11 @@ simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, 
 
 ## Progress messages
 
-progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.2e
+progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, max|u|: %.2e, Δt: %.2e
                             advective CFL: %.2e, diffusive CFL: %.2e\n",
                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-                            s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
+                            s.model.clock.time, maximum(abs, model.velocities.w), maximum(abs, model.velocities.u),
+                            s.Δt, AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
 ## Running the simulation!
