@@ -17,14 +17,14 @@ using GLMakie
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "500days"
+suffix = "250days"
 
 ## Simulation parameters
  Nx = 4  #150 #250 500 1000
  Ny = 4 #300 #500 1000 2000
  Nz = 80 #250
 
- tᶠ = 500days # simulation run time
+ tᶠ = 250days # simulation run time
  Δtᵒ = 5hours#0.5days # interval for saving output
 
  H = 2kilometers
@@ -66,7 +66,7 @@ grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse))
 # Environmental parameters
 N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
 f₀ = -5.5e-4            # Coriolis frequency
-θ = 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+θ = 2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
 κ₀ = 6e-3#5.2e-4             # Far-Field diffusivity
 κ₁ = 1.8e-3             # Bottom enhancement of diffusivity
@@ -149,12 +149,12 @@ u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 Bz = @at (Center, Center, Center) ∂z(B)            
 
-fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4_Ny4")
+fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4_Ny4_smallf")
 
 
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(500days),
+                                        schedule=TimeInterval(250days),
                                         dir=fname,
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=true)
