@@ -17,14 +17,14 @@ using GLMakie
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "50days"
+suffix = "100days"
 
 ## Simulation parameters
  Nx = 4  #150 #250 500 1000
  Ny = 4 #300 #500 1000 2000
  Nz = 250 #250
 
- tᶠ = 50days # simulation run time
+ tᶠ = 100days # simulation run time
  Δtᵒ = 5hours#0.5days # interval for saving output
 
  H = 2kilometers
@@ -54,19 +54,17 @@ grid = RectilinearGrid(size=(Nx, Ny, Nz),
         halo = (2,2,2),
         topology = (Oceananigans.Periodic, Oceananigans.Periodic, Bounded)
 )
-bottomimmerse = 0   # if immersed boundary is at z=0, no effect of gradient BC is found
-grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse)) 
+# bottomimmerse = 0   # if immersed boundary is at z=0, no effect of gradient BC is found
+# grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse)) 
 
-
-# Sinusoidal topography of height h and mode number n
-# topog = [0 0 0 0; 0 0 0 0; 0 0 0 0; 1 1 1 1]
-# # Create immersed boundary grid
-# grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBoundary(topog))
+topog = [0 100 0 0; 0 100 0 0; 0 100 0 0; 100 100 100 100]
+# Create immersed boundary grid
+grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(topog))
 
 # Environmental parameters
 N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
 f₀ = -5.5e-5            # Coriolis frequency
-θ = 1#2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+θ = 2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
 κ₀ = 6e-3#5.2e-4             # Far-Field diffusivity
 κ₁ = 1.8e-3             # Bottom enhancement of diffusivity
@@ -83,13 +81,16 @@ closure = ScalarDiffusivity(;κ=κ, ν=κ)
 # v_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
 # w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))  
 
-noslip_freeslip = FieldBoundaryConditions(bottom = ValueBoundaryCondition(0.0),top = FluxBoundaryCondition(nothing))
-noslip = FieldBoundaryConditions(ValueBoundaryCondition(0.0))
+noslip_freeslip = FieldBoundaryConditions(bottom = ValueBoundaryCondition(0.0),
+                                          top = FluxBoundaryCondition(nothing),
+                                          immersed=ValueBoundaryCondition(0.0))
+noslip = FieldBoundaryConditions(ValueBoundaryCondition(0.0),
+                                immersed=ValueBoundaryCondition(0.0))
 # no-flux boundary condition
 normal = -N^2*cos(θ)    # normal slope 
-# cross = -N^2*sin(θ)     # cross slope
+cross = -N^2*sin(θ)     # cross slope
 B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(normal),
-                    west = GradientBoundaryCondition(0), east = GradientBoundaryCondition(0))
+                    west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(cross))
 B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),
                                 top = GradientBoundaryCondition(0), 
                                 immersed=B_immerse);
@@ -149,7 +150,7 @@ u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 Bz = @at (Center, Center, Center) ∂z(B)            
 
-fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4_Ny4")
+fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4_Ny4_immersed")
 
 
 simulation.output_writers[:checkpointer] = Checkpointer(
@@ -159,21 +160,21 @@ simulation.output_writers[:checkpointer] = Checkpointer(
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=true)
 #  #1) xz
-# simulation.output_writers[:slice_xz_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b),
-#                                        schedule = TimeInterval(Δtᵒ),
-#                                        indices = (:,1,:), # center of the domain (on the canyon)
-#                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
-#                                        verbose=true,
-#                                        filename = string("output/", fname, "_slices.nc"),
-# 			                  		   overwrite_existing = true)
- #1) z
-simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b, uhat=û, u=u),
+simulation.output_writers[:slice_xz_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b,u=u),
                                        schedule = TimeInterval(Δtᵒ),
                                        indices = (:,1,:), # center of the domain (on the canyon)
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                        verbose=true,
-                                       filename = string("output/", fname, "_z.nc"),
+                                       filename = string("output/", fname, "_slices.nc"),
 			                  		   overwrite_existing = true)
+ #1) z
+# simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b, uhat=û, u=u),
+#                                        schedule = TimeInterval(Δtᵒ),
+#                                        indices = (:,1,:), # center of the domain (on the canyon)
+#                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
+#                                        verbose=true,
+#                                        filename = string("output/", fname, "_z.nc"),
+# 			                  		   overwrite_existing = true)
 
 ## Progress messages
 
