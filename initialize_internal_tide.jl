@@ -1,6 +1,7 @@
 using Printf
 using Oceananigans
 using Oceananigans.Units
+using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using LinearAlgebra
 using Adapt
@@ -11,7 +12,7 @@ using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using Interpolations
 using CUDA
 
-function initialize_internal_tide(θ; Nx=500, Ny=1000, Nz=250, output_writer=true)
+function initialize_internal_tide(θ; Nx, Ny, Nz, U₀, closure, output_writer=true)
 
 
 function log_gpu_memory_usage()
@@ -26,11 +27,11 @@ end
 suffix = "5days"
 
 ## Simulation parameters
- Nx = 500 #250 500 1000
- Ny = 1000 #500 1000 2000
- Nz = 250
+ Nx = Nx #250 500 1000
+ Ny = Ny #500 1000 2000
+ Nz = Nz
 
- tᶠ = 20days # simulation run time
+ tᶠ = 5days # simulation run time
  Δtᵒ = 30minutes # interval for saving output
 
  H = 3.5kilometers # 6.e3 # vertical extent
@@ -89,7 +90,7 @@ y_interp = range(y_topo[1],y_topo[end], length=Ny)
 # Interpolation object (caches coefficients and such)
 itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 # Interpolate z_topo onto a higher-resolution grid
-itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
+# itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 z_interp = [itp(x_topo_lin, y_topo_lin) for x_topo_lin in x_interp, y_topo_lin in y_interp]
 z_interp = z_interp.-minimum(z_interp)
 
@@ -125,25 +126,23 @@ drag_bc_v = FluxBoundaryCondition(drag_v, field_dependencies=(:u, :v), parameter
 immersed_drag_bc_u = FluxBoundaryCondition(immersed_drag_u, field_dependencies=(:u, :v), parameters=(; cᴰ))
 immersed_drag_bc_v = FluxBoundaryCondition(immersed_drag_v, field_dependencies=(:u, :v), parameters=(; cᴰ))
 
-u_immerse = ImmersedBoundaryCondition(top=immersed_drag_bc_u)
-v_immerse = ImmersedBoundaryCondition(top=immersed_drag_bc_v)
+u_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_u)
+v_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_v)
 
-u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, immersed=u_immerse)
-v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, immersed=v_immerse)
-# ImpenetrableBoundaryCondition is used as default at other non-immersed boundary points
-w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
+u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
+v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
+w_bcs = FieldBoundaryConditions(bottom = ValueBoundaryCondition(0.0), immersed=ValueBoundaryCondition(0.0))   
 
-# no-flux boundary condition
+# tracer: no-flux boundary condition
 normal = -N^2*cos(θ)    # normal slope 
 cross = -N^2*sin(θ)     # cross slope
-# directions are defined relative to non-immersed grids
 B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(normal),
-                    west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(-cross))
-B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),immersed=B_immerse);
-
+                    west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(cross))
+    B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),immersed=B_immerse);
+# Note: (1) directions are defined relative to non-immersed grids. (2) Gradients are positive in the direction of the coordinate  
 
 # Tidal forcing
- U₀ = 0.025
+ U₀ = U₀
  ω₀ = 1.4e-4
 u_tidal_forcing(x, y, z, t) = U₀*ω₀*sin(ω₀*t)
 
@@ -174,7 +173,7 @@ model = NonhydrostaticModel(
     coriolis = coriolis,
     boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs,  b = B_bcs,),
     forcing = (u = u_tidal_forcing,),
-    closure = ScalarDiffusivity(; ν=1e-4, κ=1e-4),
+    closure = closure
     tracers = :b,
     timestepper = :RungeKutta3,
     background_fields = (; b=B̄_field),
@@ -207,19 +206,27 @@ ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
 ν = model.closure.ν
 κ = model.closure.κ
 
+Bz = @at (Center, Center, Center) ∂z(B)
+uz = Field(∂z(û))
+vz = Field(∂z(v))
+Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=true)
+
 # Oceanostics
-KE = KineticEnergy(model)
+# KE = KineticEnergy(model)
 # PE = PotentialEnergy(model)
 ε = KineticEnergyDissipationRate(model)
-χ = TracerVarianceDissipationRate(model, :b)
+χ = TracerVarianceDissipationRate(model, :b)/Bz
+# Γ = χ/ε
 wb = BuoyancyProductionTerm(model)
 
 
-state_diags = merge(model.velocities, model.tracers)
-Oceanostics_diags = (; KE, ε, wb, χ)
-custom_diags = (; uhat=û, what=ŵ,B=B)
-all_diags = merge(state_diags,Oceanostics_diags,custom_diags)
-slice_diags = (;ε, χ, uhat=û, what=ŵ, B=B)
+# state_diags = merge(model.velocities, model.tracers)
+# Oceanostics_diags = (; KE, ε, wb, χ)
+# custom_diags = (; uhat=û, what=ŵ,B=B)
+# all_diags = merge(state_diags,Oceanostics_diags,custom_diags)
+field_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
 
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx,"_Nz",Nz)
 # dir = "output/supercritical_tilt/"
@@ -228,7 +235,7 @@ if output_writer
 # checkpoint  
 simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
-                                        schedule=TimeInterval(10days),
+                                        schedule=TimeInterval(5days),
                                         dir=dir,
                                         prefix=string(fname, "_checkpoint"),
                                         cleanup=false)
@@ -239,38 +246,48 @@ simulation.output_writers[:checkpointer] = Checkpointer(
 #                                         filename = string(dir, fname, "_fields_5_15days.nc"),
 #                                         overwrite_existing = true)
 # output 3D field time window average data
-output_interval = 10days #(2π/ω₀/86400)days
+tidal_period = (2π/ω₀/86400)days
 simulation.output_writers[:nc_fields_timeavg] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, b=b),
                                         verbose=true,
-                                        filename = string(dir, fname, "_fields_timeavg_0_20.nc"),
+                                        filename = string(dir, fname, "_fields_timeavg_50_60.nc"),
                                         overwrite_existing = true,
-                                        schedule = AveragedTimeInterval(output_interval,window=(2π/ω₀/86400)days, stride=2))
+                                        schedule = AveragedTimeInterval(tidal_period, window=tidal_period, stride=1))
 # output 2D slices
 #1) xz
 simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-                                        schedule = TimeInterval(2Δtᵒ),
+                                        schedule = TimeInterval(Δtᵒ),
                                         indices = (:,Ny÷2,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_0_20_xz.nc"),
+                                        filename = string(dir, fname, "_slices_50_60_xz.nc"),
                                         overwrite_existing = true)
 #2) xy
 ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
 simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                        schedule = TimeInterval(2Δtᵒ),
+                                        schedule = TimeInterval(Δtᵒ),
                                         indices = (:,:,ind), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_0_20_xy.nc"),
+                                        filename = string(dir, fname, "_slices_50_60_xy.nc"),
                                         overwrite_existing = true)
 #3) yz
 simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-                                        schedule = TimeInterval(2Δtᵒ),
+                                        schedule = TimeInterval(Δtᵒ),
                                         indices = (Nx÷2,:,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_0_20_yz.nc"),
+                                        filename = string(dir, fname, "_slices_50_60_yz.nc"),
                                         overwrite_existing = true)
+
+# 1D profile
+simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
+                                        schedule = TimeInterval(Δtᵒ÷30),
+                                        indices = (Nx÷2,Ny÷2,:), # center of the domain (on the canyon)
+                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
+                                        verbose=true,
+                                        filename = string(dir, fname, "_point_50_60_center.nc"),
+                                        overwrite_existing = true)
+
 end
 ## Progress messages
 progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
