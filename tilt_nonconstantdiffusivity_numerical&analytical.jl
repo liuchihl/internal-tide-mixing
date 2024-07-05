@@ -17,15 +17,15 @@ using GLMakie
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "100days"
+suffix = "8days"
 
 ## Simulation parameters
  Nx = 4  #150 #250 500 1000
  Ny = 4 #300 #500 1000 2000
  Nz = 250 #250
 
- tᶠ = 100days # simulation run time
- Δtᵒ = 5hours#0.5days # interval for saving output
+ tᶠ = 8days # simulation run time
+ Δtᵒ = 1hours#0.5days # interval for saving output
 
  H = 2kilometers
  Lx = 500meters#15kilometers
@@ -57,7 +57,7 @@ grid = RectilinearGrid(size=(Nx, Ny, Nz),
 # bottomimmerse = 0   # if immersed boundary is at z=0, no effect of gradient BC is found
 # grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse)) 
 
-topog = [0 100 0 0; 0 100 0 0; 0 100 0 0; 100 100 100 100]
+topog = [0 0 0 0; 0 0 0 0; 200 200 200 200; 0 0 0 0]
 # Create immersed boundary grid
 grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(topog))
 
@@ -88,9 +88,9 @@ noslip = FieldBoundaryConditions(ValueBoundaryCondition(0.0),
                                 immersed=ValueBoundaryCondition(0.0))
 # no-flux boundary condition
 normal = -N^2*cos(θ)    # normal slope 
-cross = -N^2*sin(θ)     # cross slope
+cross = 0#-N^2*sin(θ)     # cross slope
 B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(normal),
-                    west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(cross))
+                    west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(-cross))
 B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),
                                 top = GradientBoundaryCondition(0), 
                                 immersed=B_immerse);
@@ -150,22 +150,22 @@ u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 Bz = @at (Center, Center, Center) ∂z(B)            
 
-fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4_Ny4_immersed")
+fname = string("nonconstantdiffusivity", suffix,"-theta=",string(θ),"_Nx4_Ny4_immersed_nocrossflux")
 
 
-simulation.output_writers[:checkpointer] = Checkpointer(
-                                        model,
-                                        schedule=TimeInterval(250days),
-                                        dir=fname,
-                                        prefix=string(fname, "_checkpoint"),
-                                        cleanup=true)
+# simulation.output_writers[:checkpointer] = Checkpointer(
+#                                         model,
+#                                         schedule=TimeInterval(250days),
+#                                         dir=fname,
+#                                         prefix=string(fname, "_checkpoint"),
+#                                         cleanup=true)
 #  #1) xz
-simulation.output_writers[:slice_xz_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b,u=u),
+simulation.output_writers[:field_xz_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b,u=u),
                                        schedule = TimeInterval(Δtᵒ),
-                                       indices = (:,1,:), # center of the domain (on the canyon)
+                                    #    indices = (:,1,:), # center of the domain (on the canyon)
                                        #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                        verbose=true,
-                                       filename = string("output/", fname, "_slices.nc"),
+                                       filename = string("output/", fname, "_3Dfields.nc"),
 			                  		   overwrite_existing = true)
  #1) z
 # simulation.output_writers[:oneD_z_nc] = NetCDFOutputWriter(model, (;B=B, Bz=Bz, b=b, uhat=û, u=u),
