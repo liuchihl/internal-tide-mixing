@@ -9,7 +9,7 @@ using Statistics
 using BSplineKit
 using LinearAlgebra
 using Interpolations
-
+using NaNStatistics
 
 # function deriv(x,y)
 # spl = interpolate(x, y, BSplineOrder(6))
@@ -31,7 +31,7 @@ function deriv(x,y,dims)
 
 ## load data
 
-filename_field = "output/nonconstantdiffusivity10days-theta=0.002_Nx4_Ny4_z.nc"
+filename_field = "output/nonconstantdiffusivity8days-theta=0.2_Nx4_Ny4_immersed_nocrossflux_3Dfields.nc"
 ds_field = Dataset(filename_field,"r")
 bathy_data = "output/supercritical_slope/bathymetry.nc"
 Bathy = Dataset(bathy_data,"r")
@@ -40,15 +40,17 @@ Bathy = Dataset(bathy_data,"r")
 
 # grids
 zC = ds_field["zC"]; Nz=length(zC)
+# zF = ds_field["zF"]; Nz=length(zF)
 xC = ds_field["xC"]; Nx=length(xC)
+xF = ds_field["xF"]; Nx=length(xF)
 yC = ds_field["yC"]; Ny=length(yC)
 t = ds_field["time"];
 
 # load all data
-B = ds_field["B"].var;       B = B[:,:,:,:];
-Bz = ds_field["Bz"].var;       Bz = Bz[:,:,:,:]*1e6;
-b = ds_field["b"].var;       b = b[:,:,:,:];
-u = ds_field["u"].var; u = u[:,:,:,:];
+B = ds_field["B"].var;          B = B[:,:,:,:];
+Bz = ds_field["Bz"].var;        Bz = Bz[:,:,:,:]*1e6;
+b = ds_field["b"].var;          b = b[:,:,:,:];
+u = ds_field["u"].var;          u = u[:,:,:,:];
 # what = ds_field["what"].var; what = what[:,:,:,:];
 # wb = ds_field["wb"].var;     wb = wb[:,:,:,:];
 # ε = ds_field["ε"].var; ε = ε[:,:,:,:];
@@ -66,37 +68,69 @@ u = ds_field["u"].var; u = u[:,:,:,:];
 # θ = 0#3.6e-3;
 # Bz_bc = ones(size(Bz,1),size(Bz,2),1,size(Bz,4)).*-N^2*cos(θ) 
 # Bz = cat(Bz,Bz_bc,dims=3)
+# Bz_mean = dropdims(nanmean(Bz,dims=1),dims=(1,2))
+# u_mean = dropdims(nanmean(u,dims=1),dims=(1,2))
 
-# B[b.==0] .= NaN
-# Bz[b.==0] .= NaN
-# b[b.==0] .= NaN
-Bz_mean = dropdims(mean(Bz,dims=1),dims=(1,2))
-u_mean = dropdims(mean(u,dims=1),dims=(1,2))
+topog = [0 0 0 0; 0 0 0 0; 200 200 200 200; 0 0 0 0]
+hab = ones(Nx,Ny).*reshape(zC[:],1,1,Nz) .- topog  
+new_height = 0:2:2000   # desired height above bottom grids
+
+@views function terrain_following_fast(hab, u, new_height, Nx, Ny)
+    # u_interp = Matrix{Int}(undef, 3)
+
+    # u_interp = zeros(Nx, Ny, length(new_height), size(u,4))
+    mean_values = zeros(length(new_height), size(u, 4))
+    hab_interp = zeros(size(zC))
+    for i in 1:Nx
+        for j in 1:Ny
+            hab_interp = hab[i, j, :]
+            for tt = 1:size(u,4)
+            itp = Interpolations.interpolate((hab_interp,), u[i, j, :, tt], Gridded(Linear()))
+            itp_extrapolated = Interpolations.extrapolate(itp, Interpolations.Flat())
+            
+            # Directly accumulate the interpolated values into the mean array
+            mean_values[:, tt] .+= itp_extrapolated.(new_height)
+            end
+        end
+    end
+    mean_values ./= (Nx * Ny)
+
+    return mean_values
+end
+# call the function to get the terrain following averaged velocity (assuming u is a 4D matrix) 
+
+ u_avg = terrain_following_fast(hab, u, new_height, Nx, Ny);
+ Bz_avg = terrain_following_fast(hab, Bz, new_height, Nx, Ny);
+
+ u[u.==0] .=NaN
+ B[b.==0] .= NaN
+ Bz[b.==0] .= NaN
+ b[b.==0] .= NaN
 
  
 ## analytical steady solution from Callies 2018
 # Environmental parameters
 N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
 f₀ = -5.5e-5            # Coriolis frequency
-θ = 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+θ = 2e-1#2e-1#2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
-κ₀ = 5.2e-4             # Far-Field diffusivity
+κ₀ = 6e-3 #5.2e-5 #  # Far-Field diffusivity
 κ₁ = 1.8e-3             # Bottom enhancement of diffusivity
 h = 230meter            # decay scale of diffusivity
 σ = 1                   # Prandtl number
 ν₀ = κ₀
 ν₁ = κ₁
-
 z = zC[:]
+z_anal = range(0,zC[end],2000)
 S = N^2*tan(θ)^2/f₀^2
 q = (f₀^2*cos(θ)^2*(1+S*σ) / (4*(ν₀+ν₁)^2))^(1/4)
 
-Bz_analytical = @. N^2*cos(θ)*(κ₀./(κ₀+κ₁*exp(-z/h)) + 
-       κ₁*exp(-z/h)/(κ₀+κ₁*exp(-z/h))*S*σ/(1+S*σ) -
-       (κ₀/(κ₀+κ₁)+κ₁/(κ₀+κ₁)*S*σ/(1+S*σ))*exp(-q*z)*(cos(q*z)+sin(q*z))
+Bz_analytical = @. N^2*cos(θ)*(κ₀./(κ₀+κ₁*exp(-z_anal/h)) + 
+       κ₁*exp(-z_anal/h)/(κ₀+κ₁*exp(-z_anal/h))*S*σ/(1+S*σ) -
+       (κ₀/(κ₀+κ₁)+κ₁/(κ₀+κ₁)*S*σ/(1+S*σ))*exp(-q*z_anal)*(cos(q*z_anal)+sin(q*z_anal))
      )
-u_analytical = @. κ₁*cot(θ)*exp(-z/h)/h *(S*σ/(1+S*σ)) +
-                2*q*cot(θ)*(κ₀+κ₁*S*σ/(1+S*σ))*exp(-q*z)*sin(q*z) 
+u_analytical = @. -κ₁*cot(θ)*exp(-z_anal/h)/h *(S*σ/(1+S*σ)) +
+                2*q*cot(θ)*(κ₀+κ₁*S*σ/(1+S*σ))*exp(-q*z_anal)*sin(q*z_anal) 
 
 # close(ds_field)
 # close(ds_slice)
@@ -120,8 +154,8 @@ Bₙ = @lift(B[:,1,:,$n])
 # B_profileₙ = @lift(B[15,1,:,$n])
 Bzₙ = @lift(Bz[:,1,:,$n])
 bₙ = @lift(b[:,1,:,$n])
-Bz_profileₙ = @lift(Bz_mean[:,$n])
-u_profileₙ = @lift(u_mean[:,$n])
+Bz_profileₙ = @lift(Bz_avg[:,$n])
+u_profileₙ = @lift(u_avg[:,$n])
 # dBdzₙ = @lift interior(dBdz[$n], :, 1, :)
 # dûdzₙ = @lift interior(dûdz[$n], :, 1, :)
 
@@ -129,24 +163,24 @@ u_profileₙ = @lift(u_mean[:,$n])
 fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,600));
 fs = 20
 axis_kwargs = (xlabel = "zonal distance (x)",
-                  ylabel = "elevation (z)",
-                  limits = ((0, ds_field["xF"][end]), (0, 2000)), 
+                  ylabel = "elevation (m)",
+                  limits = ((0, 500), (0, 500)), 
                   xlabelsize = fs,
                   ylabelsize = fs,
                   xticklabelsize = fs,
                   yticklabelsize = fs,
                   titlesize = fs
                   )
-axis_kwargs_Bz = (ylabel = "elevation (z)",
-                  limits = ((0, 2), (0, 2000)), 
+axis_kwargs_Bz = (ylabel = "hab (m)",
+                  limits = ((0, 2), (0, 100)), 
                   xlabelsize = fs,
                   ylabelsize = fs,
                   xticklabelsize = fs,
                   yticklabelsize = fs,
                   titlesize = fs
                   )
-axis_kwargs_u = (ylabel = "elevation (z)",
-                  limits = ((-.05, .05), (0, 2000)), 
+axis_kwargs_u = (ylabel = "hab (m)",
+                  limits = ((-.005, .005), (0, 100)), 
                   xlabelsize = fs,
                   ylabelsize = fs,
                   xticklabelsize = fs,
@@ -160,10 +194,10 @@ axis_kwargs_u = (ylabel = "elevation (z)",
 # ax_ε = Axis(fig[2, 1]; title = "TKE dissipation rate (ε) and equally-spaced buoyancy contours (B)", axis_kwargs...)
 title = @lift @sprintf("t=%1.2f day", t[$n]/86400)
 fig[1, :] = Label(fig, title, fontsize=20, tellwidth=false)
-# ax_b = Axis(fig[2, 1]; title = "b", axis_kwargs...)
-# ax_Bz = Axis(fig[3, 1]; title = L"B_z×10^{-6}", axis_kwargs...)
-ax_Bprofile = Axis(fig[2, 1]; title = L"B_z×10^{-6}", axis_kwargs_Bz...)
-ax_u = Axis(fig[2, 2]; title = "u", axis_kwargs_u...)
+ax_b = Axis(fig[2, 1]; title = "b", axis_kwargs...)
+ax_Bz = Axis(fig[3, 1]; title = L"B_z×10^{-6}", axis_kwargs...)
+ax_Bprofile = Axis(fig[2, 3]; title = L"B_z×10^{-6}", axis_kwargs_Bz...)
+ax_u = Axis(fig[3, 3]; title = "u", axis_kwargs_u...)
 
 
 
@@ -178,32 +212,32 @@ ax_u = Axis(fig[2, 2]; title = "u", axis_kwargs_u...)
 # Colorbar(fig[1,2], hm_u)
 # ylims!(ax_u,(0,1000))
 
-# hm_b = heatmap!(ax_b, xC[:], zC[:], bₙ,
-#     colormap = :matter,
-#     lowclip=cgrad(:matter)[1], highclip=cgrad(:matter)[end], colorrange=(0,1e-4))
-# ct_b = contour!(ax_b, xC, zC, Bₙ,
-#     levels=0.:0.25e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
-# Colorbar(fig[2,2], hm_b)
-# # ylims!(ax_B,(0,2000))
+hm_b = heatmap!(ax_b, xC[:], zC[:], bₙ,
+    colormap = :matter,
+    lowclip=cgrad(:matter)[1], highclip=cgrad(:matter)[end], colorrange=(0,1e-4), nancolor=:grey)
+ct_b = contour!(ax_b, xC, zC, Bₙ,
+    levels=0.:0.25e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[2,2], hm_b)
+# ylims!(ax_B,(0,2000))
 
-# hm_Bz = heatmap!(ax_Bz, xC[:], zC[:], Bzₙ,
-#     colorrange = (minimum(Bz),1.8),colormap = :balance,
-#     lowclip=cgrad(:matter)[1], highclip=cgrad(:matter)[end])
-# ct_Bz = contour!(ax_Bz, xC, zC, Bₙ,
-#     levels=0.:0.25e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
-# Colorbar(fig[3,2], hm_Bz)
+hm_Bz = heatmap!(ax_Bz, xC[:], zC[:], Bzₙ,
+    colorrange = (minimum(filter(!isnan,Bz)),maximum(filter(!isnan,Bz)) ),colormap = :balance,
+    lowclip=cgrad(:matter)[1], highclip=cgrad(:matter)[end])
+ct_Bz = contour!(ax_Bz, xC, zC, Bₙ,
+    levels=0.:0.25e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[3,2], hm_Bz)
 
 
-L1 = lines!(ax_Bprofile,Bz_profileₙ,z,linestyle=:solid,color=:black,linewidth=2)
-L2 = lines!(ax_Bprofile,Bz_analytical*1e6,z,color=:red,linewidth=2,linestyle=:dash)
+L1 = lines!(ax_Bprofile,Bz_profileₙ,new_height,linestyle=:solid,color=:black,linewidth=2)
+L2 = lines!(ax_Bprofile,Bz_analytical*1e6,z_anal,color=:red,linewidth=2,linestyle=:dash)
 
 axislegend(ax_Bprofile,[L1, L2],
     [L"\langle B_z \rangle_x",
      "Analytical Sol. (Callies 2018)"],
      position = :lt,framevisible = false, fontsize=25
      )
-lines!(ax_u,u_profileₙ,z,linestyle=:solid,color=:black,linewidth=2)
-lines!(ax_u,u_analytical,z,color=:red,linewidth=2,linestyle=:dash)
+lines!(ax_u,u_profileₙ,new_height,linestyle=:solid,color=:black,linewidth=2)
+lines!(ax_u,u_analytical,z_anal,color=:red,linewidth=2,linestyle=:dash)
 
 frames = (1:length(t))
 filename = join(split(filename_field, ".")[1:end-1], ".")
@@ -212,7 +246,7 @@ record(fig, string(filename,".mp4"), frames, framerate=25) do i
     n[] = i 
 end
 
-close(ds_field)
+# close(ds_field)
 # ### calculate the terrain following avg
 # filename = "output/internal_tide_1days-theta=0.0036_realtopo3D_Nx20_fields.nc"
 # ds = Dataset(filename)
