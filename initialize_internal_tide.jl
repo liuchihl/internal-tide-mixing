@@ -173,7 +173,7 @@ model = NonhydrostaticModel(
     coriolis = coriolis,
     boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs,  b = B_bcs,),
     forcing = (u = u_tidal_forcing,),
-    closure = closure
+    closure = closure,
     tracers = :b,
     timestepper = :RungeKutta3,
     background_fields = (; b=B̄_field),
@@ -229,8 +229,8 @@ slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Ri
 point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
 
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx,"_Nz",Nz)
-# dir = "output/supercritical_tilt/"
-dir = "output/no_tilt/"
+dir = "output/supercritical_tilt/backgroundfluxdivergence_smagorinky"
+# dir = "output/no_tilt/"
 if output_writer
 # checkpoint  
 simulation.output_writers[:checkpointer] = Checkpointer(
@@ -249,7 +249,7 @@ simulation.output_writers[:checkpointer] = Checkpointer(
 tidal_period = (2π/ω₀/86400)days
 simulation.output_writers[:nc_fields_timeavg] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, b=b),
                                         verbose=true,
-                                        filename = string(dir, fname, "_fields_timeavg_50_60.nc"),
+                                        filename = string(dir, fname, "_fields_timeavg_0_5.nc"),
                                         overwrite_existing = true,
                                         schedule = AveragedTimeInterval(tidal_period, window=tidal_period, stride=1))
 # output 2D slices
@@ -259,7 +259,7 @@ simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
                                         indices = (:,Ny÷2,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_50_60_xz.nc"),
+                                        filename = string(dir, fname, "_slices_0_5_xz.nc"),
                                         overwrite_existing = true)
 #2) xy
 ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
@@ -268,7 +268,7 @@ simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
                                         indices = (:,:,ind), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_50_60_xy.nc"),
+                                        filename = string(dir, fname, "_slices_0_5_xy.nc"),
                                         overwrite_existing = true)
 #3) yz
 simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
@@ -276,7 +276,7 @@ simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
                                         indices = (Nx÷2,:,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_slices_50_60_yz.nc"),
+                                        filename = string(dir, fname, "_slices_0_5_yz.nc"),
                                         overwrite_existing = true)
 
 # 1D profile
@@ -285,7 +285,7 @@ simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
                                         indices = (Nx÷2,Ny÷2,:), # center of the domain (on the canyon)
                                         #max_filesize = 500MiB, #needs to be uncommented when running large simulation
                                         verbose=true,
-                                        filename = string(dir, fname, "_point_50_60_center.nc"),
+                                        filename = string(dir, fname, "_point_0_5_center.nc"),
                                         overwrite_existing = true)
 
 end
