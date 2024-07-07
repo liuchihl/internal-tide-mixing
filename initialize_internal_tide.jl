@@ -131,7 +131,7 @@ v_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_v)
 
 u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
 v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
-w_bcs = FieldBoundaryConditions(bottom = ValueBoundaryCondition(0.0), immersed=ValueBoundaryCondition(0.0))   
+w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))   
 
 # tracer: no-flux boundary condition
 normal = -N^2*cos(θ)    # normal slope 
