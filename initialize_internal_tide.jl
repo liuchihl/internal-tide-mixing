@@ -203,8 +203,8 @@ u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
 
-ν = model.closure.ν
-κ = model.closure.κ
+# ν = model.closure.ν
+# κ = model.closure.κ
 
 Bz = @at (Center, Center, Center) ∂z(B)
 uz = Field(∂z(û))
