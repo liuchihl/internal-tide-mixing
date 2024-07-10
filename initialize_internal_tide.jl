@@ -138,7 +138,8 @@ normal = -N^2*cos(θ)    # normal slope
 cross = -N^2*sin(θ)     # cross slope
 B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(normal),
                     west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(cross))
-    B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),immersed=B_immerse);
+B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),immersed=B_immerse,
+                    top = GradientBoundaryCondition(0));
 # Note: (1) directions are defined relative to non-immersed grids. (2) Gradients are positive in the direction of the coordinate  
 
 # Tidal forcing
