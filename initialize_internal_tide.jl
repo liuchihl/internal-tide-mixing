@@ -124,8 +124,11 @@ B_bcs_immersed = ImmersedBoundaryCondition(
 
 B_bcs = FieldBoundaryConditions(
           bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
+             top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (perodic)
         immersed = B_bcs_immersed);
-# Note: (1) directions are defined relative to non-immersed grids. (2) Gradients are positive in the direction of the coordinate  
+## Notes:
+# (1) directions are defined relative to domain coordinates.
+# (2) Gradients are positive in the direction of the coordinate.
 
 # Tidal forcing
  U₀ = U₀
