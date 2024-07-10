@@ -13,7 +13,7 @@ closure = SmagorinskyLilly()
 simulation = initialize_internal_tide(simname, Nx, Ny, Nz; θ=θ, U₀=U₀, closure=closure)
 
 ## Running the simulation!
-run!(simulation; pickup=true)
+run!(simulation; pickup=false)
 @info """
     Simulation complete.
 """
