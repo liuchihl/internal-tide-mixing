@@ -14,12 +14,12 @@ using CUDA
 
 function initialize_internal_tide(
     simname,
-    θ,
     Nx,
     Ny,
     Nz,
-    U₀,
     closure;
+    θ = 3.6e-3,
+    U₀ = 0.025,
     output_writer=true
     )
 
