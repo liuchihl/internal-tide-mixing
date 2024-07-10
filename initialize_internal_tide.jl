@@ -229,7 +229,7 @@ slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Ri
 point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
 
 fname = string("internal_tide_", suffix,"-theta=",string(θ),"_realtopo3D_Nx",Nx,"_Nz",Nz)
-dir = "output/supercritical_tilt/backgroundfluxdivergence_smagorinky"
+dir = "output/supercritical_tilt/backgroundfluxdivergence_smagorinky/"
 # dir = "output/no_tilt/"
 if output_writer
 # checkpoint  
@@ -247,7 +247,7 @@ simulation.output_writers[:checkpointer] = Checkpointer(
 #                                         overwrite_existing = true)
 # output 3D field time window average data
 tidal_period = (2π/ω₀/86400)days
-simulation.output_writers[:nc_fields_timeavg] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, b=b),
+simulation.output_writers[:nc_fields_timeavg] = NetCDFOutputWriter(model, field_diags,
                                         verbose=true,
                                         filename = string(dir, fname, "_fields_timeavg_0_5.nc"),
                                         overwrite_existing = true,
