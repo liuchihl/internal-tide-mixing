@@ -16,12 +16,12 @@ function initialize_internal_tide(
     simname,
     Nx,
     Ny,
-    Nz,
-    closure;
+    Nz;
+    closure = SmagorinskyLilly(),
     θ = 3.6e-3,
     U₀ = 0.025,
-    output_writer=true
-    )
+    topo_file = "topo.mat"
+)
 
 
 function log_gpu_memory_usage()
@@ -64,7 +64,7 @@ grid = RectilinearGrid(GPU(),size=(Nx, Ny, Nz),
 zC = adapt(Array,znodes(grid, Center()))
 
 # load topography 
-file = matopen("topo.mat")
+file = matopen(topo_file)
 z_topo = read(file, "z_noslope_periodic") 
 x_topo = read(file, "x_domain")
 y_topo = read(file, "y_domain")
