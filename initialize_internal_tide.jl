@@ -17,26 +17,29 @@ function initialize_internal_tide(
     Nx,
     Ny,
     Nz;
+    Δtᵒ,
+    tᶠ,
+    θ,
+    U₀,
+    N,
     closure = SmagorinskyLilly(),
-    θ = 3.6e-3,
-    U₀ = 0.025,
+    output_mode,
+    output_writer,
     topo_file = "topo.mat"
+    
 )
 
 
 function log_gpu_memory_usage()
 # Capture the output of CUDA.memory_status()
-    output = IOBuffer()
-    CUDA.memory_status(output)
+    # output = IOBuffer()
+    mem_info_str = CUDA.memory_status()
 # Convert the captured output to a string
     mem_info_str = String(take!(output))
     return mem_info_str
 end
 
 ## Simulation parameters
- tᶠ = 5days # simulation run time
- Δtᵒ = 30minutes # interval for saving output
-
  H = 3.5kilometers # vertical extent
  Lx = 15kilometers # along-canyon extent
  Ly = 30kilometers # cross-canyon extent
@@ -84,8 +87,7 @@ z_interp = [itp(x, y) for x in x_interp, y in y_interp]
 z_interp = z_interp.-minimum(z_interp)
 
 # Environmental parameters
-N = 1.e-3 # Background Brunt-Väisälä buoyancy frequency (true vertical background buoyancy gradient)
-f₀ = 0.53e-4 # Coriolis frequency
+f₀ = -0.53e-4 # Coriolis frequency
 ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vector in rotated coordinates
 
 # Create immersed boundary grid
@@ -112,7 +114,7 @@ v_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_v)
 
 u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
 v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
-
+w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))  
 # tracer: no-flux boundary condition
 ∂B̄∂z = N^2*cos(θ)
 ∂B̄∂x = N^2*sin(θ)
@@ -199,35 +201,54 @@ Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=tr
 ε = KineticEnergyDissipationRate(model)
 χ = TracerVarianceDissipationRate(model, :b)/Bz
 
-slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+# set the ouput mode:
+if output_mode == "spinup"
+        checkpoint_interval = 10days
+        slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+        threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v,  B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+
+elseif output_mode == "test"
+        checkpoint_interval = tᶠ
+        slice_diags = (; ε, χ, uhat=û, B=B, b=b, Bz=Bz, uhat_z=uz)
+        threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
+
+else output_mode == "analysis"
+        checkpoint_interval = 10days
+        threeD_snapshot_interval=4Δtᵒ
+        slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+        threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+
+end
 
 fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz)
-dir = string("output/",simname)
+dir = string("output/",simname, "/")
 if output_writer
     ## checkpoint  
     simulation.output_writers[:checkpointer] = Checkpointer(
                                             model,
-                                            schedule=TimeInterval(5days),
+                                            schedule=TimeInterval(checkpoint_interval),
                                             dir=dir,
                                             prefix=string(fname, "_checkpoint"),
-                                            cleanup=false)
+                                            cleanup=true)
 
-    ## output 3D field time window average data
+    ## output 3D field time-window average data
     tidal_period = (2π/ω₀/86400)days
-    simulation.output_writers[:nc_fields_timeavg] = NetCDFOutputWriter(model, (; uhat=û, what=ŵ, v=v, b=b),
+    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
                                             verbose=true,
-                                            filename = string(dir, fname, "_fields_timeavg_0_5.nc"),
+                                            filename = string(dir, fname, "_threeD_timeavg.nc"),
                                             overwrite_existing = true,
                                             schedule = AveragedTimeInterval(tidal_period, window=tidal_period, stride=1))
-
+    
+    
     ## output 2D slices
     #1) xz
     simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
                                             schedule = TimeInterval(Δtᵒ),
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
-                                            filename = string(dir, fname, "_slices_0_5_xz.nc"),
+                                            filename = string(dir, fname, "_slices_xz.nc"),
                                             overwrite_existing = true)
     #2) xy
     ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
@@ -235,24 +256,32 @@ if output_writer
                                             schedule = TimeInterval(Δtᵒ),
                                             indices = (:,:,ind),
                                             verbose=true,
-                                            filename = string(dir, fname, "_slices_0_5_xy.nc"),
+                                            filename = string(dir, fname, "_slices_xy.nc"),
                                             overwrite_existing = true)
     #3) yz
     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
                                             schedule = TimeInterval(Δtᵒ),
                                             indices = (Nx÷2,:,:), # center of the domain (along the sill)
                                             verbose=true,
-                                            filename = string(dir, fname, "_slices_0_5_yz.nc"),
+                                            filename = string(dir, fname, "_slices_yz.nc"),
                                             overwrite_existing = true)
-
-    # 1D profile
-    simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
-                                            schedule = TimeInterval(Δtᵒ÷30),
-                                            indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
-                                            verbose=true,
-                                            filename = string(dir, fname, "_point_0_5_center.nc"),
-                                            overwrite_existing = true)
-
+    
+    ## output that is saved only when reaching quasi-equilibrium
+    if output_mode=="analysis"
+        # output 3D field snapshots
+        simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+                                                verbose=true,
+                                                filename = string(dir, fname, "_threeD_timeavg.nc"),
+                                                overwrite_existing = true,
+                                                schedule = TimeInterval(threeD_snapshot_interval))
+        # 1D profile
+        simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
+                                                schedule = TimeInterval(Δtᵒ÷30),
+                                                indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
+                                                verbose=true,
+                                                filename = string(dir, fname, "_point_center.nc"),
+                                                overwrite_existing = true)
+    end
 end
 ## Progress messages
 progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
