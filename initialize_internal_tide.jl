@@ -17,22 +17,22 @@ function initialize_internal_tide(
     Nx,
     Ny,
     Nz;
-    Δtᵒ,
-    tᶠ,
-    θ,
-    U₀,
-    N,
+    Δtᵒ=30minutes,
+    tᶠ=3days,
+    θ=3.6e-3,
+    U₀=0.025,
+    N=1.e-3,
+    f₀ = -0.53e-4,
+    threeD_snapshot_interval=2Δtᵒ,
     closure = SmagorinskyLilly(),
-    output_mode,
-    output_writer,
-    topo_file = "topo.mat"
-    
+    output_mode = "test",
+    output_writer = true,
+    topo_file = "topo.mat",
+    clean = "true"
 )
 
 
 function log_gpu_memory_usage()
-# Capture the output of CUDA.memory_status()
-    # output = IOBuffer()
     mem_info_str = CUDA.memory_status()
 # Convert the captured output to a string
     mem_info_str = String(take!(output))
@@ -87,7 +87,6 @@ z_interp = [itp(x, y) for x in x_interp, y in y_interp]
 z_interp = z_interp.-minimum(z_interp)
 
 # Environmental parameters
-f₀ = -0.53e-4 # Coriolis frequency
 ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vector in rotated coordinates
 
 # Create immersed boundary grid
@@ -114,7 +113,6 @@ v_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_v)
 
 u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
 v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
-w_bcs = FieldBoundaryConditions(immersed=ValueBoundaryCondition(0.0))  
 # tracer: no-flux boundary condition
 ∂B̄∂z = N^2*cos(θ)
 ∂B̄∂x = N^2*sin(θ)
@@ -126,7 +124,7 @@ B_bcs_immersed = ImmersedBoundaryCondition(
 
 B_bcs = FieldBoundaryConditions(
           bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
-             top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (perodic)
+             top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
         immersed = B_bcs_immersed);
 ## Notes:
 # (1) directions are defined relative to domain coordinates.
@@ -160,7 +158,7 @@ model = NonhydrostaticModel(
     advection = WENO(),
     buoyancy = buoyancy,
     coriolis = coriolis,
-    boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs,  b = B_bcs,),
+    boundary_conditions=(u=u_bcs, v=v_bcs,  b = B_bcs,),
     forcing = (u = u_tidal_forcing,),
     closure = closure,
     tracers = :b,
@@ -215,7 +213,6 @@ elseif output_mode == "test"
 
 else output_mode == "analysis"
         checkpoint_interval = 10days
-        threeD_snapshot_interval=4Δtᵒ
         slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
         point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
         threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
@@ -231,14 +228,14 @@ if output_writer
                                             schedule=TimeInterval(checkpoint_interval),
                                             dir=dir,
                                             prefix=string(fname, "_checkpoint"),
-                                            cleanup=true)
+                                            cleanup=clean)
 
     ## output 3D field time-window average data
     tidal_period = (2π/ω₀/86400)days
     simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
                                             verbose=true,
                                             filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                            overwrite_existing = true,
+                                            overwrite_existing = clean,
                                             schedule = AveragedTimeInterval(tidal_period, window=tidal_period, stride=1))
     
     
@@ -249,7 +246,7 @@ if output_writer
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xz.nc"),
-                                            overwrite_existing = true)
+                                            overwrite_existing = clean)
     #2) xy
     ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
     simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
@@ -257,14 +254,14 @@ if output_writer
                                             indices = (:,:,ind),
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xy.nc"),
-                                            overwrite_existing = true)
+                                            overwrite_existing = clean)
     #3) yz
     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
                                             schedule = TimeInterval(Δtᵒ),
                                             indices = (Nx÷2,:,:), # center of the domain (along the sill)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_yz.nc"),
-                                            overwrite_existing = true)
+                                            overwrite_existing = clean)
     
     ## output that is saved only when reaching quasi-equilibrium
     if output_mode=="analysis"
@@ -272,7 +269,7 @@ if output_writer
         simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
                                                 verbose=true,
                                                 filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                                overwrite_existing = true,
+                                                overwrite_existing = clean,
                                                 schedule = TimeInterval(threeD_snapshot_interval))
         # 1D profile
         simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
@@ -280,7 +277,7 @@ if output_writer
                                                 indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
                                                 verbose=true,
                                                 filename = string(dir, fname, "_point_center.nc"),
-                                                overwrite_existing = true)
+                                                overwrite_existing = clean)
     end
 end
 ## Progress messages
