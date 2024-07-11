@@ -4,14 +4,14 @@ using Oceananigans.Units
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using LinearAlgebra
 
-suffix = "40days"
+suffix = "0.1days"
 
 ## Simulation parameters
 Nx = 400
 Ny = 1
 Nz = 128
 
-tᶠ = 40days # simulation run time
+tᶠ = 0.1days # simulation run time
 Δtᵒ = 30minutes # interval for saving output
 
 H = 3kilometers # 6.e3 # vertical extent
@@ -105,9 +105,11 @@ û = @at (Face, Center, Center) u*ĝ[3] + w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] - u*ĝ[1] # true vertical velocity
 
 ν = model.closure.ν
+κ = model.closure.κ
 ε = Field(ν*(∂x(u)^2 + ∂x(v)^2 + ∂x(w)^2 + ∂y(u)^2 + ∂y(v)^2 + ∂y(w)^2 + ∂z(u)^2 + ∂z(v)^2 + ∂z(w)^2))
+χ = @at (Center, Center, Center) κ[1] * (∂x(b)^2 + ∂z(b)^2)
 
-custom_diags = (B=B, uhat=û, what=ŵ, ε=ε,)
+custom_diags = (B=B, uhat=û, what=ŵ, ε=ε, χ=χ)
 all_diags = merge(model.velocities, model.tracers, custom_diags)
 
 fname = string("internal_tide_", suffix,"-theta=",string(θ),".jld2")
