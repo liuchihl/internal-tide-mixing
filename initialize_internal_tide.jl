@@ -11,7 +11,7 @@ using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using Interpolations
 using CUDA
-
+using Suppressor
 function initialize_internal_tide(
     simname,
     Nx,
@@ -33,14 +33,11 @@ function initialize_internal_tide(
 
 
 function log_gpu_memory_usage()
-    mem_info_str = CUDA.memory_status()
-# Convert the captured output to a string
-    mem_info_str = String(take!(output))
-    return mem_info_str
+    return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
 ## Simulation parameters
- H = 3.5kilometers # vertical extent
+ H = 2.25kilometers # vertical extent
  Lx = 15kilometers # along-canyon extent
  Ly = 30kilometers # cross-canyon extent
 
@@ -53,7 +50,7 @@ kwarp(k, N) = (N + 1 - k) / N
 # Bottom-intensified stretching function
 Σ(k, N, stretching) = (1 - exp(-stretching * kwarp(k, N))) / (1 - exp(-stretching))
 # Generating function
-z_faces(k) = - H * (ζ(k, Nz, 1.5) * Σ(k, Nz, 15) - 1)
+z_faces(k) = - H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 15) - 1)
 
 grid = RectilinearGrid(GPU(),size=(Nx, Ny, Nz), 
         x = (0, Lx),
@@ -202,9 +199,9 @@ Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=tr
 # set the ouput mode:
 if output_mode == "spinup"
         checkpoint_interval = 10days
-        slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v,  B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
+        slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz)
+        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz)
+        threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v,  B=B, b=b, Bz=Bz, uhat_z=uz)
 
 elseif output_mode == "test"
         checkpoint_interval = tᶠ
