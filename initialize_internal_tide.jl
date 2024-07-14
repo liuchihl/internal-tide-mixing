@@ -25,10 +25,12 @@ function initialize_internal_tide(
     f₀ = -0.53e-4,
     threeD_snapshot_interval=2Δtᵒ,
     closure = SmagorinskyLilly(),
+    timerange = "",
     output_mode = "test",
     output_writer = true,
     topo_file = "topo.mat",
-    clean = "true"
+    clean_checkpoint = "false",
+    overwrite_output = "true"
 )
 
 
@@ -215,8 +217,7 @@ else output_mode == "analysis"
         threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
 
 end
-
-fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz)
+fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,"_",timerange)
 dir = string("output/",simname, "/")
 if output_writer
     ## checkpoint  
@@ -225,14 +226,14 @@ if output_writer
                                             schedule=TimeInterval(checkpoint_interval),
                                             dir=dir,
                                             prefix=string(fname, "_checkpoint"),
-                                            cleanup=clean)
+                                            cleanup=clean_checkpoint)
 
     ## output 3D field time-window average data
     tidal_period = (2π/ω₀/86400)days
     simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
                                             verbose=true,
                                             filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                            overwrite_existing = clean,
+                                            overwrite_existing = overwrite_output,
                                             schedule = AveragedTimeInterval(tidal_period, window=tidal_period, stride=1))
     
     
@@ -243,7 +244,7 @@ if output_writer
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xz.nc"),
-                                            overwrite_existing = clean)
+                                            overwrite_existing = overwrite_output)
     #2) xy
     ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
     simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
@@ -251,14 +252,14 @@ if output_writer
                                             indices = (:,:,ind),
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xy.nc"),
-                                            overwrite_existing = clean)
+                                            overwrite_existing = overwrite_output)
     #3) yz
     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
                                             schedule = TimeInterval(Δtᵒ),
                                             indices = (Nx÷2,:,:), # center of the domain (along the sill)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_yz.nc"),
-                                            overwrite_existing = clean)
+                                            overwrite_existing = overwrite_output)
     
     ## output that is saved only when reaching quasi-equilibrium
     if output_mode=="analysis"
@@ -266,7 +267,7 @@ if output_writer
         simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
                                                 verbose=true,
                                                 filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                                overwrite_existing = clean,
+                                                overwrite_existing = overwrite_output,
                                                 schedule = TimeInterval(threeD_snapshot_interval))
         # 1D profile
         simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
@@ -274,7 +275,7 @@ if output_writer
                                                 indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
                                                 verbose=true,
                                                 filename = string(dir, fname, "_point_center.nc"),
-                                                overwrite_existing = clean)
+                                                overwrite_existing = overwrite_output)
     end
 end
 ## Progress messages
