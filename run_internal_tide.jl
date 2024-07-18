@@ -8,26 +8,28 @@ const Nx = 500
 const Ny = 1000
 const Nz = 250        
 const Δtᵒ = 30minutes # interval for saving output
-const tᶠ = 25days      # endtime of the simulation
+const tᶠ = 30days      # endtime of the simulation
 const θ = 3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
-threeD_snapshot_interval = 2Δtᵒ
+threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
 closure = SmagorinskyLilly()
 # 3 modes to choose: "spinup", "test", "analysis"
-output_mode = "test"
+output_mode = "analysis"
 output_writer = true
 clean_checkpoint = false         # cleanup checkpoint
 overwrite_output = true          # overwrite existing output (if pickup=true, clean=false, and vice versa)
-timerange = "5-25"
+timerange = "10-30"
 simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                 Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
                                 output_mode=output_mode, output_writer=output_writer,
                                 threeD_snapshot_interval=threeD_snapshot_interval, 
-                                clean_checkpoint=clean, overwrite_output=overwrite_output, closure=closure)
+                                clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
+                                closure=closure, timerange=timerange)
 ## Running the simulation!
-run!(simulation; pickup=true)
+pickup = string("output/", simname, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_5-10_checkpoint_iteration27274.jld2")
+run!(simulation; pickup=pickup)
 @info """
     Simulation complete.
 """
