@@ -46,9 +46,9 @@ run!(simulation; pickup=file)
 
 
 # read file
-file = "MWE/one_dimensional_diffusion.nc"
-ds = Dataset(file,"r")
-t = ds["time"][:]
+# file = "MWE/one_dimensional_diffusion.nc"
+# ds = Dataset(file,"r")
+# t = ds["time"][:]
 
-diff(t)
-close(ds)
+# diff(t)
+# close(ds)
