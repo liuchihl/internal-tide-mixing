@@ -24,6 +24,7 @@ function initialize_internal_tide(
     N=1.e-3,
     f₀ = -0.53e-4,
     threeD_snapshot_interval=2Δtᵒ,
+    architecture=CPU(),
     closure = SmagorinskyLilly(),
     timerange = "",
     output_mode = "test",
@@ -54,7 +55,7 @@ kwarp(k, N) = (N + 1 - k) / N
 # Generating function
 z_faces(k) = - H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 15) - 1)
 
-grid = RectilinearGrid(GPU(),size=(Nx, Ny, Nz), 
+grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz), 
         x = (0, Lx),
         y = (0, Ly), 
         z = z_faces,
@@ -162,7 +163,9 @@ model = NonhydrostaticModel(
     closure = closure,
     tracers = :b,
     timestepper = :RungeKutta3,
-    background_fields = (; b=B̄_field),
+    # background_fields = (; b=B̄_field),
+    background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
+
 )
 
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
@@ -196,12 +199,12 @@ Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=tr
 # KE = KineticEnergy(model)
 # PE = PotentialEnergy(model)
 ε = KineticEnergyDissipationRate(model)
-χ = TracerVarianceDissipationRate(model, :b)/Bz
+χ = TracerVarianceDissipationRate(model, :b)
 
 # set the ouput mode:
 if output_mode == "spinup"
         checkpoint_interval = 10days
-        slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B)
+        slice_diags = (; ε, χ, uhat=û, B=B)
         threeD_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b, Bz=Bz)
 
 elseif output_mode == "test"
@@ -278,12 +281,15 @@ if output_writer
     end
 end
 ## Progress messages
+
 progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
                             advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
                             s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model),
-                            log_gpu_memory_usage())
+                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model) )
+                            # ,log_gpu_memory_usage())
+
+
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
 
