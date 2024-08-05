@@ -11,7 +11,7 @@ using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using Interpolations
 using CUDA
-using Suppressor
+# using Suppressor
 function initialize_internal_tide(
     simname,
     Nx,
@@ -24,7 +24,7 @@ function initialize_internal_tide(
     N=1.e-3,
     f₀ = -0.53e-4,
     threeD_snapshot_interval=2Δtᵒ,
-    architecture=CPU(),
+    architecture=GPU(),
     closure = SmagorinskyLilly(),
     timerange = "",
     output_mode = "test",
@@ -203,7 +203,7 @@ Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=tr
 
 # set the ouput mode:
 if output_mode == "spinup"
-        checkpoint_interval = 10days
+        checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, B=B)
         threeD_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b, Bz=Bz)
 
@@ -213,7 +213,7 @@ elseif output_mode == "test"
         threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
 
 else output_mode == "analysis"
-        checkpoint_interval = 10days
+        checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
         point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
         threeD_diags = (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
@@ -231,12 +231,12 @@ if output_writer
                                             cleanup=clean_checkpoint)
 
     ## output 3D field time-window average data
-    tidal_period = (2π/ω₀/86400)days
+    tidal_period = 2π/ω₀ 
     simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
-                                            verbose=true,
-                                            filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                            overwrite_existing = overwrite_output,
-                                            schedule = AveragedTimeInterval(tidal_period, window=tidal_period, stride=1))
+                                        verbose=true,
+                                        filename = string(dir, fname, "_threeD_timeavg.nc"),
+                                        overwrite_existing = overwrite_output,
+                                        schedule = AveragedTimeInterval(10tidal_period, window=10tidal_period, stride=1))
     
     
     ## output 2D slices
