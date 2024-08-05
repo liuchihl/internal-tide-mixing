@@ -42,9 +42,9 @@ end
 end
 
 
-slope = "tilt"
+slope = "notilt"
 timerange = "0-20"
-θ=3.6e-3
+θ=0#3.6e-3
 
 ###################################
 # load data
