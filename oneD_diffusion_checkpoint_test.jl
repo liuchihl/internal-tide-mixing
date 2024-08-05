@@ -39,7 +39,8 @@ progress_message(s) = @info @sprintf("iteration: %d, time: %.3f, max|w|: %.2e, �
                     s.model.clock.iteration,
                     s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
                     AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(0.01))
+times = [model.clock.time:0.01:0.5]                    
+simulation.callbacks[:progress] = Callback(progress_message, SpecifiedTimes(0.01))
             
 file = "test_MWE/_checkpoint_iteration60.jld2"
 run!(simulation; pickup=file)
