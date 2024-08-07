@@ -163,6 +163,7 @@ model = NonhydrostaticModel(
     closure = closure,
     tracers = :b,
     timestepper = :RungeKutta3,
+    hydrostatic_pressure_anomaly = CenterField(grid),
     # background_fields = (; b=B̄_field),
     background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
 
