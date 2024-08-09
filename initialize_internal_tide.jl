@@ -164,7 +164,6 @@ model = NonhydrostaticModel(
     tracers = :b,
     timestepper = :RungeKutta3,
     hydrostatic_pressure_anomaly = CenterField(grid),
-    # background_fields = (; b=B̄_field),
     background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
 
 )
@@ -201,6 +200,12 @@ Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=tr
 # PE = PotentialEnergy(model)
 ε = KineticEnergyDissipationRate(model)
 χ = TracerVarianceDissipationRate(model, :b)
+
+# buoyancy budget
+include("diagnostics_budget.jl")
+outputs=get_budget_outputs_tuple(model, )
+
+
 
 # set the ouput mode:
 if output_mode == "spinup"
