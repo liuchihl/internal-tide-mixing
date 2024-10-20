@@ -11,14 +11,14 @@ using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using Interpolations
 using CUDA
-# using Suppressor
+using Suppressor
 function initialize_internal_tide(
     simname,
     Nx,
     Ny,
     Nz;
     Δtᵒ=30minutes,
-    tᶠ=3days,
+    tᶠ=6*2π/ω₀,
     θ=3.6e-3,
     U₀=0.025,
     N=1.e-3,
@@ -203,7 +203,7 @@ Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=tr
 
 # buoyancy budget
 include("diagnostics_budget.jl")
-outputs=get_budget_outputs_tuple(model, )
+Bbudget=get_budget_outputs_tuple(model;)
 
 
 
@@ -215,8 +215,10 @@ if output_mode == "spinup"
 
 elseif output_mode == "test"
         checkpoint_interval = tᶠ
-        slice_diags = (; ε, χ, uhat=û, B=B, b=b, Bz=Bz, uhat_z=uz)
-        threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
+        # slice_diags = (; ε, χ, uhat=û, B=B, b=b, Bz=Bz, uhat_z=uz)
+        # threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
+        slice_diags = (; ε, χ, uhat=û, B=B, b=b)
+        threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b)
 
 else output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
@@ -236,13 +238,15 @@ if output_writer
                                             prefix=string(fname, "_checkpoint"),
                                             cleanup=clean_checkpoint)
 
-    ## output 3D field time-window average data
+    ## output 3D field window time average
     tidal_period = 2π/ω₀ 
-    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
+    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, merge(threeD_diags, Bbudget),
                                         verbose=true,
                                         filename = string(dir, fname, "_threeD_timeavg.nc"),
                                         overwrite_existing = overwrite_output,
-                                        schedule = AveragedTimeInterval(10tidal_period, window=10tidal_period, stride=1))
+                                        schedule = AveragedTimeInterval(0.25tidal_period, window=0.25tidal_period, stride=1),
+                                        indices = (:,Ny÷2,:) # take this out when running real simulation
+                                        )
     
     
     ## output 2D slices
@@ -292,8 +296,13 @@ progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w
                             advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
                             s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model) )
-                            # ,log_gpu_memory_usage())
+                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
+                            ,log_gpu_memory_usage())
+# progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
+#                             advective CFL: %.2e, diffusive CFL: %.2e",
+#                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
+#                             s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
+#                             AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
 
 
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
