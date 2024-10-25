@@ -3,12 +3,13 @@
 
 include("initialize_internal_tide.jl")
 
-simname = "tilt"
+simname = "tilt_test_timeaverageinterval"
 const Nx = 500
 const Ny = 1000
 const Nz = 250        
 const Δtᵒ = 30minutes # interval for saving output
-const tᶠ = 60days      # endtime of the simulation
+const ω₀ = 1.4e-4     # tidal freq.
+const tᶠ = 2*2π/ω₀    # endtime of the simulation
 const θ = 3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
@@ -17,11 +18,11 @@ threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis
 closure = SmagorinskyLilly()
 architecture = GPU()
 # 3 modes to choose: "spinup", "test", "analysis"
-output_mode = "spinup"
+output_mode = "test"
 output_writer = true
 clean_checkpoint = false         # cleanup checkpoint
 overwrite_output = true          # overwrite existing output (if pickup=true, clean=false, and vice versa)
-timerange = "40-60"
+timerange = "0-2"
 simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                 Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
                                 output_mode=output_mode, output_writer=output_writer,
@@ -30,7 +31,7 @@ simulation = initialize_internal_tide(simname, Nx, Ny, Nz;
                                 closure=closure, timerange=timerange)
 ## Running the simulation!
 pickup = string("output/", simname, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_20-40_checkpoint_iteration112495.jld2")
-run!(simulation; pickup=pickup)
+run!(simulation; pickup=false)
 @info """
     Simulation complete.
 """

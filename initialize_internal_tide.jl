@@ -9,7 +9,7 @@ using MAT
 using Statistics
 using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
-using Interpolations
+using Interpolations: LinearInterpolation
 using CUDA
 using Suppressor
 function initialize_internal_tide(
@@ -35,9 +35,9 @@ function initialize_internal_tide(
 )
 
 
-function log_gpu_memory_usage()
-    return @capture_out CUDA.memory_status()  # retrieve raw string status
-end
+# function log_gpu_memory_usage()
+#     return @capture_out CUDA.memory_status()  # retrieve raw string status
+# end
 
 ## Simulation parameters
  H = 2.25kilometers # vertical extent
@@ -96,7 +96,9 @@ grid_real = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp))
  z₀ = 0.1 # m (roughness length)
  κ_von = 0.4  # von Karman constant
 
-CUDA.@allowscalar z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+# CUDA.@allowscalar z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+# z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
 cᴰ = (κ_von / log(z₁ / z₀))^2 # Drag coefficient
 # non-immersed and immersed boundary conditions
 @inline drag_u(x, y, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
@@ -165,7 +167,6 @@ model = NonhydrostaticModel(
     timestepper = :RungeKutta3,
     hydrostatic_pressure_anomaly = CenterField(grid),
     background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
-
 )
 
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
@@ -202,8 +203,8 @@ Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=tr
 χ = TracerVarianceDissipationRate(model, :b)
 
 # buoyancy budget
-include("diagnostics_budget.jl")
-Bbudget=get_budget_outputs_tuple(model;)
+# include("diagnostics_budget.jl")
+# Bbudget=get_budget_outputs_tuple(model;)
 
 
 
@@ -240,12 +241,12 @@ if output_writer
 
     ## output 3D field window time average
     tidal_period = 2π/ω₀ 
-    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, merge(threeD_diags, Bbudget),
+    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
                                         verbose=true,
                                         filename = string(dir, fname, "_threeD_timeavg.nc"),
                                         overwrite_existing = overwrite_output,
                                         schedule = AveragedTimeInterval(0.25tidal_period, window=0.25tidal_period, stride=1),
-                                        indices = (:,Ny÷2,:) # take this out when running real simulation
+                                        # indices = (:,Ny÷2,:) # take this out when running real simulation
                                         )
     
     
@@ -292,17 +293,17 @@ if output_writer
 end
 ## Progress messages
 
-progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-                            advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
-                            100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-                            s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
-                            ,log_gpu_memory_usage())
 # progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-#                             advective CFL: %.2e, diffusive CFL: %.2e",
+#                             advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
 #                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
 #                             s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-#                             AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
+#                             AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
+#                             ,log_gpu_memory_usage())
+progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
+                            advective CFL: %.2e, diffusive CFL: %.2e",
+                            100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
+                            s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
+                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
 
 
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
