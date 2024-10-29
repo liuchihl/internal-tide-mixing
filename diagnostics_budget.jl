@@ -1,5 +1,4 @@
-# using CUDA: has_cuda_gpu
-
+using CUDA: has_cuda_gpu
 using Oceananigans
 using Oceananigans.AbstractOperations: @at, ∂x, ∂y, ∂z
 using Oceananigans.Grids: Center, Face
@@ -8,10 +7,9 @@ using Oceananigans.AbstractOperations: KernelFunctionOperation
 using Oceananigans.Advection: div_Uc
 using Oceananigans.TurbulenceClosures: ∇_dot_qᶜ
 using Oceananigans.TurbulenceClosures: immersed_∇_dot_qᶜ
-
 #import Oceananigans.TurbulenceClosures: viscosity, diffusivity
 using Oceananigans.Fields: @compute 
-#using Oceanostics
+
 
 function get_budget_outputs_tuple(model; )
 
@@ -41,9 +39,7 @@ function get_budget_outputs_tuple(model; )
                                         model.closure, diffusivities, Val(:b), model.clock, model.velocities)
     ∇κ∇B = ∇κ∇B_interior + ∇κ∇B_im
     
-    # outputs = merge(model.tracers,(; ∇κ∇Cg=∇κ∇Cg, ∇κ∇B=∇κ∇B, udiv_c = udiv_c, udiv_B=udiv_B, ))
-    # outputs = (; dxκdB=dxκdB,)
-    outputs = (; div_uB=div_uB,  ∇κ∇B= -∇κ∇B)
+    outputs = (; ∇κ∇B= -∇κ∇B)
 
     return outputs
 
