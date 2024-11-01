@@ -1,3 +1,3 @@
-# internal-tide-mixing
+# internal-tide-mixing tests happen here!
 
-This branch checkouts Greg's commit for the background flux divergence term 
+This is a branch that tests all codes and bugs related to internal tide mixing repository
