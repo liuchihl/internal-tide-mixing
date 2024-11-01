@@ -4,12 +4,12 @@ include("diagnostics_budget.jl")
 include("initialize_internal_tide.jl")
 
 simname = "tilt_conjugate_gradient_poisson_solver"
-const Nx = 500
-const Ny = 1000
-const Nz = 250        
+const Nx = 16
+const Ny = 4
+const Nz = 16        
 const Δtᵒ = 30minutes # interval for saving output
 const ω₀ = 1.4e-4     # tidal freq.
-const tᶠ = 4*2π/ω₀    # endtime of the simulation: 40 tidal cycle
+const tᶠ = 0.1*2π/ω₀    # endtime of the simulation: 40 tidal cycle
 const θ = 3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
@@ -17,7 +17,7 @@ const f₀ = -0.53e-4   # Coriolis frequency
 threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
 closure = SmagorinskyLilly()
 solver = "Conjugate Gradient"    # "FFT" or "Conjugate Gradient"
-architecture = GPU()
+architecture = CPU()
 # 3 modes to choose: "spinup", "test", "analysis"
 output_mode = "spinup"
 output_writer = true

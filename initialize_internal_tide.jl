@@ -3,7 +3,7 @@ using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
-using Oceananigans.Models.NonhydrostaticModels: ConjugateGradientPoissonSolver
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver
 using LinearAlgebra
 using Adapt
 using MAT
@@ -58,16 +58,16 @@ kwarp(k, N) = (N + 1 - k) / N
 # Generating function
 z_faces(k) = - H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 15) - 1)
 
-grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz), 
+underlying_grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz), 
         x = (0, Lx),
         y = (0, Ly), 
         z = z_faces,
         halo = (4,4,4),
-        topology = (Oceananigans.Periodic, Oceananigans.Periodic, Bounded)
+        topology = (Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded)
 )
 # yᶜ = ynodes(grid, Center())
 # Δyᶜ = yspacings(grid, Center())
-zC = adapt(Array,znodes(grid, Center()))
+zC = adapt(Array,znodes(underlying_grid, Center()))
 
 # load topography 
 file = matopen(topo_file)
@@ -93,7 +93,7 @@ z_interp = z_interp.-minimum(z_interp)
 ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vector in rotated coordinates
 
 # Create immersed boundary grid
-grid_real = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp))
+grid = ImmersedBoundaryGrid(underlying_grid, GridFittedBottom(z_interp))
 
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
  z₀ = 0.1 # m (roughness length)
@@ -158,7 +158,7 @@ B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^
 
 if solver == "FFT"
     model = NonhydrostaticModel(
-        grid = grid_real,
+        grid = grid,
         advection = WENO(),
         buoyancy = buoyancy,
         coriolis = coriolis,
@@ -171,9 +171,10 @@ if solver == "FFT"
         background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
     )
 else solver == "Conjugate Gradient"
-    model = NonhydrostaticModel(
-        grid = grid_real,
+    model = NonhydrostaticModel(;
+        grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(grid),
+                # grid; preconditioner = fft_poisson_solver(underlying_grid)),
         advection = WENO(),
         buoyancy = buoyancy,
         coriolis = coriolis,
