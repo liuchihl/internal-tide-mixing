@@ -98,9 +98,11 @@ grid = ImmersedBoundaryGrid(underlying_grid, GridFittedBottom(z_interp))
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
  z₀ = 0.1 # m (roughness length)
  κ_von = 0.4  # von Karman constant
-
-CUDA.@allowscalar z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
-# z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+    if architecture==GPU()
+        CUDA.@allowscalar z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+    else
+        z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+    end
 cᴰ = (κ_von / log(z₁ / z₀))^2 # Drag coefficient
 # non-immersed and immersed boundary conditions
 @inline drag_u(x, y, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
@@ -173,12 +175,13 @@ if solver == "FFT"
 else solver == "Conjugate Gradient"
     model = NonhydrostaticModel(;
         grid=grid,
-        pressure_solver = ConjugateGradientPoissonSolver(grid),
-                # grid; preconditioner = fft_poisson_solver(underlying_grid)),
+        pressure_solver = ConjugateGradientPoissonSolver(
+                grid; preconditioner = fft_poisson_solver(underlying_grid),
+                maxiter=1),
         advection = WENO(),
         buoyancy = buoyancy,
         coriolis = coriolis,
-        boundary_conditions=(u=u_bcs, v=v_bcs,  b = B_bcs,),
+        boundary_conditions=(u=u_bcs, v=v_bcs, b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
         tracers = :b,
@@ -227,15 +230,16 @@ Bbudget=get_budget_outputs_tuple(model;)
 # set the ouput mode:
 if output_mode == "spinup"
         checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; ε, χ, uhat=û, B=B, b=b)
-        threeD_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
+        slice_diags = (; χ, uhat=û, B=B, b=b)
+        threeD_diags = (; χ, uhat=û, what=ŵ, B=B, b=b)
+        # threeD_diags = (; B=B, b=b)
 
 elseif output_mode == "test"
         checkpoint_interval = 2*2π/ω₀
         # slice_diags = (; ε, χ, uhat=û, B=B, b=b, Bz=Bz, uhat_z=uz)
         # threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
-        slice_diags = (; ε, χ, uhat=û, B=B, b=b)
-        threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b)
+        slice_diags = (; χ, uhat=û, B=B, b=b)
+        threeD_diags = (; χ, uhat=û, what=ŵ,  B=B, b=b)
 
 else output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
@@ -249,17 +253,24 @@ dir = string("output/",simname, "/")
 if output_writer
     ## checkpoint  
     simulation.output_writers[:checkpointer] = Checkpointer(
-                                            model,
-                                            schedule=TimeInterval(checkpoint_interval),
-                                            dir=dir,
-                                            prefix=string(fname, "_checkpoint"),
-                                            cleanup=clean_checkpoint)
+                                        model,
+                                        schedule=TimeInterval(checkpoint_interval),
+                                        dir=dir,
+                                        prefix=string(fname, "_checkpoint"),
+                                        cleanup=clean_checkpoint)
 
     ## output 3D field window time average
     tidal_period = 2π/ω₀ 
-    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, merge(threeD_diags,Bbudget),
+    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
                                         verbose=true,
                                         filename = string(dir, fname, "_threeD_timeavg.nc"),
+                                        overwrite_existing = overwrite_output,
+                                        schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
+                                        # indices = (:,Ny÷2,:) # take this out when running real simulation
+                                        )
+    simulation.output_writers[:nc_threeD_timeavg_Bbudget] = NetCDFOutputWriter(model, Bbudget,
+                                        verbose=true,
+                                        filename = string(dir, fname, "_threeD_timeavg_Bbudget.nc"),
                                         overwrite_existing = overwrite_output,
                                         schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
                                         # indices = (:,Ny÷2,:) # take this out when running real simulation
@@ -288,6 +299,12 @@ if output_writer
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_yz.nc"),
                                             overwrite_existing = overwrite_output)
+    # save 3D snapshots of buoyancy fields
+    simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, (B=B, b=b,),
+                                            verbose=true,
+                                            filename = string(dir, fname, "_threeD.nc"),
+                                            overwrite_existing = overwrite_output,
+                                            schedule = TimeInterval(tidal_period) )
     
     ## output that is saved only when reaching quasi-equilibrium
     if output_mode=="analysis"
@@ -306,19 +323,20 @@ if output_writer
         #                                         overwrite_existing = overwrite_output)
     end
 end
-## Progress messages
+### Progress messages
 
-progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
+        progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
                             advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
                             s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
                             AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
                             ,log_gpu_memory_usage())
-# progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-#                             advective CFL: %.2e, diffusive CFL: %.2e",
-#                             100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-#                             s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-#                             AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
+
+        # progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
+        #                     advective CFL: %.2e, diffusive CFL: %.2e",
+        #                     100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
+        #                     s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
+        #                     AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
 
 
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
