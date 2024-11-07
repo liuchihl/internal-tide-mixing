@@ -41,9 +41,9 @@ end
 end
 
 
-slope = "notilt"
-timerange = "0-40"
-θ=0#3.6e-3
+slope = "tilt"
+timerange = "40-80"
+θ=3.6e-3
 
 ###################################
 # load data
@@ -119,7 +119,7 @@ for n in 1:length(t)
     else
     N = 1.e-3
     Bz =  deriv(zC,B);
-    Bz_bc = -N^2*cos(θ).*ones(Nx,Ny,1,1);
+    Bz_bc = 0*ones(Nx,Ny,1,1);
     Bz = cat(Bz, Bz_bc, dims=3);
     end
     # mask out
@@ -205,3 +205,5 @@ v8.attrib["units"] = "m"
 v9.attrib["units"] = "s"
 
 close(ds_create)
+
+include("plot_terrain_following.jl")
