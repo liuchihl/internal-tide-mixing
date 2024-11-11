@@ -20,12 +20,14 @@
         for m in 1:length(bin_center)
             sum_var = 0.0
             sum_vol = 0.0
-            for k in 1:size(var, 3)
+            for k in 1:size(var, 3)-1
                 for j in 1:size(var, 2)
                     for i in 1:size(var, 1)
-                        if bin_edge[m] <= bin_mask[i, j, k, l] < bin_edge[m+1]
-                            count = var[i, j, k, l] * ΔV[i, k]
-                            sum_var += count 
+                        if bin_edge[m] <= bin_mask[i, j, k, l] < bin_edge[m+1] && z_diff[i,k] >= diff(bin_edge)[m]
+                            var_times_volume = var[i, j, k, l] * diff(bin_edge)[m]*dx*dy .+ 
+                                    var[i, j, k+1, l] * (z_diff[i,k] .- diff(bin_edge)[m])*dx*dy
+                            sum_var += var_times_volume 
+                            # @info bin_mask[i, j, k, l], var_times_volume
                             if normalize
                                 sum_vol += ΔV[i, k]
                             end
@@ -125,7 +127,7 @@ end
 # ∇κ∇B̃ = [∇κ∇B;∇κ∇B;∇κ∇B;∇κ∇B;∇κ∇B];
 # bin_edge = (1:2:20)*1e-4  # Define the edges of the bins
 
-# int_∇κ∇B̃,bin_center = bin_loop(∇κ∇B̃,bin_edge,B̃,dx=dx,dy=dy,z_face=z̃_face,normalize=false)
+# int_∇κ∇B̃,bin_center = bins(∇κ∇B̃,bin_edge,B̃,dx=dx,dy=dy,z_face=z̃_face,normalize=false)
 # using PyPlot
 # close(gcf())
 # plot(collect(bin_center),int_∇κ∇B̃)
