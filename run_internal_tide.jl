@@ -9,7 +9,7 @@ const Ny = 1000
 const Nz = 250        
 const Δtᵒ = 30minutes # interval for saving output
 const ω₀ = 1.4e-4     # tidal freq.
-const tᶠ = 80*2π/ω₀    # endtime of the simulation: 40 tidal cycle
+const tᶠ = 120*2π/ω₀    # endtime of the simulation: 120 tidal cycle
 const θ = 3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
@@ -23,11 +23,11 @@ output_mode = "spinup"
 output_writer = true
 clean_checkpoint = false         # cleanup checkpoint
 overwrite_output = true          # overwrite existing output (if pickup=true, clean=false, and vice versa)
-timerange = "40-80"
+timerange = "80-120"
 # Running the simulation!
 # Comment either
     # pickup = false
-    pickup = string("output/", simname, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_40-80_checkpoint_iteration96098.jld2")
+    pickup = string("output/", simname, "internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_40-80_checkpoint_iteration127537.jld2")
 
 if pickup == false
     simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 

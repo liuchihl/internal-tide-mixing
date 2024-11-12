@@ -293,14 +293,14 @@ if output_writer
                                             filename = string(dir, fname, "_slices_xy.nc"),
                                             overwrite_existing = overwrite_output)
     #3) yz
-    simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
-                                            indices = (Nx÷2,:,:), # center of the domain (along the sill)
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_yz.nc"),
-                                            overwrite_existing = overwrite_output)
+    # simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
+    #                                         schedule = TimeInterval(Δtᵒ),
+    #                                         indices = (Nx÷2,:,:), # center of the domain (along the sill)
+    #                                         verbose=true,
+    #                                         filename = string(dir, fname, "_slices_yz.nc"),
+    #                                         overwrite_existing = overwrite_output)
     # save 3D snapshots of buoyancy fields
-    simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, (B=B, b=b,),
+    simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, merge(Bbudget,(B=B, b=b,)),
                                             verbose=true,
                                             filename = string(dir, fname, "_threeD.nc"),
                                             overwrite_existing = overwrite_output,
