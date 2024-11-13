@@ -18,144 +18,106 @@ function deriv(z,y)
    return dydz
 end
 
-# terrain following average algorithms
-@views function terrain_following_fast(hab, ϕ, new_height, Nx, Ny, Lz)
-    mean_values = zeros(length(new_height), size(ϕ, 4))
-    hab_interp = zeros(size(ϕ,3))
-    value = zeros(Nx,Ny,length(new_height))
-    for i in 1:Nx
-        for j in 1:Ny
-            hab_interp = hab[i, j, :]
-            for tt = 1:size(ϕ,4)
-            itp = Interpolations.interpolate((hab_interp,), ϕ[i, j, :, tt], Gridded(Interpolations.Linear()))
-            itp_extrapolated = Interpolations.extrapolate(itp, Interpolations.Flat())
-            h = new_height
-            h = Float64.(h)
-            h[h .+ z_interp[i,j] .> Lz] .= NaN
-            value[i,j,:] = itp_extrapolated.(h)
-            end
-        end
-    end
-    mean_values = dropdims(nanmean(value,dims=(1,2)),dims=(1,2))
-    return mean_values
-end
-
-
+include("functions/bins.jl")
+include("functions/mmderiv.jl")
 slope = "tilt"
 timerange = "40-80"
 θ=3.6e-3
 
-###################################
 # load data
-# filename_field = "output/no_tilt/internal_tide_5days-theta=0_realtopo3D_Nx500_Nz250_fields_timeavg_0_20.nc"
-# ds_field_no_0_20 = Dataset(filename_field,"r")
 filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
 ds_field = Dataset(filename_field,"r")
+filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
+ds_budget = Dataset(filename_field_budget,"r")
+filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
+ds_3D = Dataset(filename_3D,"r")
 
-# grids
-zC = ds_field["zC"]; Nz=length(zC[:])
-zF = ds_field["zF"]; zF = zF[:];
-xC = ds_field["xC"]; Nx=length(xC[:])
-xF = ds_field["xF"]; 
-yC = ds_field["yC"]; Ny=length(yC[:])
+zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
+Nz=length(zC[:]); 
+
+xC = ds_field["xC"][:]; xF = ds_field["xF"][:]; 
+Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
+
+yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
+Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
+z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
+
 t = ds_field["time"][:];
 
-new_height = 0:5:1500#0
+bin_edge = 0:5:1500#0
+bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
 
 # load hab
 filename_hab = "output/hab.nc"
 ds_hab = Dataset(filename_hab,"r")
-hab = ds_hab["hab"].var[:,:,:];
+hab = ds_hab["hab"][:,:,:];
+bin_mask = hab
+
 # preallocate
-b_avg = zeros(length(new_height),length(t))
-Bz_avg = zeros(length(new_height),length(t))
-uhat_avg = zeros(length(new_height),length(t))
-u_avg = zeros(length(new_height),length(t))
-what_avg = zeros(length(new_height),length(t))
-epsilon_avg = zeros(length(new_height),length(t))
-chi_avg = zeros(length(new_height),length(t))
-∇κ∇B_avg = zeros(length(new_height),length(t))
-
-
-
-topo_file = "topo.mat"
-file = matopen(topo_file)
-z_topo = read(file, "z_noslope_periodic") 
-x_topo = read(file, "x_domain")
-y_topo = read(file, "y_domain")
-# grids has to be evenly spaced
-x_topo_lin = range(x_topo[1],x_topo[end],size(z_topo,1))
-y_topo_lin = range(y_topo[1],y_topo[end],size(z_topo,2))
-close(file)
-# high-resolution grids
-x_interp = range(x_topo[1],x_topo[end], length=Nx)
-y_interp = range(y_topo[1],y_topo[end], length=Ny)
-
-
-# Interpolation object (caches coefficients and such)
-itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
-# Interpolate z_topo onto a higher-resolution grid
-z_interp = [itp(x, y) for x in x_interp, y in y_interp]
-z_interp = z_interp.-minimum(z_interp)
-
-
-
-
-# θ = 0# 3.6e-3
+b_avg = zeros(length(bin_edge)-1,length(t))
+Bz_avg = zeros(length(bin_edge)-1,length(t))
+uhat_avg = zeros(length(bin_edge)-1,length(t))
+u_avg = zeros(length(bin_edge)-1,length(t))
+what_avg = zeros(length(bin_edge)-1,length(t))
+epsilon_avg = zeros(length(bin_edge)-1,length(t))
+chi_avg = zeros(length(bin_edge)-1,length(t))
+∇κ∇B_avg = zeros(length(bin_edge)-1,length(t))
+div_uB_avg = zeros(length(bin_edge)-1,length(t))
+u_bar_∇B_bar_avg = zeros(length(bin_edge)-1,length(t))
+u_prime∇B_prime_avg = zeros(length(bin_edge)-1,length(t))
+dBdt_avg = zeros(length(bin_edge)-1,length(t)-1)
+t_diff = diff(t)  # Precompute time differences
+dB̄dx = zeros(Nx,Ny,Nz,1)
+dB̄dz = zeros(Nx,Ny,Nz,1)
 for n in 1:length(t)
-    b = ds_field["b"][:,:,:,n:n];          # buoyancy perturbation
-    B = ds_field["B"][:,:,:,n:n];          # total buoyancy
-    epsilon = ds_field["ε"][:,:,:,n:n];
-    uhat = ds_field["uhat"][:,:,:,n:n];    # true u
-    what = ds_field["what"][:,:,:,n:n];    # true w
-    chi = ds_field["χ"][:,:,:,n:n];        # -κ|∇b|²
-    ∇κ∇B = ds_field["∇κ∇B"][:,:,:,n:n];    # ∇⋅κ∇B: buoyancy flux divergence
-    what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
-    # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
-    wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
-    u = uhat[:,:,:,1]*cos(θ) .+ wtemp*sin(θ) # cross-slope velocity
+     b = ds_field["b"][:,:,:,n:n];          # buoyancy perturbation
+     B = ds_field["B"][:,:,:,n:n];          # total buoyancy
+    # epsilon = ds_field["ε"][:,:,:,n:n];
+     uhat = ds_field["uhat"][:,:,:,n:n];    # true u
+     what = ds_field["what"][:,:,:,n:n];    # true w
+     chi = ds_field["χ"][:,:,:,n:n];        # -κ|∇b|²
+     ∇κ∇B = ds_budget["∇κ∇B"][:,:,:,n:n];    # ∇⋅κ∇B: buoyancy flux divergence
+     div_uB = ds_budget["div_uB"][:,:,:,n:n];# ∇⋅uB: buoyancy flux divergence
+     what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
+     # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
+     wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
+     u = uhat[:,:,:,1]*cos(θ) .+ wtemp*sin(θ) # cross-slope velocity
+     w = -uhat[:,:,:,1]*sin(θ) .+ wtemp*cos(θ)# slope-normal velocity
+     for k in 1:size(B,3)
+     dB̄dx[:,:,k,1] = mmderiv(xC[:],B[:,:,k,1])
+     end
+     for i in 1:size(B,1)
+     dB̄dz[i,:,:,1] = mmderiv(zC[:],B[i,:,:,1]')'
+     end
+     u_bar_∇B_bar = u.*dB̄dx .+ w.*dB̄dz
+     u_prime∇B_prime = div_uB .- u_bar_∇B_bar
     if haskey(ds_field,"Bz")
-    Bz = ds_field["Bz"][:,:,:,n:n];   
+        Bz = ds_field["Bz"][:,:,:,n:n];   
     else
-    N = 1.e-3
-    Bz =  deriv(zC,B);
-    Bz_bc = 0*ones(Nx,Ny,1,1);
-    Bz = cat(Bz, Bz_bc, dims=3);
+        N = 1.e-3
+        Bz =  deriv(zC,B);
+        Bz_bc = 0*ones(Nx,Ny,1,1);
+        Bz = cat(Bz, Bz_bc, dims=3);
     end
-    # mask out
-    # Bz[b.==0] .= NaN
-    # epsilon[uhat.==0] .= NaN;
-    # chi[b.==0] .= NaN;
-    # uhat[uhat.==0] .= NaN;
-    # b[b.==0] .= NaN;
-    # u[u.==0] .= NaN;
-    # what[what.==0] .= NaN;
-
-
-    # bz_no_0_20 =  deriv(zC,b_no_0_20);
-    # bz_no_20_30 =  deriv(zC,b_no_20_30);
-    # θ = 0; 
-    # bz_bc_0_20 = -N^2*cos(θ).*ones(Nx,Ny,1,length(t_no_0_20));
-    # bz_bc_20_30 = -N^2*cos(θ).*ones(Nx,Ny,1,length(t_no_20_30));
-
-    # bz_no_0_20 = cat(bz_no_0_20, bz_bc_0_20, dims=3);
-    # bz_no_20_30 = cat(bz_no_20_30, bz_bc_20_30, dims=3);
-
+        
+    # terrain following quantities:
+  
+    @time b_avg[:,n], _ = bins(b,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time Bz_avg[:,n], _ = bins(Bz,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time what_avg[:,n], _ = bins(what_cen,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time u_avg[:,n], _ = bins(u,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time chi_avg[:,n], _ = bins(chi,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    # @time epsilon_avg[:,n], _ = bins(epsilon,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time ∇κ∇B_avg[:,n], _ = bins(∇κ∇B,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time div_uB_avg[:,n], _ = bins(div_uB,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time u_bar_∇B_bar_avg[:,n], _ = bins(u_bar_∇B_bar,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time u_prime∇B_prime_avg[:,n], _ = bins(u_prime∇B_prime,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+     if n < length(t)
+         B2 = ds_field["B"][:,:,:,n:n+1];          # total buoyancy with two timesteps
+         dBdt = (B2[:, :, :, 2] .- B2[:, :, :, 1]) ./ t_diff[n]
+         @time dBdt_avg[:,n], _ = bins(dBdt,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+     end 
     
-
-    ### terrain following quantities:
-
-    # call the function to get the terrain following averaged values
-    Lz = Int(zF[end])
-    @time b_avg[:,n] = terrain_following_fast(hab, b[:,:,:,1], new_height, Nx, Ny,Lz);
-    @time Bz_avg[:,n] = terrain_following_fast(hab, Bz[:,:,:,1], new_height, Nx, Ny ,Lz);
-    # @time uhat_avg[:,n] = terrain_following_fast(hab, uhat[:,:,:,1], new_height, Nx, Ny, Lz);
-    @time what_avg[:,n] = terrain_following_fast(hab, what[:,:,1:end-1,1], new_height, Nx, Ny,Lz);
-    @time u_avg[:,n] = terrain_following_fast(hab, u[:,:,:,1], new_height, Nx, Ny,Lz);
-    @time epsilon_avg[:,n] = terrain_following_fast(hab, epsilon[:,:,:,1], new_height, Nx, Ny,Lz);
-    @time chi_avg[:,n] = terrain_following_fast(hab, chi[:,:,:,1], new_height, Nx, Ny,Lz);
-    @time ∇κ∇B_avg[:,n] = terrain_following_fast(hab, ∇κ∇B[:,:,:,1], new_height, Nx, Ny,Lz);
- 
 end
 
 close(ds_field)
@@ -164,10 +126,11 @@ close(ds_hab)
 # This creates a new NetCDF file 
 # The mode "c" stands for creating a new file
 
-ds_create = Dataset(string("output/",slope,"/TF_avg_",timerange,".nc"),"c")
+ds_create = Dataset(string("output/",slope,"/TF_avg_",timerange,"bin.nc"),"c")
 # Define the dimension
-defDim(ds_create,"z_TF",length(new_height))
+defDim(ds_create,"z_TF",length(bin_center))
 defDim(ds_create,"t",length(t))
+defDim(ds_create, "t_diff", length(t) - 1)  # Define a separate dimension for the derivative
 
 # Define a global attribute
 ds_create.attrib["title"] = "Terrain-following averages"
@@ -176,34 +139,69 @@ v1 = defVar(ds_create,"b_avg",Float64,("z_TF","t"))
 v1[:,:] = b_avg
 v2 = defVar(ds_create,"Bz_avg",Float64,("z_TF","t"))
 v2[:,:] = Bz_avg
-v3 = defVar(ds_create,"∇κ∇B_avg",Float64,("z_TF","t"))
-v3[:,:] = ∇κ∇B_avg
-# v3 = defVar(ds_create,"uhat_avg",Float64,("z_TF","t"))
-# v3[:,:] = uhat_avg
-v4 = defVar(ds_create,"u_avg",Float64,("z_TF","t"))
-v4[:,:] = u_avg
-v5 = defVar(ds_create,"what_avg",Float64,("z_TF","t"))
-v5[:,:] = what_avg
-v6 = defVar(ds_create,"chi_avg",Float64,("z_TF","t"))
-v6[:,:] = chi_avg
-v7 = defVar(ds_create,"epsilon_avg",Float64,("z_TF","t"))
-v7[:,:] = epsilon_avg
-v8 = defVar(ds_create,"new_height",Float64,("z_TF",))
-v8[:,1] = new_height
-v9 = defVar(ds_create,"t",Float64,("t",))
-v9[:,1] = t   
+v3 = defVar(ds_create,"u_avg",Float64,("z_TF","t"))
+v3[:,:] = u_avg
+v4 = defVar(ds_create,"what_avg",Float64,("z_TF","t"))
+v4[:,:] = what_avg
+v5 = defVar(ds_create,"chi_avg",Float64,("z_TF","t"))
+v5[:,:] = chi_avg
+# v6 = defVar(ds_create,"epsilon_avg",Float64,("z_TF","t"))
+# v6[:,:] = epsilon_avg
+v6 = defVar(ds_create,"dBdt_avg",Float64,("z_TF","t_diff"))
+v6[:,:] = dBdt_avg
+v7 = defVar(ds_create,"∇κ∇B_avg",Float64,("z_TF","t"))
+v7[:,:] = ∇κ∇B_avg
+v8 = defVar(ds_create,"div_uB_avg",Float64,("z_TF","t"))
+v8[:,:] = div_uB_avg
+v9 = defVar(ds_create,"u_bar_∇B_bar_avg",Float64,("z_TF","t"))
+v9[:,:] = u_bar_∇B_bar_avg
+v10 = defVar(ds_create,"u_prime∇B_prime_avg",Float64,("z_TF","t"))
+v10[:,:] = u_prime∇B_prime_avg
+v11 = defVar(ds_create,"bin_center",Float64,("z_TF",))
+v11[:,1] = bin_center
+v12 = defVar(ds_create,"t",Float64,("t",))
+v12[:,1] = t   
 
 # write attributes
 v1.attrib["units"] = "m/s²"
 v2.attrib["units"] = "1/s²"
-v3.attrib["units"] = "m/s³"
+v3.attrib["units"] = "m/s"
 v4.attrib["units"] = "m/s"
-v5.attrib["units"] = "m/s"
-v6.attrib["units"] = ""
-v7.attrib["units"] = "WKg"
-v8.attrib["units"] = "m"
-v9.attrib["units"] = "s"
+v5.attrib["units"] = ""
+v6.attrib["units"] = "m/s³"
+# v6.attrib["units"] = "WKg"
+v7.attrib["units"] = "m/s³"
+v8.attrib["units"] = "m/s³"
+v9.attrib["units"] = "m/s³"
+v10.attrib["units"] = "m/s³"
+v11.attrib["units"] = "m"
+v12.attrib["units"] = "s"
 
 close(ds_create)
+
+
+
+# ds_create = Dataset(string("output/",slope,"/TF_avg_",timerange,"_Bz.nc"),"c")
+# # Define the dimension
+# defDim(ds_create,"z_TF",length(bin_center))
+# defDim(ds_create,"t",length(t))
+
+# # Define a global attribute
+# ds_create.attrib["title"] = "Terrain-following averages Bz"
+# # Define the variables
+# v2 = defVar(ds_create,"Bz_avg",Float64,("z_TF","t"))
+# v2[:,:] = Bz_avg
+# v9 = defVar(ds_create,"bin_center",Float64,("z_TF",))
+# v9[:,1] = bin_center
+# v10 = defVar(ds_create,"t",Float64,("t",))
+# v10[:,1] = t   
+
+# # write attributes
+# v2.attrib["units"] = "1/s²"
+# v9.attrib["units"] = "m"
+# v10.attrib["units"] = "s"
+
+# close(ds_create)
+
 
 include("plot_terrain_following.jl")

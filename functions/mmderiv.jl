@@ -1,8 +1,9 @@
 using LinearAlgebra
 using Polynomials
 
+
 function mmderiv(x, y)
-    x = x[:]
+    x = float.(x)  # Ensure x is floating-point to avoid integer division issues
     nx = length(x)
     
     if ndims(y) == 1

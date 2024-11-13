@@ -230,10 +230,10 @@ Bbudget=get_budget_outputs_tuple(model;)
 # set the ouput mode:
 if output_mode == "spinup"
         checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; χ, uhat=û, B=B, b=b)
-        threeD_diags = (; χ, uhat=û, what=ŵ, B=B, b=b)
+        slice_diags = (; uhat=û, B=B, b=b)
+        threeD_diags = (; uhat=û, what=ŵ, B=B, b=b)
         # threeD_diags = (; B=B, b=b)
-
+        threeD_buoyancy = (; B=B,)
 elseif output_mode == "test"
         checkpoint_interval = 2*2π/ω₀
         # slice_diags = (; ε, χ, uhat=û, B=B, b=b, Bz=Bz, uhat_z=uz)
@@ -300,7 +300,7 @@ if output_writer
     #                                         filename = string(dir, fname, "_slices_yz.nc"),
     #                                         overwrite_existing = overwrite_output)
     # save 3D snapshots of buoyancy fields
-    simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, merge(Bbudget,(B=B, b=b,)),
+    simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, merge(Bbudget,threeD_buoyancy),
                                             verbose=true,
                                             filename = string(dir, fname, "_threeD.nc"),
                                             overwrite_existing = overwrite_output,

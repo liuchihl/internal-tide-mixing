@@ -1,51 +1,132 @@
-@views function bins(var, bin_edge, bin_mask; dx, dy, z_face, normalize = false)
-    # This is a function for binning quantities, similar to what a histogram would do
-    # the main goal is to use it for height above bottom calculations and water mass transformation
-    # var: variable that has multi-dimensions, i.e., (x,y,z) or (x,y,z,t). 
-    # bin_edge: edges of the bin, it's a vector.
-    # bin_mask: could be B(x,y,z,t) or hab(x,y,z). Should have the same dimensional as var
-    # in most cases, dx, dy are uniform
-    # z_face: is a 2-D matrix
-    # normalize: if true, the integrand is normalized by its volume, if false only computes integrand
-    #+----------------------+
-    # Chih-Lun Liu Nov 5 2024    
-    
-    bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
-    integrand = zeros(length(bin_center), size(var, 4))
-    norm_volume = zeros(length(bin_center), size(var, 4))
-    z_diff = diff(z_face, dims=2)
-    ΔV = dx .* dy .* z_diff  # Assuming z_diff dimensions align with the last two dimensions of var
+using StatsBase
 
-    for l in 1:size(var, 4)
-        for m in 1:length(bin_center)
-            sum_var = 0.0
-            sum_vol = 0.0
-            for k in 1:size(var, 3)
-                for j in 1:size(var, 2)
-                    for i in 1:size(var, 1)
-                        if bin_edge[m] <= bin_mask[i, j, k, l] < bin_edge[m+1]
-                            count = var[i, j, k, l] * ΔV[i, k]
-                            sum_var += count 
-                            if normalize
-                                sum_vol += ΔV[i, k]
-                            end
-                        end
-                    end
-                end
-            end
-            integrand[m, l] = sum_var
-            if normalize
-                norm_volume[m, l] = sum_vol 
-            end
+@views function bins(var, bin_edge, bin_mask; dx, dy, z_face, normalize = false)
+    """
+    1D binning using StatsBase's histogram.
+    
+    Parameters:
+    -----------
+    var : Array
+        Variable to bin (dimensions: x,y,z,t)
+    bin_edge : Vector
+        Bin edges for the variable
+    bin_mask : Array
+        Mask for binning (same dimensions as var)
+    dx, dy : Float64
+        Grid spacing in x and y directions
+    z_face : Matrix
+        Z-face positions for volume calculation (dimensions: x,z+1)
+    normalize : Bool
+        Whether to normalize by volume
+    
+    Returns:
+    --------
+    integrand : Array
+        Binned data
+    bin_center : Vector
+        Bin centers
+    Chih-Lun Liu, Nov 12 2024
+    """
+    # Calculate bin centers
+    bin_center = @. (bin_edge[1:end-1] + bin_edge[2:end]) / 2
+    
+    # Calculate volume elements
+    z_diff = diff(z_face, dims=2)
+    ΔV = dx * dy * z_diff  # Shape: [nx, nz]
+    
+    # Initialize output arrays
+    nt = size(var, 4)
+    integrand = zeros(length(bin_center), nt)
+    norm_volume = normalize ? zeros(length(bin_center), nt) : nothing
+    
+    # Pre-allocate arrays for the flattened data
+    nx, ny, nz = size(var)[1:3]
+    flat_length = nx * ny * nz
+    
+    # Create views for better performance
+    var_view = view(var, :, :, :, :)
+    mask_view = view(bin_mask, :, :, :, :)
+    
+    # Process each time step
+    for l in 1:nt
+        # Flatten spatial dimensions
+        var_flat = reshape(view(var_view, :, :, :, l), flat_length)
+        mask_flat = reshape(view(mask_view, :, :, :, l), flat_length)
+        
+        # Create repeated ΔV array
+        ΔV_flat = repeat(vec(ΔV), inner=ny)
+        
+        # Calculate histogram with weights
+        weights = Weights(var_flat .* ΔV_flat)
+        h = fit(Histogram, mask_flat, weights, bin_edge)
+        integrand[:, l] = h.weights
+        
+        if normalize
+            # Calculate volume histogram
+            vol_weights = Weights(ΔV_flat)
+            h_vol = fit(Histogram, mask_flat, vol_weights, bin_edge)
+            norm_volume[:, l] = h_vol.weights
         end
     end
-
+    
     if normalize
-        return integrand ./ norm_volume, bin_center
-    else
-        return integrand, bin_center
+        # Avoid division by zero
+        mask = norm_volume .> 0
+        integrand[mask] ./= norm_volume[mask]
     end
+    
+    return integrand, bin_center
 end
+
+
+# @views function bins(var, bin_edge, bin_mask; dx, dy, z_face, normalize = false)
+#     # This is a function for binning quantities, similar to what a histogram would do
+#     # the main goal is to use it for height above bottom calculations and water mass transformation
+#     # var: variable that has multi-dimensions, i.e., (x,y,z) or (x,y,z,t). 
+#     # bin_edge: edges of the bin, it's a vector.
+#     # bin_mask: could be B(x,y,z,t) or hab(x,y,z). Should have the same dimensional as var
+#     # in most cases, dx, dy are uniform
+#     # z_face: is a 2-D matrix
+#     # normalize: if true, the integrand is normalized by its volume, if false only computes integrand
+#     #+----------------------+
+#     # Chih-Lun Liu Nov 5 2024    
+    
+#     bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
+#     integrand = zeros(length(bin_center), size(var, 4))
+#     norm_volume = zeros(length(bin_center), size(var, 4))
+#     z_diff = diff(z_face, dims=2)
+#     ΔV = dx .* dy .* z_diff  # Assuming z_diff dimensions align with the last two dimensions of var
+
+#     for l in 1:size(var, 4)
+#         for m in 1:length(bin_center)
+#             sum_var = 0.0
+#             sum_vol = 0.0
+#             for k in 1:size(var, 3)
+#                 for j in 1:size(var, 2)
+#                     for i in 1:size(var, 1)
+#                         if bin_edge[m] <= bin_mask[i, j, k, l] < bin_edge[m+1]
+#                             count = var[i, j, k, l] * ΔV[i, k]
+#                             sum_var += count 
+#                             if normalize
+#                                 sum_vol += ΔV[i, k]
+#                             end
+#                         end
+#                     end
+#                 end
+#             end
+#             integrand[m, l] = sum_var
+#             if normalize
+#                 norm_volume[m, l] = sum_vol 
+#             end
+#         end
+#     end
+
+#     if normalize
+#         return integrand ./ norm_volume, bin_center
+#     else
+#         return integrand, bin_center
+#     end
+# end
 
 # broadcast approach, but much slower...
 # function bins(var, bin_edge, bin_mask; dx, dy, z_face, normalize = false)
