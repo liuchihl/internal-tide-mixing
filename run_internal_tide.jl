@@ -27,7 +27,7 @@ timerange = "80-120"
 # Running the simulation!
 # Comment either
     # pickup = false
-    pickup = string("output/", simname, "internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_40-80_checkpoint_iteration127537.jld2")
+    pickup = string("output/", simname, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_40-80_checkpoint_iteration127537.jld2")
 
 if pickup == false
     simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
