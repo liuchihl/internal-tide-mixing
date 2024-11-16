@@ -15,19 +15,20 @@ const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
 threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
-closure = SmagorinskyLilly()
+# closure = SmagorinskyLilly()
+closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
 solver = "FFT"
 architecture = GPU()
 # 3 modes to choose: "spinup", "test", "analysis"
-output_mode = "spinup"
+output_mode = "certain-diagnostics"
 output_writer = true
 clean_checkpoint = false         # cleanup checkpoint
 overwrite_output = true          # overwrite existing output (if pickup=true, clean=false, and vice versa)
-timerange = "80-120"
+timerange = "100-120"
 # Running the simulation!
 # Comment either
     # pickup = false
-    pickup = string("output/", simname, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_40-80_checkpoint_iteration127537.jld2")
+    pickup = string("output/", simname, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_80-120_checkpoint_iteration160110.jld2")
 
 if pickup == false
     simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 

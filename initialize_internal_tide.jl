@@ -240,7 +240,10 @@ elseif output_mode == "test"
         # threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
         slice_diags = (; χ, uhat=û, B=B, b=b)
         threeD_diags = (; χ, uhat=û, what=ŵ,  B=B, b=b)
-
+elseif output_mode == "certain-diagnostics"
+        checkpoint_interval = 20*2π/ω₀
+        threeD_diags = (; uhat=û, what=ŵ,  B=B)
+        threeD_buoyancy = (; B=B,)
 else output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
@@ -278,20 +281,20 @@ if output_writer
     
     ## output 2D slices
     #1) xz
-    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
-                                            indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_xz.nc"),
-                                            overwrite_existing = overwrite_output)
-    #2) xy
-    ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-    simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
-                                            indices = (:,:,ind),
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_xy.nc"),
-                                            overwrite_existing = overwrite_output)
+    # simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
+    #                                         schedule = TimeInterval(Δtᵒ),
+    #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+    #                                         verbose=true,
+    #                                         filename = string(dir, fname, "_slices_xz.nc"),
+    #                                         overwrite_existing = overwrite_output)
+    # #2) xy
+    # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+    # simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+    #                                         schedule = TimeInterval(Δtᵒ),
+    #                                         indices = (:,:,ind),
+    #                                         verbose=true,
+    #                                         filename = string(dir, fname, "_slices_xy.nc"),
+    #                                         overwrite_existing = overwrite_output)
     #3) yz
     # simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
     #                                         schedule = TimeInterval(Δtᵒ),
@@ -304,7 +307,7 @@ if output_writer
                                             verbose=true,
                                             filename = string(dir, fname, "_threeD.nc"),
                                             overwrite_existing = overwrite_output,
-                                            schedule = TimeInterval(tidal_period) )
+                                            schedule = TimeInterval(tidal_period÷2) )
     
     ## output that is saved only when reaching quasi-equilibrium
     if output_mode=="analysis"
