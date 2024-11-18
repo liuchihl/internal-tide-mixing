@@ -1,8 +1,4 @@
 using Printf
-using Oceananigans
-using Oceananigans.Units
-using Oceananigans.TurbulenceClosures: VerticallyImplicitTimeDiscretization
-using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using CairoMakie
 using NCDatasets
 using Statistics
@@ -14,7 +10,7 @@ function deriv(z,y)
 # this script plots terrain following horizontal averaged quantities
 
 slope = "tilt"
-timerange = "40-80"
+timerange = "80-120"
 θ=0.0036
 
 ## plot b, and Bz
@@ -26,10 +22,11 @@ Bz_avg = ds["Bz_avg"][:,:]
 # Bz_avg[1,:] .= 0
 b_avg = ds["b_avg"][:,:]
 
-b_avg_70_80 = dropdims(mean(b_avg[:,30:40],dims=2),dims=2)
-Bz_avg_70_80 = dropdims(mean(Bz_avg[:,30:40],dims=2),dims=2)
+b_avg_110_120 = dropdims(mean(b_avg[:,30:40],dims=2),dims=2)
+Bz_avg_110_120 = dropdims(mean(Bz_avg[:,30:40],dims=2),dims=2)
 
-fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,800))
+fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,800),
+            fontsize=20)
 axis_kwargs_hm = (xlabel = "time (tidal cycle)",
                   ylabel = "hab (m)",
                   yminorticksvisible = true,
@@ -43,12 +40,14 @@ ax_b = Axis(fig[1, 1]; title = "b (buoyancy perturbation)", yminorticks = Interv
 ax_Bz = Axis(fig[2, 1]; title = "dB/dz (Total buoyancy gradient)", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
 
 ax_b_ln = Axis(fig[1, 3]; title = "b (buoyancy perturbation)", yminorticks = IntervalsBetween(5),axis_kwargs_line_b...)
-ax_Bz_ln = Axis(fig[2, 3]; title = "dB/dz (Total buoyancy gradient)",yminorticks = IntervalsBetween(5), axis_kwargs_line_Bz...)
+ax_Bz_ln = Axis(fig[2, 3]; title = "10⁻⁶ x dB/dz (Total buoyancy gradient)",yminorticks = IntervalsBetween(5), axis_kwargs_line_Bz...)
 
 using ColorSchemes
 U₀ = 0.025
 hm_b = heatmap!(ax_b, t[:], z[:], b_avg',
-    colorrange = (minimum(filter(!isnan,b_avg)),maximum(filter(!isnan,b_avg))*0.8), colormap = :diverging_bwr_20_95_c54_n256,
+    #colorrange = (minimum(filter(!isnan,b_avg)),maximum(filter(!isnan,b_avg))*0.8), 
+    colorrange = (0,0.00012), 
+    colormap = :diverging_bwr_20_95_c54_n256,
     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
     Colorbar(fig[1,2], hm_b )
 hm_Bz = heatmap!(ax_Bz, t[:], z[:], Bz_avg',
@@ -56,14 +55,14 @@ hm_Bz = heatmap!(ax_Bz, t[:], z[:], Bz_avg',
     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
     Colorbar(fig[2,2], hm_Bz)
 
-ind = argmin(abs.(t .- 60))  
+ind = argmin(abs.(t .- 100))  
 lines!(ax_b_ln, b_avg[:,ind], z[:], linewidth=3, color=:black)
 lines!(ax_b_ln, b_avg[:,end], z[:], linewidth=3, color=:red)
 lines!(ax_b_ln, b_avg_70_80[:], z[:], linewidth=3, color=:blue)
-ln1 = lines!(ax_Bz_ln, Bz_avg[:,ind], z[:], linewidth=3,color=:black)
-ln2 = lines!(ax_Bz_ln, Bz_avg[:,end], z[:], linewidth=3,color=:red)
-ln3 = lines!(ax_Bz_ln, Bz_avg_70_80[:], z[:], linewidth=3,color=:blue)
-axislegend(ax_Bz_ln, [ln1,ln2,ln3],["60 tidal period","80 tidal period","70-80 average"], position = :rt)
+ln1 = lines!(ax_Bz_ln, 1e6*Bz_avg[:,ind], z[:], linewidth=3,color=:black)
+ln2 = lines!(ax_Bz_ln, 1e6*Bz_avg[:,end], z[:], linewidth=3,color=:red)
+ln3 = lines!(ax_Bz_ln, 1e6*Bz_avg_110_120[:], z[:], linewidth=3,color=:blue)
+axislegend(ax_Bz_ln, [ln1,ln2,ln3],["100 tidal period","120 tidal period","110-120 tidal average"], position = :rc)
 display(fig)
 save(string("output/",slope,"/hab_buoyancy_",timerange,".png"),fig)
 
@@ -77,7 +76,7 @@ u_avg_5daverage = dropdims(mean(u_avg[:,30:40],dims=2),dims=2)
 what_avg_5daverage = dropdims(mean(what_avg[:,30:40],dims=2),dims=2)
 
 
-    fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(1000,800))
+    fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(1000,800),fontsize=20)
     axis_kwargs_hm = (xlabel = "time (tidal cycle)",
                       ylabel = "hab (m)",
                       yminorticksvisible = true,
@@ -92,8 +91,12 @@ ax_u_ln = Axis(fig[1, 3]; title = "Cross-slope velocity", yminorticks = Interval
 # ax_u_zoom_ln = Axis(fig[1, 4]; title = "Cross-slope velocity", yminorticks = IntervalsBetween(5),axis_kwargs_zoom_ln...)
 # ax_uhat_ln = Axis(fig[2, 3]; title = "True zonal velocity", axis_kwargs_ln...)
 ax_what = Axis(fig[2, 1]; title = "True vertical velocity", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
-ax_what_ln = Axis(fig[2, 3]; title = "True vertical velocity", yminorticks = IntervalsBetween(5),axis_kwargs_ln...)
-# ax_what_zoom_ln = Axis(fig[2, 4]; title = "True vertical velocity", yminorticks = IntervalsBetween(5),axis_kwargs_zoom_ln...)
+ax_what_ln = Axis(fig[2, 3]; 
+                  title = "True vertical velocity", 
+                  yminorticks = IntervalsBetween(5),
+                  xticks = ([-0.0015, -0.001, -0.0005, 0], ["-0.0015", "-0.001", "-0.0005", "0"]),
+                  axis_kwargs_ln...)
+                  # ax_what_zoom_ln = Axis(fig[2, 4]; title = "True vertical velocity", yminorticks = IntervalsBetween(5),axis_kwargs_zoom_ln...)
 
 hm_u = heatmap!(ax_u, t[:], z[:], u_avg',
     colorrange = (-0.01, 0.01), colormap = :diverging_bwr_20_95_c54_n256,
@@ -111,7 +114,7 @@ hm_what = heatmap!(ax_what, t[:], z[:], what_avg',
     nan_color = :gray)
     Colorbar(fig[2,2], hm_what)
 
-ind = argmin(abs.(t .- 60))   # 60 tidal period
+ind = 20 # middle
 lines!(ax_u_ln, u_avg[:,ind], z[:], linewidth=3,color=:black)
 # lines!(ax_uhat_ln, uhat_avg[:,ind], z[:], linewidth=3,color=:black)
 lines!(ax_u_ln, u_avg[:,end], z[:], linewidth=3,color=:red)
@@ -335,26 +338,100 @@ hm_Bz = heatmap!(ax_Bz, xC[:], zC[:], Bzₙ,
         n[] = i
     end
 
+
+
+
+
+
+## plot x-z slices in terms of velocities
+
+slope = "tilt"
+timerange = "40-80"
+filename_field = string("output/", slope, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+ds_field = Dataset(filename_field,"r")
+
+# grids
+zC = ds_field["zC"]; Nz=length(zC[:])
+zF = ds_field["zF"]; zF = zF[:];
+xC = ds_field["xC"]; Nx=length(xC[:])
+xF = ds_field["xF"]; 
+yC = ds_field["yC"]; Ny=length(yC[:])
+t = ds_field["time"][:];
+n=40;
+# b = ds_field["b"][:,:,:,n:n];
+# Bz = ds_field["Bz"][:,:,:,n:n];
+# epsilon = ds_field["ε"][:,:,:,n:n];
+uhat = ds_field["uhat"][:,:,:,n:n];    # true u
+what = ds_field["what"][:,:,:,n:n];    # true w
+chi = ds_field["χ"][:,:,:,n:n];        # -κ|∇b|²
+what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
+
+# piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
+wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
+θ = 0.0036
+u = uhat[:,:,:,1]*cos(θ) .+ wtemp*sin(θ)
+
+
+# plot x-z slices with varying y
+n = Observable(1)
+uₙ = @lift(u[:,$n,:])
+whatₙ = @lift(what_cen[:,$n,:])
+
+
+    fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(1000,800))
+    axis_kwargs_hm = (xlabel = "x (km)",
+                      ylabel = "z (m)"
+                      )
+title = @lift @sprintf("y=%1.0f (m)", yC[$n])
+fig[1, :] = Label(fig, title, fontsize=20, tellwidth=false)
+                      
+ax_u = Axis(fig[2, 1]; title = "Cross-slope velocity", axis_kwargs_hm...)
+ax_what = Axis(fig[3, 1]; title = "True vertical velocity", axis_kwargs_hm...)
+# ax_Bz = Axis(fig[3, 1]; title = "Buoyancy Gradient", axis_kwargs_hm...)
+
+hm_u = heatmap!(ax_u, xC[:], zC[:], uₙ,
+    colorrange = (-0.04, 0.04), colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
+    nan_color = :gray)
+    Colorbar(fig[2,2], hm_u)
+hm_what = heatmap!(ax_what, xC[:], zC[:], whatₙ,
+    colorrange = (-0.005, 0.005), colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
+    nan_color = :gray)
+    Colorbar(fig[3,2], hm_what)
+
+    frames =  (1:5:length(yC))
+
+    filename_field = string("output/", slope, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+    filename = join(split(filename_field, ".")[1:end-1], ".")
+    
+    record(fig, string(filename,".mp4"), frames, framerate=13) do i
+        @info "Plotting frame $i of $(frames[end])..."
+        n[] = i
+    end
+    
+    
 ## plot buoyancy flux divergence with both tilt and flat cases
     slope = "tilt"
-    timerange = "0-40"
-    file_tilt = string("output/",slope,"/TF_avg_",timerange,".nc")
+    timerange = "40-80"
+    file_tilt = string("output/",slope,"/TF_avg_",timerange,"bin.nc")
     ds_tilt = Dataset(file_tilt,"r")
-    t_tilt = ds_tilt["t"][:]/(2*pi/1.4e-4)
-    z = ds_tilt["new_height"][:]
+    t = ds_tilt["t"][:]/(2*pi/1.4e-4)
+    z = ds_tilt["bin_center"][:]
     ∇κ∇B_avg_tilt = ds_tilt["∇κ∇B_avg"][:,:]
-    ∇κ∇B_avg_30_39_tilt = dropdims(mean(∇κ∇B_avg_tilt[:,31:40],dims=2),dims=2)
+    ∇κ∇B_avg_30_39_tilt = dropdims(mean(∇κ∇B_avg_tilt[:,30:40],dims=2),dims=2)
     
-    slope = "notilt"
-    timerange = "0-40"
-    file_notilt = string("output/",slope,"/TF_avg_",timerange,".nc")
-    ds_notilt = Dataset(file_notilt,"r")
-    t_notilt = ds_notilt["t"][:]/(2*pi/1.4e-4)
-    z = ds_notilt["new_height"][:]
-    ∇κ∇B_avg_notilt = ds_notilt["∇κ∇B_avg"][:,:]
-    ∇κ∇B_avg_30_38_notilt = dropdims(mean(∇κ∇B_avg_notilt[:,31:38],dims=2),dims=2)
-
-    fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,800))
+    # slope = "notilt"
+    # timerange = "0-40"
+    # file_notilt = string("output/",slope,"/TF_avg_",timerange,".nc")
+    # ds_notilt = Dataset(file_notilt,"r")
+    # t_notilt = ds_notilt["t"][:]/(2*pi/1.4e-4)
+    # z = ds_notilt["new_height"][:]
+    # ∇κ∇B_avg_notilt = ds_notilt["∇κ∇B_avg"][:,:]
+    # ∇κ∇B_avg_30_38_notilt = dropdims(mean(∇κ∇B_avg_notilt[:,31:38],dims=2),dims=2)
+## 
+    fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,800),
+                fontsize=20)
     axis_kwargs_hm = (xlabel = "time (tidal cycle)",
                     ylabel = "hab (m)",
                     yminorticksvisible = true,
@@ -364,37 +441,37 @@ hm_Bz = heatmap!(ax_Bz, xC[:], zC[:], Bzₙ,
     axis_kwargs_line_∇κ∇B = (ylabel = "hab (m)",yminorticksvisible = true,limits = (nothing,(0, 200)) ) 
 
     ax_∇κ∇B_tilt = Axis(fig[1, 1]; title = "∇⋅κ∇B (tilt)", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
-    ax_∇κ∇B_notilt = Axis(fig[2, 1]; title = "∇⋅κ∇B (flat)", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
+    # ax_∇κ∇B_notilt = Axis(fig[2, 1]; title = "∇⋅κ∇B (flat)", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
 
     ax_∇κ∇B_tilt_ln = Axis(fig[1, 3]; title = "∇⋅κ∇B (tilt)", yminorticks = IntervalsBetween(5),axis_kwargs_line_∇κ∇B...)
-    ax_∇κ∇B_notilt_ln = Axis(fig[2, 3]; title = "∇⋅κ∇B (flat)", yminorticks = IntervalsBetween(5),axis_kwargs_line_∇κ∇B...)
+    # ax_∇κ∇B_notilt_ln = Axis(fig[2, 3]; title = "∇⋅κ∇B (flat)", yminorticks = IntervalsBetween(5),axis_kwargs_line_∇κ∇B...)
     
 
     using ColorSchemes
     U₀ = 0.025
     hm_∇κ∇B_tilt = heatmap!(ax_∇κ∇B_tilt, t[:], z[:], ∇κ∇B_avg_tilt',
-        colorrange = (-maximum(filter(!isnan,∇κ∇B_avg_tilt))*0.1,maximum(filter(!isnan,∇κ∇B_avg_tilt))*0.1), colormap = :diverging_bwr_20_95_c54_n256,
+        colorrange = (-maximum(filter(!isnan,∇κ∇B_avg_tilt))*0.2,maximum(filter(!isnan,∇κ∇B_avg_tilt))*0.2), colormap = :diverging_bwr_20_95_c54_n256,
         lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
         
-    hm_∇κ∇B_notilt = heatmap!(ax_∇κ∇B_notilt, t[:], z[:], ∇κ∇B_avg_notilt',
-        colorrange = (-maximum(filter(!isnan,∇κ∇B_avg_notilt))*0.1,maximum(filter(!isnan,∇κ∇B_avg_notilt))*0.1), colormap = :diverging_bwr_20_95_c54_n256,
-        lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
-        Colorbar(fig[2,2], hm_∇κ∇B_notilt )
+    # hm_∇κ∇B_notilt = heatmap!(ax_∇κ∇B_notilt, t[:], z[:], ∇κ∇B_avg_notilt',
+    #     colorrange = (-maximum(filter(!isnan,∇κ∇B_avg_notilt))*0.1,maximum(filter(!isnan,∇κ∇B_avg_notilt))*0.1), colormap = :diverging_bwr_20_95_c54_n256,
+    #     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
+        Colorbar(fig[1,2], hm_∇κ∇B_tilt)
     
     
-    ind = argmin(abs.(t .- 21))  
+    ind = argmin(abs.(t .- 20))  
     ln1=lines!(ax_∇κ∇B_tilt_ln, ∇κ∇B_avg_tilt[:,ind], z[:], linewidth=3, color=:black)
     ln2=lines!(ax_∇κ∇B_tilt_ln, ∇κ∇B_avg_tilt[:,end], z[:], linewidth=3, color=:red)
     ln3=lines!(ax_∇κ∇B_tilt_ln, ∇κ∇B_avg_30_39_tilt[:], z[:], linewidth=3, color=:blue)
     
-    ln1=lines!(ax_∇κ∇B_notilt_ln, ∇κ∇B_avg_notilt[:,ind], z[:], linewidth=3, color=:black)
-    ln2=lines!(ax_∇κ∇B_notilt_ln, ∇κ∇B_avg_notilt[:,end], z[:], linewidth=3, color=:red)
-    ln3=lines!(ax_∇κ∇B_notilt_ln, ∇κ∇B_avg_30_39_notilt[:], z[:], linewidth=3, color=:blue)
+    # ln1=lines!(ax_∇κ∇B_notilt_ln, ∇κ∇B_avg_notilt[:,ind], z[:], linewidth=3, color=:black)
+    # ln2=lines!(ax_∇κ∇B_notilt_ln, ∇κ∇B_avg_notilt[:,end], z[:], linewidth=3, color=:red)
+    # ln3=lines!(ax_∇κ∇B_notilt_ln, ∇κ∇B_avg_30_39_notilt[:], z[:], linewidth=3, color=:blue)
     
-    axislegend(ax_∇κ∇B_notilt_ln, [ln1,ln2,ln3],["20 tidal period","38 tidal period","30-39 average"], position = :rt)
+    axislegend(ax_∇κ∇B_tilt_ln, [ln1,ln2,ln3],["60 tidal period","80 tidal period","70-80 tidal average"], position = :rt)
     display(fig)
     slope = "tilt"
-    save(string("output/",slope,"/buoayncy flux divergence",timerange,".png"),fig)
+    save(string("output/",slope,"/buoayncy flux divergence_tilt",timerange,".png"),fig)
 
 
 ## plot difference between flat and tilted case

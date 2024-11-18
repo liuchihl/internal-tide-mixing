@@ -21,7 +21,7 @@ end
 include("functions/bins.jl")
 include("functions/mmderiv.jl")
 slope = "tilt"
-timerange = "40-80"
+timerange = "100-120"
 θ=3.6e-3
 
 # load data
@@ -59,8 +59,8 @@ Bz_avg = zeros(length(bin_edge)-1,length(t))
 uhat_avg = zeros(length(bin_edge)-1,length(t))
 u_avg = zeros(length(bin_edge)-1,length(t))
 what_avg = zeros(length(bin_edge)-1,length(t))
-epsilon_avg = zeros(length(bin_edge)-1,length(t))
-chi_avg = zeros(length(bin_edge)-1,length(t))
+# epsilon_avg = zeros(length(bin_edge)-1,length(t))
+# chi_avg = zeros(length(bin_edge)-1,length(t))
 ∇κ∇B_avg = zeros(length(bin_edge)-1,length(t))
 div_uB_avg = zeros(length(bin_edge)-1,length(t))
 u_bar_∇B_bar_avg = zeros(length(bin_edge)-1,length(t))
@@ -75,7 +75,7 @@ for n in 1:length(t)
     # epsilon = ds_field["ε"][:,:,:,n:n];
      uhat = ds_field["uhat"][:,:,:,n:n];    # true u
      what = ds_field["what"][:,:,:,n:n];    # true w
-     chi = ds_field["χ"][:,:,:,n:n];        # -κ|∇b|²
+    #  chi = ds_field["χ"][:,:,:,n:n];        # -κ|∇b|²
      ∇κ∇B = ds_budget["∇κ∇B"][:,:,:,n:n];    # ∇⋅κ∇B: buoyancy flux divergence
      div_uB = ds_budget["div_uB"][:,:,:,n:n];# ∇⋅uB: buoyancy flux divergence
      what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
@@ -106,7 +106,7 @@ for n in 1:length(t)
     @time Bz_avg[:,n], _ = bins(Bz,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     @time what_avg[:,n], _ = bins(what_cen,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     @time u_avg[:,n], _ = bins(u,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-    @time chi_avg[:,n], _ = bins(chi,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    # @time chi_avg[:,n], _ = bins(chi,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     # @time epsilon_avg[:,n], _ = bins(epsilon,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     @time ∇κ∇B_avg[:,n], _ = bins(∇κ∇B,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     @time div_uB_avg[:,n], _ = bins(div_uB,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
@@ -143,8 +143,8 @@ v3 = defVar(ds_create,"u_avg",Float64,("z_TF","t"))
 v3[:,:] = u_avg
 v4 = defVar(ds_create,"what_avg",Float64,("z_TF","t"))
 v4[:,:] = what_avg
-v5 = defVar(ds_create,"chi_avg",Float64,("z_TF","t"))
-v5[:,:] = chi_avg
+# v5 = defVar(ds_create,"chi_avg",Float64,("z_TF","t"))
+# v5[:,:] = chi_avg
 # v6 = defVar(ds_create,"epsilon_avg",Float64,("z_TF","t"))
 # v6[:,:] = epsilon_avg
 v6 = defVar(ds_create,"dBdt_avg",Float64,("z_TF","t_diff"))
@@ -167,7 +167,7 @@ v1.attrib["units"] = "m/s²"
 v2.attrib["units"] = "1/s²"
 v3.attrib["units"] = "m/s"
 v4.attrib["units"] = "m/s"
-v5.attrib["units"] = ""
+# v5.attrib["units"] = ""
 v6.attrib["units"] = "m/s³"
 # v6.attrib["units"] = "WKg"
 v7.attrib["units"] = "m/s³"
