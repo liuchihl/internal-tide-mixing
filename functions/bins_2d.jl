@@ -37,7 +37,7 @@ using StatsBase
         weights = Weights(var_flat .* ΔV_flat)
         
         # Calculate histogram
-        h = fit(Histogram, (mask1_flat, mask2_flat), weights, 
+        h = StatsBase.fit(Histogram, (mask1_flat, mask2_flat), weights, 
                (bin_edge1, bin_edge2))
         
         integrand[:, :, l] = h.weights
@@ -45,7 +45,7 @@ using StatsBase
         if normalize
             # Calculate volume histogram
             vol_weights = Weights(ΔV_flat)
-            h_vol = fit(Histogram, (mask1_flat, mask2_flat),
+            h_vol = StatsBase.fit(Histogram, (mask1_flat, mask2_flat),
                        vol_weights, (bin_edge1, bin_edge2))
             norm_volume[:, :, l] = h_vol.weights
         end
@@ -111,60 +111,60 @@ end
 
 
 # test:
-slope = "tilt"
-θ = 0.0036
-timerange = "40-80"
-filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
-ds_budget = Dataset(filename_field_budget,"r")
-filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
-ds_field = Dataset(filename_field,"r")
+# slope = "tilt"
+# θ = 0.0036
+# timerange = "40-80"
+# filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
+# ds_budget = Dataset(filename_field_budget,"r")
+# filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+# ds_field = Dataset(filename_field,"r")
 
-zC = ds_budget["zC"][:]; zF = ds_budget["zF"][:];
-Nz=length(zC[:]); 
+# zC = ds_budget["zC"][:]; zF = ds_budget["zF"][:];
+# Nz=length(zC[:]); 
 
-xC = ds_budget["xC"][:]; xF = ds_budget["xF"][:]; 
-Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
+# xC = ds_budget["xC"][:]; xF = ds_budget["xF"][:]; 
+# Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
 
-yC = ds_budget["yC"][:]; yF = ds_budget["yF"][:]
-Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
+# yC = ds_budget["yC"][:]; yF = ds_budget["yF"][:]
+# Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
 
-Lx = (xF[end]+dx) * cos(θ)
-Lz = (xF[end]+dx) * sin(θ)
-x = xC * cos(θ) .- zC' * sin(θ)
-z = xC * sin(θ) .+ zC' * cos(θ)
-z_face = xF * sin(θ) .+ zF' * cos(θ)
-N = 1e-3
-ΔB = N^2*Lz 
-z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
+# Lx = (xF[end]+dx) * cos(θ)
+# Lz = (xF[end]+dx) * sin(θ)
+# x = xC * cos(θ) .- zC' * sin(θ)
+# z = xC * sin(θ) .+ zC' * cos(θ)
+# z_face = xF * sin(θ) .+ zF' * cos(θ)
+# N = 1e-3
+# ΔB = N^2*Lz 
+# z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
 
-t = ds_budget["time"][:];
+# t = ds_budget["time"][:];
 
-# load hab
-filename_hab = "output/hab.nc"
-ds_hab = Dataset(filename_hab,"r")
-hab = ds_hab["hab"][:,:,:];
-∇κ∇B = ds_budget["∇κ∇B"][:,:,:,1:1];    # ∇⋅κ∇B: buoyancy flux divergence
-B = ds_field["B"][:,:,:,1:1];    # ∇⋅κ∇B: buoyancy flux divergence
+# # load hab
+# filename_hab = "output/hab.nc"
+# ds_hab = Dataset(filename_hab,"r")
+# hab = ds_hab["hab"][:,:,:];
+# ∇κ∇B = ds_budget["∇κ∇B"][:,:,:,1:1];    # ∇⋅κ∇B: buoyancy flux divergence
+# B = ds_field["B"][:,:,:,1:1];    # ∇⋅κ∇B: buoyancy flux divergence
 
-# var, bin_edge1, bin_edge2, bin_mask1, bin_mask2
-# inputs for the 2D binning
-    ranges = 0:-1:-40
-    var = ∇κ∇B[:,:,:,1]
-    bin_edge1 = 0:10:1500#0
-    bin_center1 = (bin_edge1[1:end-1] .+ bin_edge1[2:end]) ./ 2
-    # bin_edge2 = (0.1:0.02:0.9).*1e-3  # Define the edges of the bins
-    bin_edge2 = (0.1:0.05:0.9).*1e-3  # Define the edges of the bins
-    bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
-    bin_mask1 = hab
-    int_∇κ∇B = zeros(length(bin_edge1)-1,length(bin_edge2)-1,1)
-    # int_div_uB = zeros(length(bin_edge)-1,1)
-    # int_dBdt = zeros(length(bin_edge)-1,1)
+# # var, bin_edge1, bin_edge2, bin_mask1, bin_mask2
+# # inputs for the 2D binning
+#     ranges = 0:-1:-40
+#     var = ∇κ∇B[:,:,:,1]
+#     bin_edge1 = 0:10:1500#0
+#     bin_center1 = (bin_edge1[1:end-1] .+ bin_edge1[2:end]) ./ 2
+#     # bin_edge2 = (0.1:0.02:0.9).*1e-3  # Define the edges of the bins
+#     bin_edge2 = (0.1:0.05:0.9).*1e-3  # Define the edges of the bins
+#     bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
+#     bin_mask1 = hab
+#     int_∇κ∇B = zeros(length(bin_edge1)-1,length(bin_edge2)-1,1)
+#     # int_div_uB = zeros(length(bin_edge)-1,1)
+#     # int_dBdt = zeros(length(bin_edge)-1,1)
         
-    for n in ranges
-        z̃_face = z_face .+ n*Lz     # extended domain
-        B̃ = B .+ n*ΔB
-        bin_mask2 = B̃
-        @time f1, _, _= bins_2d(var,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z̃_face,normalize=false)
-        int_∇κ∇B += f1
-        @show n
-    end
+#     for n in ranges
+#         z̃_face = z_face .+ n*Lz     # extended domain
+#         B̃ = B .+ n*ΔB
+#         bin_mask2 = B̃
+#         @time f1, _, _= bins_2d(var,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z̃_face,normalize=false)
+#         int_∇κ∇B += f1
+#         @show n
+#     end

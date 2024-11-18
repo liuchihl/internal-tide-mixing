@@ -37,9 +37,9 @@ function mmderiv(x, y)
     z1 = zeros(1, cy)
     zn = z1
     for i = 1:cy
-        p1 = fit(Polynomial, x[1:3], y[1:3, i], 2)
+        p1 = Polynomials.fit(Polynomial, x[1:3], y[1:3, i], 2)
         z1[i] = derivative(p1)(x[1])
-        pn = fit(Polynomial, x[nx-2:nx], y[ry-2:ry, i], 2)
+        pn = Polynomials.fit(Polynomial, x[nx-2:nx], y[ry-2:ry, i], 2)
         zn[i] = derivative(pn)(x[nx])
     end
 

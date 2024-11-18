@@ -58,13 +58,13 @@ using StatsBase
         
         # Calculate histogram with weights
         weights = Weights(var_flat .* ΔV_flat)
-        h = fit(Histogram, mask_flat, weights, bin_edge)
+        h = StatsBase.fit(Histogram, mask_flat, weights, bin_edge)
         integrand[:, l] = h.weights
         
         if normalize
             # Calculate volume histogram
             vol_weights = Weights(ΔV_flat)
-            h_vol = fit(Histogram, mask_flat, vol_weights, bin_edge)
+            h_vol = StatsBase.fit(Histogram, mask_flat, vol_weights, bin_edge)
             norm_volume[:, l] = h_vol.weights
         end
     end
