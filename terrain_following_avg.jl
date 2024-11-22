@@ -21,7 +21,7 @@ end
 include("functions/bins.jl")
 include("functions/mmderiv.jl")
 slope = "tilt"
-timerange = "100-120"
+timerange = "80-120"
 θ=3.6e-3
 
 # load data
@@ -96,14 +96,22 @@ for n in 1:length(t)
     else
         N = 1.e-3
         Bz =  deriv(zC,B);
-        Bz_bc = 0*ones(Nx,Ny,1,1);
-        Bz = cat(Bz, Bz_bc, dims=3);
+        Bz[b[:,:,1:end-1,:].==0] .= 0      # the grids are staggered, but this will effectively set the points inside and right above the immersed boudary to 0
     end
-        
+    # interpolate Bz from faces to center cell
+    using Interpolations
+    # Interpolate each row
+    Bz_center = zeros(size(Bz,1),size(Bz,2),length(zC),1)
+    for i in 1:size(Bz,1)
+        for j in 1:size(Bz,2)
+              itp = linear_interpolation(zF[2:end-1], Bz[i,j,:,1], extrapolation_bc=Line())
+            Bz_center[i,j,:,:] = itp(zC)
+        end
+    end
     # terrain following quantities:
   
     @time b_avg[:,n], _ = bins(b,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-    @time Bz_avg[:,n], _ = bins(Bz,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    @time Bz_avg[:,n], _ = bins(Bz_center,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     @time what_avg[:,n], _ = bins(what_cen,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     @time u_avg[:,n], _ = bins(u,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     # @time chi_avg[:,n], _ = bins(chi,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
@@ -205,3 +213,16 @@ close(ds_create)
 
 
 include("plot_terrain_following.jl")
+
+
+
+
+aa = rand(4,5)
+time = 0:4
+x = 1:4
+
+aa_x = mmderiv(x,aa)
+aa_x_avg = mean(aa_x,dims=2)
+
+aa_avg = mean(aa,dims=2)
+aa_avg_x = mmderiv(x,aa_avg)
