@@ -33,7 +33,7 @@ function deriv(z,y)
 
 ## load data
 
-filename_field = "test_background_diffusive_flux_divergence/test_background_diffusive_flux_divergence_75days_theta=0.2_2D_z.nc"
+filename_field = "test_background_diffusive_flux_divergence/test_background_diffusive_flux_divergence_100days_theta=0.02_2D_higherresolution_Nz=300_z.nc"
 ds_field = Dataset(filename_field,"r")
 # bathy_data = "output/supercritical_slope/bathymetry.nc"
 # Bathy = Dataset(bathy_data,"r")
@@ -69,10 +69,10 @@ Bz_offline_deriv_avg[1,:] .= 0
 # Environmental parameters
 N = 1.0e-3              # Brunt-Väisälä buoyancy frequency        
 f₀ = -5.5e-5            # Coriolis frequency
-θ = 2e-1  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+θ = 2e-2  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
-κ₀ = 6e-3             # Far-Field diffusivity
-κ₁ = 1.8e-3             # Bottom enhancement of diffusivity
+κ₀ = 1e-3             # Far-Field diffusivity
+κ₁ = 5e-3             # Bottom enhancement of diffusivity
 h = 230meter            # decay scale of diffusivity
 σ = 1                   # Prandtl number
 ν₀ = κ₀
@@ -81,7 +81,7 @@ h = 230meter            # decay scale of diffusivity
 
 z = zC[:]
 zf = zF[2:end-1]
-z_anal = range(0,zC[end],2000)
+z_anal = z#range(0,zC[end],2000)
 S = N^2*tan(θ)^2/f₀^2
 q = (f₀^2*cos(θ)^2*(1+S*σ) / (4*(ν₀+ν₁)^2))^(1/4)
 

@@ -17,17 +17,17 @@ using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "75days"
+suffix = "100days"
 
 ## Simulation parameters
  Nx = 4  #150 #250 500 1000
  Ny = 1 #300 #500 1000 2000
- Nz = 250 #250
+ Nz = 300 #250
 
- tᶠ = 75days # simulation run time
+ tᶠ = 100days # simulation run time
  Δtᵒ = 5hours#0.5days # interval for saving output
 
- H = 2kilometers
+ H = 0.5kilometers
  Lx = 500meters#15kilometers
  Ly = 500meters
 
@@ -44,7 +44,7 @@ kwarp(k, N) = (N + 1 - k) / N
 # large refinement gets better resolution at the bottom but coarser at the surface
 # large stretching: resolution difference between the bottom and surface increases
 # z_faces(k) = - H * (ζ(k, Nz, 1.8) * Σ(k, Nz, 10) - 1)
-z_faces(k) = - H * (ζ(k, Nz, 1.8) * Σ(k, Nz, 10) - 1)
+z_faces(k) = - H * (ζ(k, Nz, 2) * Σ(k, Nz, 10) - 1)
 
 
 grid = RectilinearGrid(size=(Nx,Nz), 
@@ -66,10 +66,10 @@ grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse))
 # Environmental parameters
 N = 1.0e-3              # Brunt-Väisälä buoyancy frequency        
 f₀ = -5.5e-5            # Coriolis frequency
-θ = 2e-1  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+θ = 2e-2  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
-κ₀ = 6e-3             # Far-Field diffusivity
-κ₁ = 1.8e-3             # Bottom enhancement of diffusivity
+κ₀ = 1e-3             # Far-Field diffusivity
+κ₁ = 5e-3             # Bottom enhancement of diffusivity
 h = 230meter            # decay scale of diffusivity
 σ = 1                   # Prandtl number
 ν₀ = κ₀
@@ -89,7 +89,7 @@ no_penetrate = FieldBoundaryConditions(ValueBoundaryCondition(0.0))
 normal = -N^2*cos(θ)    # normal slope 
 cross = -N^2*sin(θ)     # cross slope
 B_immerse = ImmersedBoundaryCondition(bottom=GradientBoundaryCondition(normal),
-                    west = GradientBoundaryCondition(0), east = GradientBoundaryCondition(0))
+                    west = GradientBoundaryCondition(cross), east = GradientBoundaryCondition(cross))
 B_bcs = FieldBoundaryConditions(bottom = GradientBoundaryCondition(normal),
                                 top = GradientBoundaryCondition(0), 
                                 immersed=B_immerse);
@@ -133,7 +133,7 @@ bᵢ(x,z) = 1e-9*rand() # seed infinitesimal perturbations in buoyancy field
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-Δt = 150#(1/N)*0.03
+Δt = 20#(1/N)*0.03
 # Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
 # wizard = TimeStepWizard(cfl=.5, diffusive_cfl=.5)
@@ -149,7 +149,7 @@ u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 Bz = @at (Center, Center, Center) ∂z(B)            
 
-fname = string("test_background_diffusive_flux_divergence_", suffix,"_theta=",string(θ),"_2D")
+fname = string("test_background_diffusive_flux_divergence_", suffix,"_theta=",string(θ),"_2D_higherresolution_Nz=",string(Nz))
 # rm(string(fname,"/test_background_diffusive_flux_divergence_50days_theta=1_z.nc"))
 
 # simulation.output_writers[:checkpointer] = Checkpointer(
