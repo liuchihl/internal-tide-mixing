@@ -67,16 +67,17 @@ Bz_offline_mmderiv_avg[1,:] .= 0
 Bz_offline_deriv_avg[1,:] .= 0
 ## analytical steady solution from Callies 2018
 # Environmental parameters
-N = 1.0e-3              # Brunt-Väisälä buoyancy frequency        
-f₀ = -5.5e-5            # Coriolis frequency
-θ = 2e-2  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
+f₀ = -5.3e-5            # Coriolis frequency
+θ = 1.26e-3  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
-κ₀ = 1e-3             # Far-Field diffusivity
-κ₁ = 5e-3             # Bottom enhancement of diffusivity
+κ₀ = 5.3e-5             # Far-Field diffusivity
+κ₁ = 1.8e-3            # Bottom enhancement of diffusivity
 h = 230meter            # decay scale of diffusivity
 σ = 1                   # Prandtl number
 ν₀ = κ₀
 ν₁ = κ₁
+
 
 
 z = zC[:]

@@ -17,17 +17,17 @@ using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "100days"
+suffix = "1000days"
 
 ## Simulation parameters
  Nx = 4  #150 #250 500 1000
  Ny = 1 #300 #500 1000 2000
  Nz = 300 #250
 
- tᶠ = 100days # simulation run time
- Δtᵒ = 5hours#0.5days # interval for saving output
+ tᶠ = 1000days # simulation run time
+ Δtᵒ = 5days   # interval for saving output
 
- H = 0.5kilometers
+ H = 1.5kilometers
  Lx = 500meters#15kilometers
  Ly = 500meters
 
@@ -64,12 +64,12 @@ grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse))
 # grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBoundary(topog))
 
 # Environmental parameters
-N = 1.0e-3              # Brunt-Väisälä buoyancy frequency        
-f₀ = -5.5e-5            # Coriolis frequency
-θ = 2e-2  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
+f₀ = -5.3e-5            # Coriolis frequency
+θ = 1.26e-3  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
 ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
-κ₀ = 1e-3             # Far-Field diffusivity
-κ₁ = 5e-3             # Bottom enhancement of diffusivity
+κ₀ = 5.3e-5             # Far-Field diffusivity
+κ₁ = 1.8e-3            # Bottom enhancement of diffusivity
 h = 230meter            # decay scale of diffusivity
 σ = 1                   # Prandtl number
 ν₀ = κ₀
@@ -136,8 +136,8 @@ set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 Δt = 20#(1/N)*0.03
 # Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
-# wizard = TimeStepWizard(cfl=.5, diffusive_cfl=.5)
-# simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(1))
+wizard = TimeStepWizard(cfl=.5, diffusive_cfl=.5)
+simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(20))
 
 ## Diagnostics
 b = model.tracers.b
