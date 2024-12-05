@@ -1,0 +1,43 @@
+#!/bin/bash
+#SBATCH --job-name="tilt"
+#SBATCH --output="output_message/internal-tide-realtopo.out.%j.%N.out"
+#SBATCH --partition=gpuA100x4
+#SBATCH --mem=8G
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1  # could be 1 for py-torch
+#SBATCH --cpus-per-task=4   # spread out to use 1 core per numa, set to 64 if tasks is 1
+#SBATCH --constraint="scratch"
+#SBATCH --gpus-per-node=4
+#SBATCH --gpu-bind=closest   # select a cpu close to gpu on pci bus topology
+#SBATCH --account=bcpi-delta-gpu    # <- match to a "Project" returned by the "accounts" command
+#SBATCH --exclusive  # dedicated node for this job
+#SBATCH --no-requeue
+#SBATCH -t 2:00:00
+
+# Run command hostname and save output to the file out.txt
+module reset
+module load cuda/12.4.0
+module load julia/1.10.2
+#module load julia/1.9.0
+date
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide_conjugate_gradient.jl
+#rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide.jl
+rundir=/scratch/bcpi/cliu28/internal-tide-mixing/test_background_diffusive_flux_divergence/test_multiGPU.jl
+echo "Running $rundir"
+
+julia --project $rundir > ${rundir}_out.txt 
+#nvidia-smi >> ${rundir}_out.txt
+
+
+
+
+#julia --project $rundir > ${rundir}_out.txt &
+#pid=$!  # Get the PID of the background Julia process
+#nvidia-smi >> ${rundir}_out.txt
+#wait $pid  # Wait for the Julia process to finish before exiting the script
+
+#julia --project $rundir > ${rundir}_out.txt &
+#nvidia-smi >> ${rundir}_out.txt &
+#wait
+
+date
