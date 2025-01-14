@@ -1,9 +1,12 @@
+
 using Printf
 using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
-using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner
+using Oceananigans.DistributedComputations
+using Oceananigans.DistributedComputations: all_reduce
 using LinearAlgebra
 using Adapt
 using MAT
@@ -13,6 +16,7 @@ using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using Interpolations: LinearInterpolation
 using CUDA
 using Suppressor
+
 
 function initialize_internal_tide(
     simname,
@@ -58,7 +62,7 @@ kwarp(k, N) = (N + 1 - k) / N
 # Generating function
 z_faces(k) = - H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 15) - 1)
 
-underlying_grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz), 
+grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz), 
         x = (0, Lx),
         y = (0, Ly), 
         z = z_faces,
@@ -67,7 +71,7 @@ underlying_grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz),
 )
 # yᶜ = ynodes(grid, Center())
 # Δyᶜ = yspacings(grid, Center())
-zC = adapt(Array,znodes(underlying_grid, Center()))
+# zC = adapt(Array,znodes(grid, Center()))
 
 # load topography 
 file = matopen(topo_file)
@@ -93,16 +97,15 @@ z_interp = z_interp.-minimum(z_interp)
 ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vector in rotated coordinates
 
 # Create immersed boundary grid
-grid = ImmersedBoundaryGrid(underlying_grid, GridFittedBottom(z_interp))
+z_interp_data = architecture == CPU() ? z_interp : CuArray(z_interp)
+# grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp_data))
 
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
  z₀ = 0.1 # m (roughness length)
  κ_von = 0.4  # von Karman constant
-    if architecture==GPU()
-        CUDA.@allowscalar z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
-    else
-        z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
-    end
+ z₁ = architecture == CPU() ? first(znodes(grid, Center())) :
+     CUDA.@allowscalar(first(znodes(grid, Center())))
+     
 cᴰ = (κ_von / log(z₁ / z₀))^2 # Drag coefficient
 # non-immersed and immersed boundary conditions
 @inline drag_u(x, y, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
@@ -117,8 +120,10 @@ immersed_drag_bc_v = FluxBoundaryCondition(immersed_drag_v, field_dependencies=(
 u_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_u)
 v_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_v)
 
-u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
-v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
+# u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
+# v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
+u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing))
+v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing))
 # tracer: no-flux boundary condition
 ∂B̄∂z = N^2*cos(θ)
 ∂B̄∂x = N^2*sin(θ)
@@ -130,8 +135,12 @@ B_bcs_immersed = ImmersedBoundaryCondition(
 
 B_bcs = FieldBoundaryConditions(
           bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
-             top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
-        immersed = B_bcs_immersed);
+             top = GradientBoundaryCondition(0.) # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
+        );
+# B_bcs = FieldBoundaryConditions(
+#           bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
+#              top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
+#         immersed = B_bcs_immersed);
 ## Notes:
 # (1) directions are defined relative to domain coordinates.
 # (2) Gradients are positive in the direction of the coordinate.
@@ -150,7 +159,7 @@ bᵢ(x, y, z) = 1e-9*rand() # seed infinitesimal random perturbations in the buo
 s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
 
 # Rotate gravity vector
-buoyancy = Buoyancy(model = BuoyancyTracer(), gravity_unit_vector = -[ĝ...])
+buoyancy = BuoyancyForce(BuoyancyTracer(), gravity_unit_vector = -[ĝ...])
 coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 
 # Linear background stratification (in ẑ)
@@ -173,11 +182,12 @@ if solver == "FFT"
         background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
     )
 else solver == "Conjugate Gradient"
+    tol = 1e-9
     model = NonhydrostaticModel(;
         grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(
-                grid; preconditioner = fft_poisson_solver(underlying_grid),
-                maxiter=1),
+                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
         coriolis = coriolis,
@@ -214,18 +224,22 @@ û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
 
 Bz = @at (Center, Center, Center) ∂z(B)
-uz = Field(∂z(û))
-Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=true)
+# uz = Field(∂z(û))
+# Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=true)
 
 # Oceanostics
 # KE = KineticEnergy(model)
 # PE = PotentialEnergy(model)
-ε = KineticEnergyDissipationRate(model)
-χ = TracerVarianceDissipationRate(model, :b)
+# ε = KineticEnergyDissipationRate(model)
+# χ = TracerVarianceDissipationRate(model, :b)
 
+# eddy viscosity 
+# νₑ = simulation.model.diffusivity_fields.νₑ
 # buoyancy budget
 Bbudget=get_budget_outputs_tuple(model;)
 
+# testing divergence 
+udiv = KernelFunctionOperation{Center, Center, Center}(divᶜᶜᶜ, model.grid, u, v, w)
 
 # set the ouput mode:
 if output_mode == "spinup"
@@ -242,8 +256,10 @@ elseif output_mode == "test"
         threeD_diags = (; χ, uhat=û, what=ŵ,  B=B, b=b)
 elseif output_mode == "certain-diagnostics"
         checkpoint_interval = 20*2π/ω₀
-        threeD_diags = (; uhat=û, what=ŵ,  B=B)
-        threeD_buoyancy = (; B=B,)
+        # slice_diags = (; Bz=Bz, what=ŵ,)
+        threeD_diags = (; Bz=Bz, what=ŵ,)
+        
+        
 else output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
@@ -255,30 +271,39 @@ fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,
 dir = string("output/",simname, "/")
 if output_writer
     ## checkpoint  
-    simulation.output_writers[:checkpointer] = Checkpointer(
-                                        model,
-                                        schedule=TimeInterval(checkpoint_interval),
-                                        dir=dir,
-                                        prefix=string(fname, "_checkpoint"),
-                                        cleanup=clean_checkpoint)
+    # simulation.output_writers[:checkpointer] = Checkpointer(
+    #                                     model,
+    #                                     schedule=TimeInterval(checkpoint_interval),
+    #                                     dir=dir,
+    #                                     prefix=string(fname, "_checkpoint"),
+    #                                     cleanup=clean_checkpoint)
 
     ## output 3D field window time average
-    tidal_period = 2π/ω₀ 
+    # tidal_period = 2π/ω₀ 
     simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
                                         verbose=true,
                                         filename = string(dir, fname, "_threeD_timeavg.nc"),
                                         overwrite_existing = overwrite_output,
-                                        schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
+                                        # schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
+                                        schedule = AveragedTimeInterval(1hour, window=1hour, stride=1),
                                         # indices = (:,Ny÷2,:) # take this out when running real simulation
                                         )
-    simulation.output_writers[:nc_threeD_timeavg_Bbudget] = NetCDFOutputWriter(model, Bbudget,
-                                        verbose=true,
-                                        filename = string(dir, fname, "_threeD_timeavg_Bbudget.nc"),
-                                        overwrite_existing = overwrite_output,
-                                        schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
-                                        # indices = (:,Ny÷2,:) # take this out when running real simulation
-                                        )
+    # simulation.output_writers[:nc_threeD_timeavg_Bbudget] = NetCDFOutputWriter(model, Bbudget,
+    #                                     verbose=true,
+    #                                     filename = string(dir, fname, "_threeD_timeavg_Bbudget.nc"),
+    #                                     overwrite_existing = overwrite_output,
+    #                                     schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
+    #                                     # indices = (:,Ny÷2,:) # take this out when running real simulation
+    #                                     )
     
+    # output 3D field snapshots
+    # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+    #                                         verbose=true,
+    #                                         filename = string(dir, fname, "_threeD.nc"),
+    #                                         overwrite_existing = overwrite_output,
+    #                                         schedule = TimeInterval(threeD_snapshot_interval))
+
+
     ## output 2D slices
     #1) xz
     # simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
@@ -303,11 +328,11 @@ if output_writer
     #                                         filename = string(dir, fname, "_slices_yz.nc"),
     #                                         overwrite_existing = overwrite_output)
     # save 3D snapshots of buoyancy fields
-    simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, merge(Bbudget,threeD_buoyancy),
-                                            verbose=true,
-                                            filename = string(dir, fname, "_threeD.nc"),
-                                            overwrite_existing = overwrite_output,
-                                            schedule = TimeInterval(tidal_period÷2) )
+    # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, merge(Bbudget,threeD_buoyancy),
+    #                                         verbose=true,
+    #                                         filename = string(dir, fname, "_threeD.nc"),
+    #                                         overwrite_existing = overwrite_output,
+    #                                         schedule = TimeInterval(tidal_period÷2) )
     
     ## output that is saved only when reaching quasi-equilibrium
     if output_mode=="analysis"
@@ -328,21 +353,30 @@ if output_writer
 end
 ### Progress messages
 
-        progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-                            advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
-                            100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-                            s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
-                            ,log_gpu_memory_usage())
-
         # progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-        #                     advective CFL: %.2e, diffusive CFL: %.2e",
+        #                     advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
         #                     100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
         #                     s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-        #                     AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model))
+        #                     AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
+        #                     ,log_multi_gpu_memory_usage())
+                            # log_gpu_memory_usage()
+                            # multi_gpu_memory_info
+        progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
+                            advective CFL: %.2e, diffusive CFL: %.2e, %s\n",
+                            100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
+                            s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
+                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model),
+                            log_multi_gpu_memory_usage())
+        # progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
+        #                     advective CFL: %.2e, diffusive CFL: %.2e \n",
+        #                     100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
+        #                     s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
+        #                     AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
+        #                     )
 
 
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
+# simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
+simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δt))
 
 
     return simulation
