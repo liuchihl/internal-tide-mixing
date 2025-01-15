@@ -1,8 +1,11 @@
 using NCDatasets
 using NaNStatistics
-slope = "tilt"
-timerange = "80-120"
-θ=3.6e-3
+# slope = "tilt"
+# timerange = "80-120"
+# θ=3.6e-3
+slope = "notilt"
+timerange = "40-80"
+θ=0
 # load data
 filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
 ds_field = Dataset(filename_field,"r")
@@ -16,14 +19,14 @@ yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
 Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
 Ly = yF[end]+dy
 t = ds_field["time"][:];
-n=30
-    uhat = nanmean(ds_field["uhat"][:,:,:,n:n+10],dim=(2,4));    # true u
-    what = nanmean(ds_field["what"][:,:,:,n:n+10],dim=(2,4));    # true w
+n=29 #30
+    uhat = nansum(nanmean(ds_field["uhat"][:,:,:,n:n+10],dim=(4))*dy,dim=2);    # true u (integral)
+    what = nansum(nanmean(ds_field["what"][:,:,:,n:n+10],dim=(4))*dy,dim=2);    # true w (integral)
     what_cen = (what[:,1:end-1] .+ what[:,2:end])./2 # what at center
     # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
-    wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
-    U = Ly*(uhat[:,:,:]*cos(θ) .+ wtemp*sin(θ)) # cross-slope velocity transport
-    W = Ly*(-uhat[:,:,:,1]*sin(θ) .+ wtemp*cos(θ))# slope-normal velocity transport
+    wtemp = (vcat(what_cen[end:end,:],what_cen[1:end-1,:]) .+ what_cen[:,:])./2
+    U = (uhat[:,:]*cos(θ) .+ wtemp*sin(θ)) # cross-slope velocity transport
+    W = (-uhat[:,:]*sin(θ) .+ wtemp*cos(θ))# slope-normal velocity transport
     ψ = zeros(Nx,Nz)
 for i in 1:Nx
     for j in 2:Nz
@@ -31,6 +34,9 @@ for i in 1:Nx
     end
 end
 ψ[uhat.==0].=NaN
+U[U.==0].=NaN
+W[W.==0].=NaN
+
 # bathymetry
 using MAT
 file = matopen("topo.mat")
@@ -73,32 +79,75 @@ v2 = defVar(ds_create,"U",Float64,("x","z"))
 v2[:,:] = U
 v3 = defVar(ds_create,"W",Float64,("x","z"))
 v3[:,:] = W
+v4 = defVar(ds_create,"xC",Float64,("x",))
+v4[:] = xC[:]
+v5 = defVar(ds_create,"zC",Float64,("z",))
+v5[:] = zC[:]
 
 # write attributes
 v1.attrib["units"] = "m³/s"
 v2.attrib["units"] = "m²/s"
 v3.attrib["units"] = "m²/s"
+v4.attrib["units"] = "m"
+v5.attrib["units"] = "m"
 close(ds_create)
 
 ## plot
-    filename = "output/tilt/streamfunction_80-120.nc"
+    filename = "output/$slope/streamfunction_$timerange.nc"
     ds = NCDataset(filename)
+    ψ = ds["ψ"][:,:]
+    U = ds["U"][:,:]
+    W = ds["W"][:,:]
+    xC = ds["xC"][:]
+    zC = ds["zC"][:]
     using PyPlot
 
     close("all")
+    PyPlot.rc("font", size=18)  # Set default font size for all text elements
 
-    fig, ax = subplots(1, 1, figsize=(10, 5))
+    fig, ax = subplots(1, 1, figsize=(10, 8))
 
-    c1 = ax.contourf(xC[:]*1e-3, zC[:], ψ',100,cmap="GnBu")
+    c1 = ax.contourf(xC[:], zC[:], ψ',120,cmap="GnBu_r")
     colorbar(c1,label="ψ(m³/s)")
-    c2 = ax.contour(xC[:]*1e-3, zC[:], ψ',20,colors="black",linewidth=1.2,linestyle="-")
+    c2 = ax.contour(xC[:], zC[:], ψ',levels=-72000:4000:8000,colors=[63 43 43]./255,linewidth=0.8,linestyles="-")
 
-    PyPlot.quiver(xC[1:10:end]*1e-3,zC[1:5:end], U[1:10:end,1:5:end,1]', W[1:10:end,1:5:end,1]',
-                
-                angles="xy", scale_units="xy", scale=50, width=0.001,
-                headwidth=5, headlength=.1, headaxislength=20,linewdith=1.0)
+    PyPlot.quiver(xC[1:12:end],zC[1:6:end], U[1:12:end,1:6:end]', W[1:12:end,1:6:end]',               
+                angles="xy", scale_units="xy")
+                # , scale=1, width=0.001,
+                # headwidth=5, headlength=.1, headaxislength=20,linewidth=1.0)
+    time_start = round(Int, t[n]/(2π/1.4e-4))
+    time_end = round(Int, t[n+10]/(2π/1.4e-4))
+    title("$(time_start)-$(time_end) tidal periods")   
     ax.set_facecolor("gray")
+    xlabel("x (m)") 
+    ylabel("z (m)")
+    PyPlot.plot(xC[:],z_interp_y,linewidth=2.5,color="brown")
+    savefig("output/$slope/streamfunction_yavg_$slope.png",dpi=200)
 
-    PyPlot.plot(xC[:]*1e-3,z_interp_y,linewidth=2,color="brown")
-    savefig("output/tilt/streamfunction_yavg.png")
 
+
+    
+    # filename = "output/tilt/streamfunction_80-120.nc"
+    # ds = NCDataset(filename)
+    # using PyPlot
+
+    # close("all")
+    # PyPlot.rc("font", size=18)  # Set default font size for all text elements
+
+    # fig, ax = subplots(1, 1, figsize=(10, 8))
+
+    # c1 = ax.contourf(xC[:], zC[:], ψ',120,cmap="GnBu_r")
+    # colorbar(c1,label="ψ(m³/s)")
+    # c2 = ax.contour(xC[200:334], zC[:], ψ[200:334,:]',levels=-72000:4000:8000,colors=[63 43 43]./255,linewidth=0.8,linestyles="-")
+
+    # PyPlot.quiver(xC[200:5:334],zC[1:6:end], U[200:5:334,1:6:end]', W[200:5:334,1:6:end]',               
+    #             angles="xy", scale_units="xy")
+    #             # , scale=1, width=0.001,
+    #             # headwidth=5, headlength=.1, headaxislength=20,linewidth=1.0)
+    # ax.set_facecolor("gray")
+    # xlabel("x (m)")
+    # ylabel("z (m)")
+    # xlim(xC[200],xC[334])
+    # ylim(500,1750)
+    # PyPlot.plot(xC[:],z_interp_y,linewidth=2.5,color="brown")
+    # savefig("output/tilt/streamfunction_yavg_zoomin.png",dpi=200)
