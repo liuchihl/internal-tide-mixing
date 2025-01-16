@@ -1,4 +1,3 @@
-
 using Printf
 using Oceananigans
 using Oceananigans.Units
@@ -98,7 +97,7 @@ ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vect
 
 # Create immersed boundary grid
 z_interp_data = architecture == CPU() ? z_interp : CuArray(z_interp)
-# grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp_data))
+grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp_data))
 
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
  z₀ = 0.1 # m (roughness length)
@@ -119,10 +118,8 @@ immersed_drag_bc_v = FluxBoundaryCondition(immersed_drag_v, field_dependencies=(
 u_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_u)
 v_immerse = ImmersedBoundaryCondition(bottom=immersed_drag_bc_v)
 
-# u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
-# v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
-u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing))
-v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing))
+u_bcs = FieldBoundaryConditions(bottom = drag_bc_u, top = FluxBoundaryCondition(nothing), immersed=u_immerse)
+v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(nothing), immersed=v_immerse)
 # tracer: no-flux boundary condition
 ∂B̄∂z = N^2*cos(θ)
 ∂B̄∂x = N^2*sin(θ)
@@ -134,12 +131,8 @@ B_bcs_immersed = ImmersedBoundaryCondition(
 
 B_bcs = FieldBoundaryConditions(
           bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
-             top = GradientBoundaryCondition(0.) # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
-        );
-# B_bcs = FieldBoundaryConditions(
-#           bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
-#              top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
-#         immersed = B_bcs_immersed);
+             top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
+        immersed = B_bcs_immersed);
 ## Notes:
 # (1) directions are defined relative to domain coordinates.
 # (2) Gradients are positive in the direction of the coordinate.
@@ -166,6 +159,47 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 @inline ẑ(x, z, ĝ) = x*ĝ[1] .+ z*ĝ[3]
 @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
 B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
+
+
+# add Lagragian particles
+
+# Lagrangian particle initialization with Gaussian distribution
+# Nparticles = 1000
+
+# # Calculate mean position (center of domain, just above bottom topography)
+# x_center = Nx/2
+# y_center = Ny/2
+
+# filename_hab = "output/hab.nc"
+# ds_hab = Dataset(filename_hab,"r")
+# hab = ds_hab["hab"][x_center,y_center,:];
+# z0 = findfirst(hab .> 0)   # the height right above the bottom topography
+# z_center = z0 + 100  # 100m above minimum topography height
+
+# # Standard deviations for Gaussian distribution
+# σ_x = Lx/50
+# σ_y = Ly/50
+# σ_z = 100  # 50m vertical spread
+
+# # Generate Gaussian distributed positions
+# x₀ = x_center .+ σ_x * randn(Nparticles)
+# y₀ = y_center .+ σ_y * randn(Nparticles)
+# z₀ = z_center .+ σ_z * randn(Nparticles)
+
+# # Ensure particles are above topography
+# for i in 1:Nparticles
+#     # Find interpolated topography height at (x₀[i], y₀[i])
+#     topo_height = itp(mod(x₀[i], Lx), mod(y₀[i], Ly))
+#     # Adjust z₀ if below topography
+#     z₀[i] = max(z₀[i], topo_height + 10)  # Keep at least 10m above topography
+# end
+
+# # Initialize particles with Wiener process noise
+# particles = LagrangianParticles(
+#     x=x₀, y=y₀, z=z₀,
+#     restitution=0.5,  # Partial elastic bouncing off boundaries
+#     diffusivity=1e-3  # Diffusivity coefficient for Wiener process
+# )
 
 if solver == "FFT"
     model = NonhydrostaticModel(
@@ -228,6 +262,7 @@ Bz = @at (Center, Center, Center) ∂z(B)
 # Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=true)
 
 # Oceanostics
+# wb = BuoyancyProductionTerm(model)
 # KE = KineticEnergy(model)
 # PE = PotentialEnergy(model)
 # ε = KineticEnergyDissipationRate(model)
