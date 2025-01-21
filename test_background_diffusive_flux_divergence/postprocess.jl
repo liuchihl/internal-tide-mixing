@@ -22,7 +22,7 @@ function deriv(z,y)
     dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
     return dydz
  end
- include("../functions/mmderiv.jl")
+ include("functions/mmderiv.jl")
 
 # function nice_divergent_levels(c, clim; nlevels=20)
 #     levels = range(-clim, stop=clim, length=nlevels)
@@ -33,7 +33,7 @@ function deriv(z,y)
 
 ## load data
 
-filename_field = "test_background_diffusive_flux_divergence/test_background_diffusive_flux_divergence_100days_theta=0.02_2D_higherresolution_Nz=300_z.nc"
+filename_field = "test_background_diffusive_flux_divergence/test_background_diffusive_flux_divergence_5000days_theta=0.00126_2D_higherresolution_Nz=300_z.nc"
 ds_field = Dataset(filename_field,"r")
 # bathy_data = "output/supercritical_slope/bathymetry.nc"
 # Bathy = Dataset(bathy_data,"r")
@@ -49,7 +49,7 @@ t = ds_field["time"];
 
 # load all data
 B = ds_field["B"].var;       B = B[:,:,:,:];
-Bz = ds_field["Bz"].var;     Bz = Bz[:,:,:,:]*1e6;
+Bz = ds_field["Bz"].var;     Bz = Bz[:,:,:,:];
 b = ds_field["b"].var;       b = b[:,:,:,:];
 u = ds_field["u"].var; u = u[:,:,:,:];
 Bz_avg = nanmean(Bz,dim=(1,2))
@@ -57,8 +57,8 @@ u_avg = nanmean(u,dim=(1,2))
 Bz_offline_mmderiv = zeros(Nx,Nz,length(t))
 Bz_offline_deriv = zeros(Nx,Ny,Nz-1,length(t))
 for i in 1:Nx
-Bz_offline_mmderiv[i,:,:] = mmderiv(zC[:],B[i,1,:,:])*1e6
-Bz_offline_deriv[i,:,:,:] = deriv(zC[:],B[i:i,:,:,:])*1e6
+Bz_offline_mmderiv[i,:,:] = mmderiv(zC[:],B[i,1,:,:])
+Bz_offline_deriv[i,:,:,:] = deriv(zC[:],B[i:i,:,:,:])
 end
 # Bz_offline_deriv[:,:,1,:] .= 0
 Bz_offline_mmderiv_avg = nanmean(Bz_offline_mmderiv,dim=(1))
@@ -118,7 +118,7 @@ axis_kwargs = (xlabel = "zonal distance (x)",
                   titlesize = fs
                   )
 axis_kwargs_Bz = (ylabel = "elevation (z)",
-                  limits = ((0,1.05), (0, 500)), 
+                  limits = (nothing, (0, 800)), 
                   xlabelsize = fs,
                   ylabelsize = fs,
                   xticklabelsize = fs,
@@ -126,7 +126,7 @@ axis_kwargs_Bz = (ylabel = "elevation (z)",
                   titlesize = fs
                   )
 axis_kwargs_u = (ylabel = "elevation (z)",
-                  limits = ((-.001, .004), (0, 500)), 
+                  limits = ((-.001, .004), (0, 800)), 
                   xlabelsize = fs,
                   ylabelsize = fs,
                   xticklabelsize = fs,
@@ -138,7 +138,7 @@ title = @lift @sprintf("t=%1.2f day", t[$n]/86400)
 fig[1, 1] = Label(fig, title, fontsize=25, tellwidth=false)
 # ax_b = Axis(fig[2, 1]; title = "b", axis_kwargs...)
 # ax_Bz = Axis(fig[3, 1]; title = L"B_z×10^{-6}", axis_kwargs...)
-ax_Bprofile = Axis(fig[2, 1]; title = L"B_z×10^{-6}", axis_kwargs_Bz...)
+ax_Bprofile = Axis(fig[2, 1]; title = L"B_z×10^{-6}", xscale = Makie.log10, axis_kwargs_Bz...)
 ax_u = Axis(fig[2, 2]; title = "u", axis_kwargs_u...)
 
 
@@ -173,7 +173,7 @@ ax_u = Axis(fig[2, 2]; title = "u", axis_kwargs_u...)
 L1 = scatterlines!(ax_Bprofile,Bz_profileₙ,z,linestyle=:solid,color=:black,linewidth=3,markersize=0)
 L2 = scatterlines!(ax_Bprofile,Bz_offline_mmderivₙ,z,linestyle=:solid,color=:red,linewidth=3,markersize=0)
 L3 = scatterlines!(ax_Bprofile,Bz_offline_derivₙ,zf,linestyle=:dash,color=:green,linewidth=3,markersize=0)
-L4 = lines!(ax_Bprofile,Bz_analytical*1e6,z_anal,color=:orange,linewidth=3,linestyle=:dash)
+L4 = lines!(ax_Bprofile,Bz_analytical,z_anal,color=:orange,linewidth=3,linestyle=:dash)
 # lines!(ax_Bprofile,[-1,25],[20,20],linewidth=2.5,color=:black,linestyle=:dash)
 
 

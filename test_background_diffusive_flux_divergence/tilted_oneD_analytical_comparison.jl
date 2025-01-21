@@ -13,23 +13,24 @@ using MAT
 using Statistics
 using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
+using CUDA
 # using Interpolations
 using NCDatasets
 # using Oceanostics.PotentialEnergyEquationTerms: PotentialEnergy
 
-suffix = "1000days"
+suffix = "5000days"
 
 ## Simulation parameters
- Nx = 4  #150 #250 500 1000
- Ny = 1 #300 #500 1000 2000
- Nz = 300 #250
+const Nx = 4  #150 #250 500 1000
+const Ny = 1 #300 #500 1000 2000
+const Nz = 300 #250
 
- tᶠ = 1000days # simulation run time
- Δtᵒ = 5days   # interval for saving output
+const tᶠ = 5000days # simulation run time
+const Δtᵒ = 5days   # interval for saving output
 
- H = 1.5kilometers
- Lx = 500meters#15kilometers
- Ly = 500meters
+const H = 1.5kilometers
+const Lx = 500meters#15kilometers
+const Ly = 500meters
 
 ## Create grid
 # Creates a vertical grid with near-constant spacing `refinement * Lz / Nz` near the bottom:
@@ -47,7 +48,7 @@ kwarp(k, N) = (N + 1 - k) / N
 z_faces(k) = - H * (ζ(k, Nz, 2) * Σ(k, Nz, 10) - 1)
 
 
-grid = RectilinearGrid(size=(Nx,Nz), 
+grid = RectilinearGrid(GPU(),size=(Nx,Nz), 
         x = (0,Lx),        
         # y = (0,Ly),        
         z = z_faces,
@@ -64,16 +65,16 @@ grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBottom(bottomimmerse))
 # grid_immerse = ImmersedBoundaryGrid(grid, GridFittedBoundary(topog))
 
 # Environmental parameters
-N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
-f₀ = -5.3e-5            # Coriolis frequency
-θ = 1.26e-3  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
-ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
-κ₀ = 5.3e-5             # Far-Field diffusivity
-κ₁ = 1.8e-3            # Bottom enhancement of diffusivity
-h = 230meter            # decay scale of diffusivity
-σ = 1                   # Prandtl number
-ν₀ = κ₀
-ν₁ = κ₁
+const N = 1.3e-3              # Brunt-Väisälä buoyancy frequency        
+const f₀ = -5.3e-5            # Coriolis frequency
+const θ = 1.26e-3  #2e-1# 2e-3                # tilting of domain in (x,z) plane, in radians [for small slopes tan(θ)~θ]
+const ĝ = (sin(θ), 0, cos(θ)) # vertical (gravity-oriented) unit vector in rotated coordinates
+const κ₀ = 5.3e-5             # Far-Field diffusivity
+const κ₁ = 1.8e-3            # Bottom enhancement of diffusivity
+const h = 230meter            # decay scale of diffusivity
+const σ = 1                   # Prandtl number
+const ν₀ = κ₀
+const ν₁ = κ₁
 
 # diffusivity
 @inline κ(x,z,t) = κ₀ + κ₁*exp(-z / h)
@@ -106,8 +107,8 @@ B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^
 
 
 # Tidal forcing 
-U₀ = 0#0.025
-ω₀ = 1.4e-4
+const U₀ = 0#0.025
+const ω₀ = 1.4e-4
 u_tidal_forcing(x, z, t) = U₀*ω₀*sin(ω₀*t)
 
 model = NonhydrostaticModel(
@@ -133,11 +134,11 @@ bᵢ(x,z) = 1e-9*rand() # seed infinitesimal perturbations in buoyancy field
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-Δt = 20#(1/N)*0.03
+Δt = 150#(1/N)*0.03
 # Δt = 0.5 * minimum_zspacing(grid) / Uᵣ
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
-wizard = TimeStepWizard(cfl=.5, diffusive_cfl=.5)
-simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(20))
+# wizard = TimeStepWizard(cfl=.5, diffusive_cfl=.5)
+# simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
 
 ## Diagnostics
 b = model.tracers.b
