@@ -194,13 +194,6 @@ B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^
 #     z₀[i] = max(z₀[i], topo_height + 10)  # Keep at least 10m above topography
 # end
 
-# # Initialize particles with Wiener process noise
-# particles = LagrangianParticles(
-#     x=x₀, y=y₀, z=z₀,
-#     restitution=0.5,  # Partial elastic bouncing off boundaries
-#     diffusivity=1e-3  # Diffusivity coefficient for Wiener process
-# )
-
 if solver == "FFT"
     model = NonhydrostaticModel(
         grid = grid,
@@ -262,45 +255,38 @@ Bz = @at (Center, Center, Center) ∂z(B)
 # Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=true)
 
 # Oceanostics
-# wb = BuoyancyProductionTerm(model)
+wb = BuoyancyProductionTerm(model)
 # KE = KineticEnergy(model)
 # PE = PotentialEnergy(model)
-# ε = KineticEnergyDissipationRate(model)
-# χ = TracerVarianceDissipationRate(model, :b)
+ε = KineticEnergyDissipationRate(model)
+χ = TracerVarianceDissipationRate(model, :b)
 
 # eddy viscosity 
 # νₑ = simulation.model.diffusivity_fields.νₑ
 # buoyancy budget
-# Bbudget=get_budget_outputs_tuple(model;)
-
-# testing divergence 
-# udiv = KernelFunctionOperation{Center, Center, Center}(divᶜᶜᶜ, model.grid, u, v, w)
+Bbudget=get_budget_outputs_tuple(model;)
 
 # set the ouput mode:
-if output_mode == "spinup"
+if output_mode == "initial"     
+        checkpoint_interval = 5*2π/ω₀
+        slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
+        threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)
+        avg_interval = 1*2π/ω₀
+elseif output_mode == "spinup"
         checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; uhat=û, B=B, b=b)
-        threeD_diags = (; uhat=û, what=ŵ, B=B, b=b)
-        # threeD_diags = (; B=B, b=b)
-        threeD_buoyancy = (; B=B,)
-elseif output_mode == "test"
-        checkpoint_interval = 2*2π/ω₀
-        # slice_diags = (; ε, χ, uhat=û, B=B, b=b, Bz=Bz, uhat_z=uz)
-        # threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
-        slice_diags = (; χ, uhat=û, B=B, b=b)
-        threeD_diags = (; χ, uhat=û, what=ŵ,  B=B, b=b)
-elseif output_mode == "certain-diagnostics"
+        slice_diags = (; uhat=û, w=ŵ, b=b)
+        threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
+        avg_interval = 20*2π/ω₀
+elseif output_mode == "analysis"
+        checkpoint_interval = 20*2π/ω₀
+        slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
+        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
+        threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
+        avg_interval = 1/12*2π/ω₀
+elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         # slice_diags = (; Bz=Bz, what=ŵ,)
-        threeD_diags = (; Bz=Bz, what=ŵ, u=u)
-        
-        
-else output_mode == "analysis"
-        checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        threeD_diags = (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
-
+        threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
 end
 fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,"_",timerange)
 dir = string("output/",simname, "/")
@@ -309,22 +295,22 @@ if !isdir(dir)
     mkdir(dir)
 end
 if output_writer
-    ## checkpoint  
-    # simulation.output_writers[:checkpointer] = Checkpointer(
-    #                                     model,
-    #                                     schedule=TimeInterval(checkpoint_interval),
-    #                                     dir=dir,
-    #                                     prefix=string(fname, "_checkpoint"),
-    #                                     cleanup=clean_checkpoint)
+    # checkpoint  
+    simulation.output_writers[:checkpointer] = Checkpointer(
+                                        model,
+                                        schedule=TimeInterval(checkpoint_interval),
+                                        dir=dir,
+                                        prefix=string(fname, "_checkpoint"),
+                                        cleanup=clean_checkpoint)
 
     ## output 3D field window time average
     # tidal_period = 2π/ω₀ 
-    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
+    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags_avg,
                                         verbose=true,
                                         filename = string(dir, fname, "_threeD_timeavg.nc"),
                                         overwrite_existing = overwrite_output,
                                         # schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
-                                        schedule = AveragedTimeInterval(1hour, window=1hour, stride=1)
+                                        schedule = AveragedTimeInterval(avg_interval, window=avg_interval, stride=1)
                                         # indices = (:,Ny÷2,:) # take this out when running real simulation
                                         )
     # simulation.output_writers[:nc_threeD_timeavg_Bbudget] = NetCDFOutputWriter(model, Bbudget,
@@ -334,38 +320,30 @@ if output_writer
     #                                     schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
     #                                     # indices = (:,Ny÷2,:) # take this out when running real simulation
     #                                     )
-    
-    # output 3D field snapshots
-    # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
-    #                                         verbose=true,
-    #                                         filename = string(dir, fname, "_threeD.nc"),
-    #                                         overwrite_existing = overwrite_output,
-    #                                         schedule = TimeInterval(threeD_snapshot_interval))
-
 
     ## output 2D slices
     #1) xz
-    # simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-    #                                         schedule = TimeInterval(Δtᵒ),
-    #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-    #                                         verbose=true,
-    #                                         filename = string(dir, fname, "_slices_xz.nc"),
-    #                                         overwrite_existing = overwrite_output)
-    # #2) xy
-    # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-    # simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-    #                                         schedule = TimeInterval(Δtᵒ),
-    #                                         indices = (:,:,ind),
-    #                                         verbose=true,
-    #                                         filename = string(dir, fname, "_slices_xy.nc"),
-    #                                         overwrite_existing = overwrite_output)
+    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
+                                            schedule = TimeInterval(Δtᵒ),
+                                            indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+                                            verbose=true,
+                                            filename = string(dir, fname, "_slices_xz.nc"),
+                                            overwrite_existing = overwrite_output)
+    #2) xy
+    ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+    simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+                                            schedule = TimeInterval(Δtᵒ),
+                                            indices = (:,:,ind),
+                                            verbose=true,
+                                            filename = string(dir, fname, "_slices_xy.nc"),
+                                            overwrite_existing = overwrite_output)
     #3) yz
-    # simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-    #                                         schedule = TimeInterval(Δtᵒ),
-    #                                         indices = (Nx÷2,:,:), # center of the domain (along the sill)
-    #                                         verbose=true,
-    #                                         filename = string(dir, fname, "_slices_yz.nc"),
-    #                                         overwrite_existing = overwrite_output)
+    simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
+                                            schedule = TimeInterval(Δtᵒ),
+                                            indices = (Nx÷2,:,:), # center of the domain (along the sill)
+                                            verbose=true,
+                                            filename = string(dir, fname, "_slices_yz.nc"),
+                                            overwrite_existing = overwrite_output)
     # save 3D snapshots of buoyancy fields
     # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, merge(Bbudget,threeD_buoyancy),
     #                                         verbose=true,
@@ -376,18 +354,18 @@ if output_writer
     ## output that is saved only when reaching quasi-equilibrium
     if output_mode=="analysis"
         # output 3D field snapshots
-        # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_threeD.nc"),
-        #                                         overwrite_existing = overwrite_output,
-        #                                         schedule = TimeInterval(threeD_snapshot_interval))
+        simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+                                                verbose=true,
+                                                filename = string(dir, fname, "_threeD.nc"),
+                                                overwrite_existing = overwrite_output,
+                                                schedule = TimeInterval(threeD_snapshot_interval))
         # 1D profile
-        # simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
-        #                                         schedule = TimeInterval(Δtᵒ÷30),
-        #                                         indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_point_center.nc"),
-        #                                         overwrite_existing = overwrite_output)
+        simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
+                                                schedule = TimeInterval(Δtᵒ÷30),
+                                                indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
+                                                verbose=true,
+                                                filename = string(dir, fname, "_point_center.nc"),
+                                                overwrite_existing = overwrite_output)
     end
 end
 ### Progress messages
@@ -422,23 +400,8 @@ function progress_message(s)
     @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
                     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage)
 end
-        # progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-        #                     advective CFL: %.2e, diffusive CFL: %.2e, %s\n",
-        #                     100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-        #                     s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-        #                     AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model),
-        #                     log_multi_gpu_memory_usage())
-        # progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-        #                     advective CFL: %.2e, diffusive CFL: %.2e \n",
-        #                     100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-        #                     s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-        #                     AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model)
-        #                     )
 
-
-# simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(1hour))
-
+simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
     return simulation
 end
