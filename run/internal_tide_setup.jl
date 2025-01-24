@@ -40,6 +40,9 @@ function run_internal_tide(tᶠ,θ)
     end
 
     # Running the simulation!
+    println("Starting simulation with tᶠ = $tᶠ, θ = $θ")
+    println("Mode: $output_mode, Solver: $solver")
+  
     if pickup == false
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                         Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
@@ -68,5 +71,5 @@ function run_internal_tide(tᶠ,θ)
         checkpointed_actuations = checkpointed_wta.schedule.actuations
         open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
     end
-
+    println("Simulation finished successfully!")
 end
