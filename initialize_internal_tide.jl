@@ -67,9 +67,7 @@ grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz),
         halo = (4,4,4),
         topology = (Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded)
 )
-# yᶜ = ynodes(grid, Center())
-# Δyᶜ = yspacings(grid, Center())
-# zC = adapt(Array,znodes(grid, Center()))
+zC = adapt(Array,znodes(grid, Center()))
 
 # load topography 
 file = matopen(topo_file)
@@ -159,32 +157,6 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
 B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
 
-
-# add Lagragian particles
-
-# Lagrangian particle initialization with Gaussian distribution
-# Nparticles = 1000
-
-# # Calculate mean position (center of domain, just above bottom topography)
-# x_center = Nx/2
-# y_center = Ny/2
-
-# filename_hab = "output/hab.nc"
-# ds_hab = Dataset(filename_hab,"r")
-# hab = ds_hab["hab"][x_center,y_center,:];
-# z0 = findfirst(hab .> 0)   # the height right above the bottom topography
-# z_center = z0 + 100  # 100m above minimum topography height
-
-# # Standard deviations for Gaussian distribution
-# σ_x = Lx/50
-# σ_y = Ly/50
-# σ_z = 100  # 50m vertical spread
-
-# # Generate Gaussian distributed positions
-# x₀ = x_center .+ σ_x * randn(Nparticles)
-# y₀ = y_center .+ σ_y * randn(Nparticles)
-# z₀ = z_center .+ σ_z * randn(Nparticles)
-
 if solver == "FFT"
     model = NonhydrostaticModel(
         grid = grid,
@@ -242,19 +214,12 @@ û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
 
 Bz = @at (Center, Center, Center) ∂z(B)
-# uz = Field(∂z(û))
-# Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=true)
 
 # Oceanostics
 wb = BuoyancyProductionTerm(model)
-# KE = KineticEnergy(model)
-# PE = PotentialEnergy(model)
 ε = KineticEnergyDissipationRate(model)
 χ = TracerVarianceDissipationRate(model, :b)
 
-# eddy viscosity 
-# νₑ = simulation.model.diffusivity_fields.νₑ
-# buoyancy budget
 Bbudget=get_budget_outputs_tuple(model;)
 
 # set the ouput mode:
@@ -276,7 +241,6 @@ elseif output_mode == "analysis"
         avg_interval = 1/12*2π/ω₀
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
-        # slice_diags = (; Bz=Bz, what=ŵ,)
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
 end
 fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",tᶠ,"_")
@@ -295,62 +259,47 @@ if output_writer
                                         cleanup=clean_checkpoint)
 
     ## output 3D field window time average
-    # tidal_period = 2π/ω₀ 
     simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags_avg,
                                         verbose=true,
                                         filename = string(dir, fname, "_threeD_timeavg.nc"),
                                         overwrite_existing = overwrite_output,
-                                        # schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
                                         schedule = AveragedTimeInterval(avg_interval, window=avg_interval, stride=1)
-                                        # indices = (:,Ny÷2,:) # take this out when running real simulation
                                         )
-    # simulation.output_writers[:nc_threeD_timeavg_Bbudget] = NetCDFOutputWriter(model, Bbudget,
-    #                                     verbose=true,
-    #                                     filename = string(dir, fname, "_threeD_timeavg_Bbudget.nc"),
-    #                                     overwrite_existing = overwrite_output,
-    #                                     schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1),
-    #                                     # indices = (:,Ny÷2,:) # take this out when running real simulation
-    #                                     )
 
     ## output 2D slices
-    #1) xz
+    # xz
     simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
                                             schedule = TimeInterval(Δtᵒ),
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xz.nc"),
                                             overwrite_existing = overwrite_output)
-    #2) xy
-    ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-    simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
-                                            indices = (:,:,ind),
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_xy.nc"),
-                                            overwrite_existing = overwrite_output)
-    #3) yz
-    simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
-                                            indices = (Nx÷2,:,:), # center of the domain (along the sill)
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_yz.nc"),
-                                            overwrite_existing = overwrite_output)
-    # save 3D snapshots of buoyancy fields
-    # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, merge(Bbudget,threeD_buoyancy),
-    #                                         verbose=true,
-    #                                         filename = string(dir, fname, "_threeD.nc"),
-    #                                         overwrite_existing = overwrite_output,
-    #                                         schedule = TimeInterval(tidal_period÷2) )
-    
-    ## output that is saved only when reaching quasi-equilibrium
+
+    ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
-        # output 3D field snapshots
+    # xy
+        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+                                                schedule = TimeInterval(Δtᵒ),
+                                                indices = (:,:,ind),
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_xy.nc"),
+                                                overwrite_existing = overwrite_output)
+    # yz
+        simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
+                                                schedule = TimeInterval(Δtᵒ),
+                                                indices = (Nx÷2,:,:), # center of the domain (along the sill)
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_yz.nc"),
+                                                overwrite_existing = overwrite_output)
+
+    # output 3D field snapshots
         simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
                                                 verbose=true,
                                                 filename = string(dir, fname, "_threeD.nc"),
                                                 overwrite_existing = overwrite_output,
                                                 schedule = TimeInterval(threeD_snapshot_interval))
-        # 1D profile
+    # 1D profile
         simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
                                                 schedule = TimeInterval(Δtᵒ÷30),
                                                 indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)

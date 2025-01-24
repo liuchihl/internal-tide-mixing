@@ -1,5 +1,7 @@
 include("internal_tide_setup.jl")
-
-tᶠ = 10*2π/ω₀    # endtime of the simulation 
-θ = 0      # slope angle
+# Parameters modified at run time
+const tp_end = 10
+# Derived parameters
+const tᶠ  = tp_end*2π/ω₀
+const θ = 0      # slope angle
 run_internal_tide(tᶠ,θ)
