@@ -1,7 +1,7 @@
 ## This script uses initialize_internal_tide.jl file to initialize and run a simulation.
 # The script should be run on a GPU node by submitting a bash run script as a slurm batch job.
 # include("diagnostics_budget.jl")
-include("initialize_internal_tide.jl")
+include("../initialize_internal_tide.jl")
 
 simname = "tilt_FFT_poisson_solver"
 const Nx = 500
