@@ -69,10 +69,4 @@ function run_internal_tide(tᶠ,θ)
         open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
     end
 
-
-
 end
-
-@info """
-    Simulation complete.
-"""
