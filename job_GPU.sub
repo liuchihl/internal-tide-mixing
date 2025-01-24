@@ -12,24 +12,12 @@
 #SBATCH --account=bcpi-delta-gpu    # <- match to a "Project" returned by the "accounts" command
 #SBATCH --exclusive  # dedicated node for this job
 ##SBATCH --no-requeue
-#SBATCH -t 24:00:00
+#SBATCH -t 7:00:00
 
-# Run command hostname and save output to the file out.txt
-module reset
-module load gcc/11.4.0
-module load cuda/12.4.0
-# module load julia/1.11.1
-module load julia/1.11.1
+module restore internal-tide
 date
-rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide_conjugate_gradient.jl
-# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide_multiGPU_test.jl
-# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide.jl
-# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/test_background_diffusive_flux_divergence/tilted_oneD_analytical_comparison.jl
-#  rundir=/scratch/bcpi/cliu28/internal-tide-mixing/test_multiGPU/testing_multiGPU.jl
+rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide.jl
 
-
-# mpiexec -n 2 julia --project $rundir
-# srun -n 1 julia --project test_multiGPU.jl
 srun julia --project $rundir
 
 #nvidia-smi >> ${rundir}_out.txt

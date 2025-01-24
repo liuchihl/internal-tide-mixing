@@ -7,6 +7,8 @@ using Oceananigans.AbstractOperations: KernelFunctionOperation
 using Oceananigans.Advection: div_Uc
 using Oceananigans.TurbulenceClosures: ∇_dot_qᶜ
 using Oceananigans.TurbulenceClosures: immersed_∇_dot_qᶜ
+using Oceanostics: validate_location
+
 #import Oceananigans.TurbulenceClosures: viscosity, diffusivity
 using Oceananigans.Fields: @compute 
 
@@ -23,6 +25,52 @@ function get_budget_outputs_tuple(model; )
 
     b_immersed_bc = model.tracers.b.boundary_conditions.immersed
     velocities = model.velocities    
+    # ########## buoyancy tendency
+    # @inline ∂ₜcᶜᶜᶜ(i, j, k, grid, val_tracer_index::Val{tracer_index},
+    #                            val_tracer_name,
+    #                            advection,
+    #                            closure,
+    #                            c_immersed_bc,
+    #                            buoyancy,
+    #                            biogeochemistry,
+    #                            background_fields,
+    #                            velocities,
+    #                            tracers, args...) where tracer_index =
+    # @inbounds tracer_tendency(i, j, k, grid,
+    #                             val_tracer_index,
+    #                             val_tracer_name,
+    #                             advection,
+    #                             closure,
+    #                             c_immersed_bc,
+    #                             buoyancy,
+    #                             biogeochemistry,
+    #                             background_fields,
+    #                             velocities,
+    #                             tracers,
+    #                             args...)
+
+    # function TracerTendency(model::NonhydrostaticModel, tracer_name; location = (Center, Center, Center))
+    #     validate_location(location, "TracerTendency")
+    #     tracer_index = findfirst(n -> n === tracer_name, propertynames(model.tracers))
+    #     dependencies = (Val(tracer_index),
+    #                     Val(tracer_name),
+    #                     model.advection,
+    #                     model.closure,
+    #                     model.tracers[tracer_name].boundary_conditions.immersed,
+    #                     model.buoyancy,
+    #                     model.background_fields,
+    #                     model.velocities,
+    #                     model.tracers,
+    #                     model.auxiliary_fields,
+    #                     model.diffusivity_fields,
+    #                     model.forcing[tracer_name],
+    #                     model.clock)
+    
+    #     return KernelFunctionOperation{Center, Center, Center}(∂ₜcᶜᶜᶜ, model.grid, dependencies...)
+    # end
+
+    # dbdt = TracerTendency(model, :b)
+
 
     ########## ADVECTIVE FLUX DIVERGENCE
     # ∇⋅(uB) = u⋅∇B
@@ -37,9 +85,10 @@ function get_budget_outputs_tuple(model; )
     # immersed boundaries
     ∇κ∇B_im = KernelFunctionOperation{Center, Center, Center}(immersed_∇_dot_qᶜ, model.grid, B, b_immersed_bc, 
                                         model.closure, diffusivities, Val(:b), model.clock, model.velocities)
+    # ∇⋅qc = -∇⋅(κ∇B)
     ∇κ∇B = ∇κ∇B_interior + ∇κ∇B_im
     
-    outputs = (; ∇κ∇B= -∇κ∇B)
+    outputs = (; div_uB=div_uB, ∇κ∇B= -∇κ∇B, )
 
     return outputs
 
