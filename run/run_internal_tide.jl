@@ -3,40 +3,49 @@
 include("../diagnostics_budget.jl")
 include("../initialize_internal_tide.jl")
 
+
 simname = "tilt"
 const Nx = 500
 const Ny = 1000
 const Nz = 250        
 const Δtᵒ = 30minutes # interval for saving output
 const ω₀ = 1.4e-4     # tidal freq.
-const tᶠ = 10*2π/ω₀    # endtime of the simulation: 120 tidal cycle
+const tᶠ = 10*2π/ω₀    # endtime of the simulation (the only parameter that needs to be changed) 
 const θ = 3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
-threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
-# closure = SmagorinskyLilly()
 closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
-solver = "FFT"                # FFT or Conjugate Gradient
 architecture = GPU()          # CPU() or GPU() or Distributed(GPU(); partition = Partition(ranks...))
-# 3 modes to choose: "spinup", "test", "analysis"
-output_mode = "initial"
 output_writer = true
 clean_checkpoint = false         # cleanup checkpoint
 overwrite_output = true          # overwrite existing output (if pickup=true, clean=false, and vice versa)
-timerange = "1-10"            # in TP
-# Running the simulation!
-# Comment either
-    # pickup = false
-    pickup = string("output/", simname, "/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_80-120_checkpoint_iteration160110.jld2")
 
+# 3 modes: "verification", "spinup", "analysis"
+if tᶠ ≤ 10*2π/ω₀
+    output_mode = "verification"
+    solver = "FFT"   
+    pickup = false             
+elseif tᶠ ≤ 1010*2π/ω₀
+    output_mode = "spinup"
+    solver = "FFT"    
+    pickup = true            
+else 
+    output_mode = "analysis"
+    solver = "Conjugate Gradient"                
+    threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
+    pickup = true            
+end
+
+# Running the simulation!
+    pickup = true
 if pickup == false
     simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                     Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
                                     output_mode=output_mode, output_writer=output_writer,
                                     threeD_snapshot_interval=threeD_snapshot_interval, architecture=architecture,
                                     clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
-                                    closure=closure, solver=solver, timerange=timerange)
+                                    closure=closure, solver=solver)
     run!(simulation)
     checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
     checkpointed_actuations = checkpointed_wta.schedule.actuations
@@ -50,7 +59,7 @@ else
                                     output_mode=output_mode, output_writer=output_writer,
                                     threeD_snapshot_interval=threeD_snapshot_interval, architecture=architecture,
                                     clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
-                                    closure=closure, solver=solver, timerange=timerange)
+                                    closure=closure, solver=solver)
     simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
     run!(simulation; pickup=pickup)
     # Overwrite and save actuation to actuation.txt

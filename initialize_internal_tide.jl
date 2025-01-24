@@ -32,7 +32,6 @@ function initialize_internal_tide(
     architecture=GPU(),
     closure = SmagorinskyLilly(),
     solver = "FFT",
-    timerange = "",
     output_mode = "test",
     output_writer = true,
     topo_file = "topo.mat",
@@ -186,14 +185,6 @@ B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^
 # y₀ = y_center .+ σ_y * randn(Nparticles)
 # z₀ = z_center .+ σ_z * randn(Nparticles)
 
-# # Ensure particles are above topography
-# for i in 1:Nparticles
-#     # Find interpolated topography height at (x₀[i], y₀[i])
-#     topo_height = itp(mod(x₀[i], Lx), mod(y₀[i], Ly))
-#     # Adjust z₀ if below topography
-#     z₀[i] = max(z₀[i], topo_height + 10)  # Keep at least 10m above topography
-# end
-
 if solver == "FFT"
     model = NonhydrostaticModel(
         grid = grid,
@@ -267,7 +258,7 @@ wb = BuoyancyProductionTerm(model)
 Bbudget=get_budget_outputs_tuple(model;)
 
 # set the ouput mode:
-if output_mode == "initial"     
+if output_mode == "verification"     
         checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)
@@ -288,7 +279,7 @@ elseif output_mode == "customized"
         # slice_diags = (; Bz=Bz, what=ŵ,)
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
 end
-fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,"_",timerange)
+fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",tᶠ,"_")
 dir = string("output/",simname, "/")
 # create output path if the folder does not exist
 if !isdir(dir)
