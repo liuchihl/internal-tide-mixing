@@ -34,11 +34,11 @@ else
     output_mode = "analysis"
     solver = "Conjugate Gradient"                
     threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
-    pickup = true            
+    pickup = true  
+    # set initial condition to be the final state of the spinup simulation by extracting information from the checkpoint file         
 end
 
 # Running the simulation!
-    pickup = true
 if pickup == false
     simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                     Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
