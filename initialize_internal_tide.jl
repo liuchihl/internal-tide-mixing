@@ -3,14 +3,19 @@ using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner
+using Oceananigans.DistributedComputations
+using Oceananigans.DistributedComputations: all_reduce
 using LinearAlgebra
 using Adapt
 using MAT
 using Statistics
 using Oceanostics
 using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
-using Interpolations
+using Interpolations: LinearInterpolation
 using CUDA
+using Suppressor
+
 
 function initialize_internal_tide(
     simname,
@@ -18,29 +23,29 @@ function initialize_internal_tide(
     Ny,
     Nz;
     Δtᵒ=30minutes,
-    tᶠ=3days,
+    tᶠ=6*2π/ω₀,
     θ=3.6e-3,
     U₀=0.025,
     N=1.e-3,
     f₀ = -0.53e-4,
     threeD_snapshot_interval=2Δtᵒ,
+    architecture=GPU(),
     closure = SmagorinskyLilly(),
+    solver = "FFT",
     output_mode = "test",
     output_writer = true,
     topo_file = "topo.mat",
-    clean = "true"
+    clean_checkpoint = "false",
+    overwrite_output = "true"
 )
 
 
 function log_gpu_memory_usage()
-    mem_info_str = CUDA.memory_status()
-# Convert the captured output to a string
-    mem_info_str = String(take!(output))
-    return mem_info_str
+    return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
 ## Simulation parameters
- H = 3.5kilometers # vertical extent
+ H = 2.25kilometers # vertical extent
  Lx = 15kilometers # along-canyon extent
  Ly = 30kilometers # cross-canyon extent
 
@@ -53,17 +58,15 @@ kwarp(k, N) = (N + 1 - k) / N
 # Bottom-intensified stretching function
 Σ(k, N, stretching) = (1 - exp(-stretching * kwarp(k, N))) / (1 - exp(-stretching))
 # Generating function
-z_faces(k) = - H * (ζ(k, Nz, 1.5) * Σ(k, Nz, 15) - 1)
+z_faces(k) = - H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 15) - 1)
 
-grid = RectilinearGrid(GPU(),size=(Nx, Ny, Nz), 
+grid = RectilinearGrid(architecture,size=(Nx, Ny, Nz), 
         x = (0, Lx),
         y = (0, Ly), 
         z = z_faces,
         halo = (4,4,4),
-        topology = (Oceananigans.Periodic, Oceananigans.Periodic, Bounded)
+        topology = (Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded)
 )
-# yᶜ = ynodes(grid, Center())
-# Δyᶜ = yspacings(grid, Center())
 zC = adapt(Array,znodes(grid, Center()))
 
 # load topography 
@@ -90,13 +93,14 @@ z_interp = z_interp.-minimum(z_interp)
 ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vector in rotated coordinates
 
 # Create immersed boundary grid
-grid_real = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp))
+z_interp_data = architecture == CPU() ? z_interp : CuArray(z_interp)
+grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp_data))
 
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
  z₀ = 0.1 # m (roughness length)
  κ_von = 0.4  # von Karman constant
-
-CUDA.@allowscalar z₁ = first(znodes(grid, Center())) # Closest grid center to the bottom
+ z₁ = architecture == CPU() ? first(znodes(grid, Center())) :
+     CUDA.@allowscalar(first(znodes(grid, Center())))
 cᴰ = (κ_von / log(z₁ / z₀))^2 # Drag coefficient
 # non-immersed and immersed boundary conditions
 @inline drag_u(x, y, t, u, v, p) = - p.cᴰ * √(u^2 + v^2) * u
@@ -141,10 +145,11 @@ uᵢ(x, y, z) = -Uᵣ
 vᵢ(x, y, z) = 0.
 bᵢ(x, y, z) = 1e-9*rand() # seed infinitesimal random perturbations in the buoyancy field
 
+
 s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
 
 # Rotate gravity vector
-buoyancy = Buoyancy(model = BuoyancyTracer(), gravity_unit_vector = -[ĝ...])
+buoyancy = BuoyancyForce(BuoyancyTracer(), gravity_unit_vector = -[ĝ...])
 coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 
 # Linear background stratification (in ẑ)
@@ -152,20 +157,39 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
 B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
 
-
-model = NonhydrostaticModel(
-    grid = grid_real,
-    advection = WENO(),
-    buoyancy = buoyancy,
-    coriolis = coriolis,
-    boundary_conditions=(u=u_bcs, v=v_bcs,  b = B_bcs,),
-    forcing = (u = u_tidal_forcing,),
-    closure = closure,
-    tracers = :b,
-    timestepper = :RungeKutta3,
-    background_fields = (; b=B̄_field),
-)
-
+if solver == "FFT"
+    model = NonhydrostaticModel(
+        grid = grid,
+        advection = WENO(),
+        buoyancy = buoyancy,
+        coriolis = coriolis,
+        boundary_conditions=(u=u_bcs, v=v_bcs,  b = B_bcs,),
+        forcing = (u = u_tidal_forcing,),
+        closure = closure,
+        tracers = :b,
+        timestepper = :RungeKutta3,
+        hydrostatic_pressure_anomaly = CenterField(grid),
+        background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
+    )
+else solver == "Conjugate Gradient"
+    tol = 1e-9
+    model = NonhydrostaticModel(;
+        grid=grid,
+        pressure_solver = ConjugateGradientPoissonSolver(
+                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                reltol=tol),
+        advection = WENO(),
+        buoyancy = buoyancy,
+        coriolis = coriolis,
+        boundary_conditions=(u=u_bcs, v=v_bcs, b = B_bcs,),
+        forcing = (u = u_tidal_forcing,),
+        closure = closure,
+        tracers = :b,
+        timestepper = :RungeKutta3,
+        hydrostatic_pressure_anomaly = CenterField(grid),
+        background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
+    )
+end    
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
@@ -190,105 +214,134 @@ û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
 
 Bz = @at (Center, Center, Center) ∂z(B)
-uz = Field(∂z(û))
-Rig = RichardsonNumber(model; location=(Center, Center, Face), add_background=true)
 
 # Oceanostics
-# KE = KineticEnergy(model)
-# PE = PotentialEnergy(model)
+wb = BuoyancyProductionTerm(model)
 ε = KineticEnergyDissipationRate(model)
-χ = TracerVarianceDissipationRate(model, :b)/Bz
+χ = TracerVarianceDissipationRate(model, :b)
+
+Bbudget=get_budget_outputs_tuple(model;)
 
 # set the ouput mode:
-if output_mode == "spinup"
-        checkpoint_interval = 10days
-        slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v,  B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-
-elseif output_mode == "test"
-        checkpoint_interval = tᶠ
-        slice_diags = (; ε, χ, uhat=û, B=B, b=b, Bz=Bz, uhat_z=uz)
-        threeD_diags = (; ε, χ, uhat=û, what=ŵ,  B=B, b=b, Bz=Bz, uhat_z=uz)
-
-else output_mode == "analysis"
-        checkpoint_interval = 10days
-        slice_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-        threeD_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz, uhat_z=uz, Rig=Rig)
-
+if output_mode == "verification"     
+        checkpoint_interval = 5*2π/ω₀
+        slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
+        threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)
+        avg_interval = 1*2π/ω₀
+elseif output_mode == "spinup"
+        checkpoint_interval = 20*2π/ω₀
+        slice_diags = (; uhat=û, w=ŵ, b=b)
+        threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
+        avg_interval = 20*2π/ω₀
+elseif output_mode == "analysis"
+        checkpoint_interval = 20*2π/ω₀
+        slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
+        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
+        threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
+        avg_interval = 1/12*2π/ω₀
+elseif output_mode == "customized"
+        checkpoint_interval = 20*2π/ω₀
+        threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
 end
-
-fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz)
+fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",tᶠ,"_")
 dir = string("output/",simname, "/")
+# create output path if the folder does not exist
+if !isdir(dir)
+    mkdir(dir)
+end
 if output_writer
-    ## checkpoint  
+    # checkpoint  
     simulation.output_writers[:checkpointer] = Checkpointer(
-                                            model,
-                                            schedule=TimeInterval(checkpoint_interval),
-                                            dir=dir,
-                                            prefix=string(fname, "_checkpoint"),
-                                            cleanup=clean)
+                                        model,
+                                        schedule=TimeInterval(checkpoint_interval),
+                                        dir=dir,
+                                        prefix=string(fname, "_checkpoint"),
+                                        cleanup=clean_checkpoint)
 
-    ## output 3D field time-window average data
-    tidal_period = (2π/ω₀/86400)days
-    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags,
-                                            verbose=true,
-                                            filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                            overwrite_existing = clean,
-                                            schedule = AveragedTimeInterval(tidal_period, window=tidal_period, stride=1))
-    
-    
+    ## output 3D field window time average
+    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags_avg,
+                                        verbose=true,
+                                        filename = string(dir, fname, "_threeD_timeavg.nc"),
+                                        overwrite_existing = overwrite_output,
+                                        schedule = AveragedTimeInterval(avg_interval, window=avg_interval, stride=1)
+                                        )
+
     ## output 2D slices
-    #1) xz
+    # xz
     simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
                                             schedule = TimeInterval(Δtᵒ),
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xz.nc"),
-                                            overwrite_existing = clean)
-    #2) xy
-    ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-    simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
-                                            indices = (:,:,ind),
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_xy.nc"),
-                                            overwrite_existing = clean)
-    #3) yz
-    simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
-                                            indices = (Nx÷2,:,:), # center of the domain (along the sill)
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_yz.nc"),
-                                            overwrite_existing = clean)
-    
-    ## output that is saved only when reaching quasi-equilibrium
+                                            overwrite_existing = overwrite_output)
+
+    ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
-        # output 3D field snapshots
+    # xy
+        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+                                                schedule = TimeInterval(Δtᵒ),
+                                                indices = (:,:,ind),
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_xy.nc"),
+                                                overwrite_existing = overwrite_output)
+    # yz
+        simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
+                                                schedule = TimeInterval(Δtᵒ),
+                                                indices = (Nx÷2,:,:), # center of the domain (along the sill)
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_yz.nc"),
+                                                overwrite_existing = overwrite_output)
+
+    # output 3D field snapshots
         simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
                                                 verbose=true,
-                                                filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                                overwrite_existing = clean,
+                                                filename = string(dir, fname, "_threeD.nc"),
+                                                overwrite_existing = overwrite_output,
                                                 schedule = TimeInterval(threeD_snapshot_interval))
-        # 1D profile
+    # 1D profile
         simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
                                                 schedule = TimeInterval(Δtᵒ÷30),
                                                 indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
                                                 verbose=true,
                                                 filename = string(dir, fname, "_point_center.nc"),
-                                                overwrite_existing = clean)
+                                                overwrite_existing = overwrite_output)
     end
 end
-## Progress messages
-progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f,
-                            advective CFL: %.2e, diffusive CFL: %.2e, gpu_memory_usage:%s\n",
-                            100 * s.model.clock.time / s.stop_time, s.model.clock.iteration,
-                            s.model.clock.time, maximum(abs, model.velocities.w), s.Δt,
-                            AdvectiveCFL(s.Δt)(s.model), DiffusiveCFL(s.Δt)(s.model),
-                            log_gpu_memory_usage())
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
+### Progress messages
 
+function progress_message(s)
+    model = s.model
+    w = model.velocities.w
+    arch = Oceananigans.architecture(model.grid)
+
+    if arch isa CPU
+        progress = 100 * model.clock.time / s.stop_time
+        iteration = model.clock.iteration
+        current_time = model.clock.time
+        maximum_w = maximum(abs, w)
+        current_dt = s.Δt
+        adv_cfl = AdvectiveCFL(s.Δt)(model)
+        diff_cfl = DiffusiveCFL(s.Δt)(model)
+        memory_usage = "CPU"
+    else
+        CUDA.@allowscalar begin
+            progress = 100 * model.clock.time / s.stop_time
+            iteration = model.clock.iteration
+            current_time = model.clock.time
+            maximum_w = maximum(abs, w)
+            current_dt = s.Δt
+            adv_cfl = AdvectiveCFL(s.Δt)(model)
+            diff_cfl = DiffusiveCFL(s.Δt)(model)
+        end
+        memory_usage = log_gpu_memory_usage()
+    end
+
+    @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
+                    progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage)
+end
+
+simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
     return simulation
 end

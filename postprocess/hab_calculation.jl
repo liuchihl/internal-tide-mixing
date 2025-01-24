@@ -1,7 +1,8 @@
 # this script calculates the height above bottom grids. The result is a 3D matrix [Nx,Ny,Nz]
 # reason for doing this is that it took a while to calculate hab, so it's best to calculate once and save it.
-
-filename_field = "output/no_tilt/internal_tide_5days-theta=0_realtopo3D_Nx500_Nz250_fields_timeavg_0_20.nc"
+using NCDatasets
+using MAT
+filename_field = "output/higher_top_resolution/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_0-13_threeD_timeavg.nc"
 ds_field = Dataset(filename_field,"r")
 
 # grids
