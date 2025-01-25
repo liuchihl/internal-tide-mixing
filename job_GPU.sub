@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="test-fft-cg"
-#SBATCH --output="output_message/internal-tide-realtopo.out.%j.%N.out"
+#SBATCH --job-name="tilt"
+#SBATCH --output="output_message/tilt.out.%j.%N.out"
 #SBATCH --partition=gpuA100x4
 #SBATCH --mem=16G
 #SBATCH --nodes=1
@@ -12,11 +12,11 @@
 #SBATCH --account=bcpi-delta-gpu    # <- match to a "Project" returned by the "accounts" command
 #SBATCH --exclusive  # dedicated node for this job
 ##SBATCH --no-requeue
-#SBATCH -t 7:00:00
+#SBATCH -t 48:00:00
 
 module restore internal-tide
 date
-rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide.jl
+rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run_internal_tide_tilt.jl
 
 srun julia --project $rundir
 
