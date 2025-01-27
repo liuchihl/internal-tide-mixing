@@ -228,20 +228,24 @@ if output_mode == "verification"
         slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)
         avg_interval = 1*2π/ω₀ * 0.9999    # 0.9999 is for round-off issues: the final averaging window cannot be saved because the simulation endtime could be slightly less than the wta saving endtime 
+        slice_internal = Δtᵒ
 elseif output_mode == "spinup"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; uhat=û, w=ŵ, b=b)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
         avg_interval = 20*2π/ω₀ * 0.9999
+        slice_internal = 13/12*2π/ω₀       # snapshot at different point in the tidal cycle
 elseif output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
         point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
         threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
         avg_interval = 1/12*2π/ω₀ * 0.9999
+        slice_internal = Δtᵒ
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
+        slice_internal = Δtᵒ
 end
 fname = string("internal_tide_theta=",string(θ),"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
 dir = string("output/",simname, "/")
@@ -269,7 +273,7 @@ if output_writer
     ## output 2D slices
     # xz
     simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(Δtᵒ),
+                                            schedule = TimeInterval(slice_internal),
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xz.nc"),
@@ -280,14 +284,14 @@ if output_writer
     # xy
         ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
         simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                                schedule = TimeInterval(Δtᵒ),
+                                                schedule = TimeInterval(slice_internal),
                                                 indices = (:,:,ind),
                                                 verbose=true,
                                                 filename = string(dir, fname, "_slices_xy.nc"),
                                                 overwrite_existing = overwrite_output)
     # yz
         simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-                                                schedule = TimeInterval(Δtᵒ),
+                                                schedule = TimeInterval(slice_internal),
                                                 indices = (Nx÷2,:,:), # center of the domain (along the sill)
                                                 verbose=true,
                                                 filename = string(dir, fname, "_slices_yz.nc"),
