@@ -227,23 +227,23 @@ if output_mode == "verification"
         checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)
-        avg_interval = 1*2π/ω₀
+        avg_interval = 1*2π/ω₀ * 0.9999    # 0.9999 is for round-off issues: the final averaging window cannot be saved because the simulation endtime could be slightly less than the wta saving endtime 
 elseif output_mode == "spinup"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; uhat=û, w=ŵ, b=b)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
-        avg_interval = 20*2π/ω₀
+        avg_interval = 20*2π/ω₀ * 0.9999
 elseif output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
         point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
         threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
-        avg_interval = 1/12*2π/ω₀
+        avg_interval = 1/12*2π/ω₀ * 0.9999
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
 end
-fname = string("internal_tide_theta=",string(θ),"_realtopo3D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",tᶠ,"_")
+fname = string("internal_tide_theta=",string(θ),"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
 dir = string("output/",simname, "/")
 # create output path if the folder does not exist
 if !isdir(dir)
