@@ -4,19 +4,21 @@ include("../diagnostics_budget.jl")
 include("../initialize_internal_tide.jl")
 
 function run_internal_tide(tᶠ,θ)
-    const Nx = 500
-    const Ny = 1000
-    const Nz = 250        
-    const Δtᵒ = 30minutes # interval for saving output
-    const ω₀ = 1.4e-4     # tidal freq.
-    const U₀ = 0.025      # tidal amplitude
-    const N = 1.e-3       # Buoyancy frequency
-    const f₀ = -0.53e-4   # Coriolis frequency
+    Nx = 500
+    Ny = 1000
+    Nz = 250        
+    Δtᵒ = 30minutes # interval for saving output
+    ω₀ = 1.4e-4     # tidal freq.
+    U₀ = 0.025      # tidal amplitude
+    N = 1.e-3       # Buoyancy frequency
+    f₀ = -0.53e-4   # Coriolis frequency
     closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
     architecture = GPU()             # CPU() or GPU() or Distributed(GPU(); partition = Partition(ranks...))
     output_writer = true
     clean_checkpoint = false         # cleanup checkpoint
     overwrite_output = true          # overwrite existing output (if pickup=true, clean=false, and vice versa)
+    threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
+
     if θ == 0        # slope angle
         simname = "flat"
     else
@@ -31,10 +33,9 @@ function run_internal_tide(tᶠ,θ)
         output_mode = "spinup"
         solver = "FFT"    
         pickup = true            
-    else 
+    else
         output_mode = "analysis"
         solver = "Conjugate Gradient"                
-        threeD_snapshot_interval = 12Δtᵒ  # effective only when output_mode="analysis"
         pickup = true  
         # set initial condition to be the final state of the spinup simulation by extracting information from the checkpoint file         
     end

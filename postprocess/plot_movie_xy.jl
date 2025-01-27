@@ -31,7 +31,7 @@ function deriv(x,y)
 
 ## load data
 simname = "tilt"
-timerange = "0-40"
+tꜝ = "10"
 
 ## load data
 # filename_field = "output/internal_tide_3days-theta=0.0036_realtopo3D_Nx500_Nz250_slices_xz.nc"
@@ -39,7 +39,7 @@ timerange = "0-40"
 # bathy_data = "output/bathymetry.nc"
 # Bathy = Dataset(bathy_data,"r")
 # filename_slice = "output/supercritical_tilt/backgroundfluxdivergence_smagorinky/backgroundfluxdivergence_smagorinkyinternal_tide_5days-theta=0.0036_realtopo3D_Nx500_Nz250_slices_0_5_xz.nc"
-filename_slice = string("output/",simname,"/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_",timerange,"_slices_xy.nc")
+filename_slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_",tꜝ,"_slices_xy.nc")
 # filename_slice = "output/no_tilt/internal_tide_5days-theta=0_realtopo3D_Nx500_Nz250_slices_30_50_xz.nc"
 ds_slice = Dataset(filename_slice,"r")
 

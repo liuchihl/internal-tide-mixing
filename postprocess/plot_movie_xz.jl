@@ -11,26 +11,15 @@ using LinearAlgebra
 using Interpolations
 
 
-# function deriv(x,y)
-# spl = interpolate(x, y, BSplineOrder(6))
-# D1f = diff(spl, Derivative(1))   # change
-#     return D1f.(x)
-# end
-
-function deriv(x,y)
-    dydx =  diff(y[:,:,:,:],dims=3)./reshape(diff(x[:]),1,1,length(zC)-1)
-    return dydx
+function deriv(z,y)
+    dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
+    return dydz
  end
+ 
 
-# function nice_divergent_levels(c, clim; nlevels=20)
-#     levels = range(-clim, stop=clim, length=nlevels)
-#     cmax = maximum(abs, c)
-#     clim < cmax && (levels = vcat([-cmax], levels, [cmax]))
-#     return (-clim, clim), levels
-# end
-
+# include("functions/mmderiv.jl")
 simname = "tilt"
-timerange = "40-80"
+tᶠ = 10
 
 ## load data
 # filename_field = "output/internal_tide_3days-theta=0.0036_realtopo3D_Nx500_Nz250_slices_xz.nc"
@@ -38,7 +27,7 @@ timerange = "40-80"
 # bathy_data = "output/bathymetry.nc"
 # Bathy = Dataset(bathy_data,"r")
 # filename_slice = "output/supercritical_tilt/backgroundfluxdivergence_smagorinky/backgroundfluxdivergence_smagorinkyinternal_tide_5days-theta=0.0036_realtopo3D_Nx500_Nz250_slices_0_5_xz.nc"
-filename_slice = string("output/",simname,"/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_",timerange,"_slices_xz.nc")
+filename_slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_slices_xz.nc")
 # filename_slice = "output/no_tilt/internal_tide_5days-theta=0_realtopo3D_Nx500_Nz250_slices_30_50_xz.nc"
 ds_slice = Dataset(filename_slice,"r")
 
@@ -48,6 +37,7 @@ ds_slice = Dataset(filename_slice,"r")
 
 # grids
 zC = ds_slice["zC"]; Nz=length(zC)
+zF = ds_slice["zF"]; 
 xC = ds_slice["xC"]; Nx=length(xC)
 yC = ds_slice["yC"]; Ny=length(yC)
 t = ds_slice["time"];
@@ -83,12 +73,21 @@ B[b.==0] .= NaN
 
 
 # derivatives of B and u. Only slices are used because it can be memory intensive
-# Bz = zeros(size(B[:,1:1,:,:])); #dûdz = zeros(size(uhat[:,1,:,:]));
-# Bz = deriv(zC,B);
-# θ = 3.6e-3; N = 1e-3;
-# Bz_bc = -N^2*cos(θ).*ones(Nx,Ny,1,length(t));
-# Bz = cat(Bz, Bz_bc, dims=3);
-χ = χ./Bz;
+N = 1.e-3
+Bz =  deriv(zC,B);
+Bz[b[:,:,1:end-1,:].==0] .= 0      # the grids are staggered, but this will effectively set the points inside and right above the immersed boudary to 0
+# interpolate Bz from faces to center cell
+# Interpolate each row
+    Bz_center = zeros(size(Bz,1),size(Bz,2),length(zC),size(Bz,4))
+    for i in 1:size(Bz,1)
+        for j in 1:size(Bz,2)
+            for k in 1:size(Bz,4)
+              itp = linear_interpolation(zF[2:end-1], Bz[i,j,:,k], extrapolation_bc=Line())
+            Bz_center[i,j,:,k] = itp(zC)
+            end
+        end
+    end
+χ = χ./Bz_center;
 
 χ[χ.<0] .= 0
 
