@@ -18,19 +18,19 @@ function deriv(z,y)
    return dydz
 end
 
-include("functions/bins.jl")
-include("functions/mmderiv.jl")
+include("../functions/bins.jl")
+include("../functions/mmderiv.jl")
 slope = "tilt"
-timerange = "80-120"
+tᶠ = "10"
 θ=3.6e-3
 
 # load data
-filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg.nc")
 ds_field = Dataset(filename_field,"r")
-filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
-ds_budget = Dataset(filename_field_budget,"r")
-filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
-ds_3D = Dataset(filename_3D,"r")
+# filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
+# ds_budget = Dataset(filename_field_budget,"r")
+# filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
+# ds_3D = Dataset(filename_3D,"r")
 
 zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
 Nz=length(zC[:]); 
@@ -61,11 +61,11 @@ u_avg = zeros(length(bin_edge)-1,length(t))
 what_avg = zeros(length(bin_edge)-1,length(t))
 # epsilon_avg = zeros(length(bin_edge)-1,length(t))
 # chi_avg = zeros(length(bin_edge)-1,length(t))
-∇κ∇B_avg = zeros(length(bin_edge)-1,length(t))
-div_uB_avg = zeros(length(bin_edge)-1,length(t))
-u_bar_∇B_bar_avg = zeros(length(bin_edge)-1,length(t))
-u_prime∇B_prime_avg = zeros(length(bin_edge)-1,length(t))
-dBdt_avg = zeros(length(bin_edge)-1,length(t)-1)
+# ∇κ∇B_avg = zeros(length(bin_edge)-1,length(t))
+# div_uB_avg = zeros(length(bin_edge)-1,length(t))
+# u_bar_∇B_bar_avg = zeros(length(bin_edge)-1,length(t))
+# u_prime∇B_prime_avg = zeros(length(bin_edge)-1,length(t))
+# dBdt_avg = zeros(length(bin_edge)-1,length(t)-1)
 t_diff = diff(t)  # Precompute time differences
 dB̄dx = zeros(Nx,Ny,Nz,1)
 dB̄dz = zeros(Nx,Ny,Nz,1)
@@ -76,21 +76,21 @@ for n in 1:length(t)
      uhat = ds_field["uhat"][:,:,:,n:n];    # true u
      what = ds_field["what"][:,:,:,n:n];    # true w
     #  chi = ds_field["χ"][:,:,:,n:n];        # -κ|∇b|²
-     ∇κ∇B = ds_budget["∇κ∇B"][:,:,:,n:n];    # ∇⋅κ∇B: buoyancy flux divergence
-     div_uB = ds_budget["div_uB"][:,:,:,n:n];# ∇⋅uB: buoyancy flux divergence
+    #  ∇κ∇B = ds_budget["∇κ∇B"][:,:,:,n:n];    # ∇⋅κ∇B: buoyancy flux divergence
+    #  div_uB = ds_budget["div_uB"][:,:,:,n:n];# ∇⋅uB: buoyancy flux divergence
      what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
      # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
      wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
      u = uhat[:,:,:,1]*cos(θ) .+ wtemp*sin(θ) # cross-slope velocity
      w = -uhat[:,:,:,1]*sin(θ) .+ wtemp*cos(θ)# slope-normal velocity
-     for k in 1:size(B,3)
-     dB̄dx[:,:,k,1] = mmderiv(xC[:],B[:,:,k,1])
-     end
-     for i in 1:size(B,1)
-     dB̄dz[i,:,:,1] = mmderiv(zC[:],B[i,:,:,1]')'
-     end
-     u_bar_∇B_bar = u.*dB̄dx .+ w.*dB̄dz
-     u_prime∇B_prime = div_uB .- u_bar_∇B_bar
+    #  for k in 1:size(B,3)
+    #  dB̄dx[:,:,k,1] = mmderiv(xC[:],B[:,:,k,1])
+    #  end
+    #  for i in 1:size(B,1)
+    #  dB̄dz[i,:,:,1] = mmderiv(zC[:],B[i,:,:,1]')'
+    #  end
+    #  u_bar_∇B_bar = u.*dB̄dx .+ w.*dB̄dz
+    #  u_prime∇B_prime = div_uB .- u_bar_∇B_bar
     if haskey(ds_field,"Bz")
         Bz = ds_field["Bz"][:,:,:,n:n];   
     else
@@ -116,15 +116,15 @@ for n in 1:length(t)
     @time u_avg[:,n], _ = bins(u,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     # @time chi_avg[:,n], _ = bins(chi,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
     # @time epsilon_avg[:,n], _ = bins(epsilon,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-    @time ∇κ∇B_avg[:,n], _ = bins(∇κ∇B,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-    @time div_uB_avg[:,n], _ = bins(div_uB,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-    @time u_bar_∇B_bar_avg[:,n], _ = bins(u_bar_∇B_bar,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-    @time u_prime∇B_prime_avg[:,n], _ = bins(u_prime∇B_prime,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-     if n < length(t)
-         B2 = ds_field["B"][:,:,:,n:n+1];          # total buoyancy with two timesteps
-         dBdt = (B2[:, :, :, 2] .- B2[:, :, :, 1]) ./ t_diff[n]
-         @time dBdt_avg[:,n], _ = bins(dBdt,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-     end 
+    # @time ∇κ∇B_avg[:,n], _ = bins(∇κ∇B,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    # @time div_uB_avg[:,n], _ = bins(div_uB,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    # @time u_bar_∇B_bar_avg[:,n], _ = bins(u_bar_∇B_bar,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    # @time u_prime∇B_prime_avg[:,n], _ = bins(u_prime∇B_prime,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    #  if n < length(t)
+    #      B2 = ds_field["B"][:,:,:,n:n+1];          # total buoyancy with two timesteps
+    #      dBdt = (B2[:, :, :, 2] .- B2[:, :, :, 1]) ./ t_diff[n]
+    #      @time dBdt_avg[:,n], _ = bins(dBdt,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+    #  end 
     
 end
 
@@ -134,7 +134,7 @@ close(ds_hab)
 # This creates a new NetCDF file 
 # The mode "c" stands for creating a new file
 
-ds_create = Dataset(string("output/",slope,"/TF_avg_",timerange,"bin.nc"),"c")
+ds_create = Dataset(string("output/",slope,"/TF_avg_tᶠ=",tᶠ,"_bin.nc"),"c")
 # Define the dimension
 defDim(ds_create,"z_TF",length(bin_center))
 defDim(ds_create,"t",length(t))
@@ -155,16 +155,16 @@ v4[:,:] = what_avg
 # v5[:,:] = chi_avg
 # v6 = defVar(ds_create,"epsilon_avg",Float64,("z_TF","t"))
 # v6[:,:] = epsilon_avg
-v6 = defVar(ds_create,"dBdt_avg",Float64,("z_TF","t_diff"))
-v6[:,:] = dBdt_avg
-v7 = defVar(ds_create,"∇κ∇B_avg",Float64,("z_TF","t"))
-v7[:,:] = ∇κ∇B_avg
-v8 = defVar(ds_create,"div_uB_avg",Float64,("z_TF","t"))
-v8[:,:] = div_uB_avg
-v9 = defVar(ds_create,"u_bar_∇B_bar_avg",Float64,("z_TF","t"))
-v9[:,:] = u_bar_∇B_bar_avg
-v10 = defVar(ds_create,"u_prime∇B_prime_avg",Float64,("z_TF","t"))
-v10[:,:] = u_prime∇B_prime_avg
+# v6 = defVar(ds_create,"dBdt_avg",Float64,("z_TF","t_diff"))
+# v6[:,:] = dBdt_avg
+# v7 = defVar(ds_create,"∇κ∇B_avg",Float64,("z_TF","t"))
+# v7[:,:] = ∇κ∇B_avg
+# v8 = defVar(ds_create,"div_uB_avg",Float64,("z_TF","t"))
+# v8[:,:] = div_uB_avg
+# v9 = defVar(ds_create,"u_bar_∇B_bar_avg",Float64,("z_TF","t"))
+# v9[:,:] = u_bar_∇B_bar_avg
+# v10 = defVar(ds_create,"u_prime∇B_prime_avg",Float64,("z_TF","t"))
+# v10[:,:] = u_prime∇B_prime_avg
 v11 = defVar(ds_create,"bin_center",Float64,("z_TF",))
 v11[:,1] = bin_center
 v12 = defVar(ds_create,"t",Float64,("t",))
@@ -176,12 +176,12 @@ v2.attrib["units"] = "1/s²"
 v3.attrib["units"] = "m/s"
 v4.attrib["units"] = "m/s"
 # v5.attrib["units"] = ""
-v6.attrib["units"] = "m/s³"
+# v6.attrib["units"] = "m/s³"
 # v6.attrib["units"] = "WKg"
-v7.attrib["units"] = "m/s³"
-v8.attrib["units"] = "m/s³"
-v9.attrib["units"] = "m/s³"
-v10.attrib["units"] = "m/s³"
+# v7.attrib["units"] = "m/s³"
+# v8.attrib["units"] = "m/s³"
+# v9.attrib["units"] = "m/s³"
+# v10.attrib["units"] = "m/s³"
 v11.attrib["units"] = "m"
 v12.attrib["units"] = "s"
 
@@ -213,16 +213,3 @@ close(ds_create)
 
 
 include("plot_terrain_following.jl")
-
-
-
-
-aa = rand(4,5)
-time = 0:4
-x = 1:4
-
-aa_x = mmderiv(x,aa)
-aa_x_avg = mean(aa_x,dims=2)
-
-aa_avg = mean(aa,dims=2)
-aa_avg_x = mmderiv(x,aa_avg)

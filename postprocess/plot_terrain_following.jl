@@ -10,11 +10,11 @@ function deriv(z,y)
 # this script plots terrain following horizontal averaged quantities
 
 slope = "tilt"
-timerange = "80-120"
+tᶠ = "10"
 θ=0.0036
 
 ## plot b, and Bz
-file = string("output/",slope,"/TF_avg_",timerange,"bin.nc")
+file = string("output/",slope,"/TF_avg_tᶠ=",tᶠ,"_bin.nc")
 ds = Dataset(file,"r")
 t = ds["t"][:]/(2*pi/1.4e-4)
 z = ds["bin_center"][:]
@@ -22,8 +22,8 @@ Bz_avg = ds["Bz_avg"][:,:]
 Bz_avg[1,:] .= 0
 b_avg = ds["b_avg"][:,:]
 
-b_avg_110_120 = dropdims(mean(b_avg[:,30:40],dims=2),dims=2)
-Bz_avg_110_120 = dropdims(mean(Bz_avg[:,30:40],dims=2),dims=2)
+# b_avg_110_120 = dropdims(mean(b_avg[:,30:40],dims=2),dims=2)
+# Bz_avg_110_120 = dropdims(mean(Bz_avg[:,30:40],dims=2),dims=2)
 
 fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,800),
             fontsize=20)
@@ -58,13 +58,13 @@ hm_Bz = heatmap!(ax_Bz, t[:], z[:], Bz_avg',
 ind = argmin(abs.(t .- 100))  
 lines!(ax_b_ln, b_avg[:,ind], z[:], linewidth=3, color=:black)
 lines!(ax_b_ln, b_avg[:,end], z[:], linewidth=3, color=:red)
-lines!(ax_b_ln, b_avg_70_80[:], z[:], linewidth=3, color=:blue)
+# lines!(ax_b_ln, b_avg_70_80[:], z[:], linewidth=3, color=:blue)
 ln1 = lines!(ax_Bz_ln, 1e6*Bz_avg[:,ind], z[:], linewidth=3,color=:black)
 ln2 = lines!(ax_Bz_ln, 1e6*Bz_avg[:,end], z[:], linewidth=3,color=:red)
-ln3 = lines!(ax_Bz_ln, 1e6*Bz_avg_110_120[:], z[:], linewidth=3,color=:blue)
-axislegend(ax_Bz_ln, [ln1,ln2,ln3],["100 tidal period","120 tidal period","110-120 tidal average"], position = :rc)
+# ln3 = lines!(ax_Bz_ln, 1e6*Bz_avg_110_120[:], z[:], linewidth=3,color=:blue)
+# axislegend(ax_Bz_ln, [ln1,ln2],["100 tidal period","120 tidal period","110-120 tidal average"], position = :rc)
 display(fig)
-save(string("output/",slope,"/hab_buoyancy_",timerange,".png"),fig)
+save(string("output/",slope,"/hab_buoyancy_tᶠ=",tᶠ,".png"),fig)
 
 ## plot velocities (along slope u, and true vertical velocity w)
 u_avg = ds["u_avg"][:,:]
