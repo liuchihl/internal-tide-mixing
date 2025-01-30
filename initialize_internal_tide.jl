@@ -28,12 +28,14 @@ function initialize_internal_tide(
     U₀=0.025,
     N=1.e-3,
     f₀ = -0.53e-4,
-    threeD_snapshot_interval=2Δtᵒ,
     architecture=GPU(),
     closure = SmagorinskyLilly(),
     solver = "FFT",
     output_mode = "test",
     output_writer = true,
+    avg_interval=avg_interval,
+    snapshot_interval=snapshot_interval,
+    slice_interval=slice_interval,
     topo_file = "topo.mat",
     clean_checkpoint = "false",
     overwrite_output = "true"
@@ -227,39 +229,36 @@ if output_mode == "verification"
         checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)
-        avg_interval = 1*2π/ω₀ * 0.9999    # 0.9999 is for round-off issues: the final averaging window cannot be saved because the simulation endtime could be slightly less than the wta saving endtime 
-        slice_internal = Δtᵒ
 elseif output_mode == "spinup"
         checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; uhat=û, w=ŵ, b=b)
+        slice_diags = (; uhat=û, w=ŵ, B=B)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
-        avg_interval = 20*2π/ω₀ * 0.9999
-        slice_internal = 13/12*2π/ω₀       # snapshot at different point in the tidal cycle
 elseif output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
         point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
         threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
-        avg_interval = 1/12*2π/ω₀ * 0.9999
-        slice_internal = Δtᵒ
+        threeD_diags = merge(Bbudget, (; B=B))
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
         slice_internal = Δtᵒ
 end
-fname = string("internal_tide_theta=",string(θ),"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
+fname = string("internal_tide_theta=",θ,"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
 dir = string("output/",simname, "/")
 # create output path if the folder does not exist
 if !isdir(dir)
     mkdir(dir)
 end
 if output_writer
+    
     # checkpoint  
+    checkpoint_prefix = "checkpoint"
     simulation.output_writers[:checkpointer] = Checkpointer(
                                         model,
                                         schedule=TimeInterval(checkpoint_interval),
                                         dir=dir,
-                                        prefix=string(fname, "_checkpoint"),
+                                        prefix=checkpoint_prefix,
                                         cleanup=clean_checkpoint)
 
     ## output 3D field window time average
@@ -296,13 +295,12 @@ if output_writer
                                                 verbose=true,
                                                 filename = string(dir, fname, "_slices_yz.nc"),
                                                 overwrite_existing = overwrite_output)
-
     # output 3D field snapshots
         simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
                                                 verbose=true,
                                                 filename = string(dir, fname, "_threeD.nc"),
                                                 overwrite_existing = overwrite_output,
-                                                schedule = TimeInterval(threeD_snapshot_interval))
+                                                schedule = TimeInterval(snapshot_interval))
     # 1D profile
         simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
                                                 schedule = TimeInterval(Δtᵒ÷30),

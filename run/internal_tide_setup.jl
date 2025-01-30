@@ -28,14 +28,21 @@ function run_internal_tide(tᶠ,θ)
     if tᶠ ≤ 10*2π/ω₀
         output_mode = "verification"
         solver = "FFT"   
+        avg_interval = 1*2π/ω₀ * 0.9999    # 0.9999 is for round-off issues: the final averaging window cannot be saved because the simulation endtime could be slightly less than the wta saving endtime 
+        slice_interval = Δtᵒ
         pickup = false             
     elseif tᶠ ≤ 1010*2π/ω₀
         output_mode = "spinup"
         solver = "FFT"    
+        avg_interval = 10*2π/ω₀ * 0.9999
+        slice_interval = 13/12*2π/ω₀       # snapshot at different point in the tidal cycle
         pickup = true            
     else
         output_mode = "analysis"
         solver = "Conjugate Gradient"                
+        avg_interval = 1/12*2π/ω₀ * 0.9999
+        snapshot_interval = 1/12*2π/ω₀ * 0.9999
+        slice_interval = Δtᵒ
         pickup = true  
         # set initial condition to be the final state of the spinup simulation by extracting information from the checkpoint file         
     end
@@ -48,24 +55,37 @@ function run_internal_tide(tᶠ,θ)
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                         Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
                                         output_mode=output_mode, output_writer=output_writer,
-                                        threeD_snapshot_interval=threeD_snapshot_interval, architecture=architecture,
+                                        architecture=architecture,
                                         clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
-                                        closure=closure, solver=solver)
+                                        closure=closure, solver=solver, snapshot_interval=snapshot_interval, 
+                                        slice_interval=slice_interval, avg_interval=avg_interval)
         run!(simulation)
         checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
         checkpointed_actuations = checkpointed_wta.schedule.actuations
         # Saving actuation to a text file
         open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
     else
+        # since time-average window is different between modes, actuation has to be recalculated
+        actuation = open(string("output/",simname,"/actuation.txt"), "r") do file parse(Float64, readline(file)) end
+        if tᶠ == 50*2π/ω₀
+            # actuation = the endtime of the verification period divided by the average interval in spinup period 
+            checkpointed_actuations = round(10*2π/ω₀/(avg_interval))
+        elseif 50*2π/ω₀ < tᶠ ≤ 1010*2π/ω₀
+            # the rest of the time during spinup period
+            checkpointed_actuations = actuation
+        else 
+            # the time during analysis period
+            checkpointed_actuations = round(1010*2π/ω₀/(avg_interval))
+        end
         # Reading actuation from a text file
-        checkpointed_actuations = open(string("output/",simname,"/actuation.txt"), "r") do file parse(Float64, readline(file)) end
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                         Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
                                         output_mode=output_mode, output_writer=output_writer,
-                                        threeD_snapshot_interval=threeD_snapshot_interval, architecture=architecture,
+                                        architecture=architecture,
                                         clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
                                         closure=closure, solver=solver)
         simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
+        
         run!(simulation; pickup=pickup)
         # Overwrite and save actuation to actuation.txt
         checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
