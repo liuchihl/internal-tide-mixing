@@ -205,35 +205,45 @@ simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
 wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
 simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
 
-
-## Diagnostics
-b = model.tracers.b
-B̄ = model.background_fields.tracers.b
-B = B̄ + b # total buoyancy field
-
-u, v, w = model.velocities
-û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
-ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
-
-Bz = @at (Center, Center, Center) ∂z(B)
-
-# Oceanostics
-wb = BuoyancyProductionTerm(model)
-ε = KineticEnergyDissipationRate(model)
-χ = TracerVarianceDissipationRate(model, :b)
-
-Bbudget=get_budget_outputs_tuple(model;)
-
 # set the ouput mode:
 if output_mode == "verification"     
+        b = model.tracers.b
+        B̄ = model.background_fields.tracers.b
+        B = B̄ + b # total buoyancy field
+        u, v, w = model.velocities
+        û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
+        ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
+        ε = KineticEnergyDissipationRate(model)
+        χ = TracerVarianceDissipationRate(model, :b)
+        
         checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)
 elseif output_mode == "spinup"
+        b = model.tracers.b
+        B̄ = model.background_fields.tracers.b
+        B = B̄ + b # total buoyancy field
+        u, v, w = model.velocities
+        û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
+        ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
+        
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; uhat=û, w=ŵ, B=B)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
 elseif output_mode == "analysis"
+        b = model.tracers.b
+        B̄ = model.background_fields.tracers.b
+        B = B̄ + b # total buoyancy field
+        u, v, w = model.velocities
+        û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
+        ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
+        Bz = @at (Center, Center, Center) ∂z(B)
+        # Oceanostics
+        wb = BuoyancyProductionTerm(model)
+        ε = KineticEnergyDissipationRate(model)
+        χ = TracerVarianceDissipationRate(model, :b)
+        Bbudget=get_budget_outputs_tuple(model;)
+        
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
         point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
@@ -242,7 +252,7 @@ elseif output_mode == "analysis"
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
-        slice_internal = Δtᵒ
+        slice_interval = Δtᵒ
 end
 fname = string("internal_tide_theta=",θ,"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
 dir = string("output/",simname, "/")
@@ -272,7 +282,7 @@ if output_writer
     ## output 2D slices
     # xz
     simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(slice_internal),
+                                            schedule = TimeInterval(slice_interval),
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
                                             filename = string(dir, fname, "_slices_xz.nc"),
@@ -283,14 +293,14 @@ if output_writer
     # xy
         ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
         simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                                schedule = TimeInterval(slice_internal),
+                                                schedule = TimeInterval(slice_interval),
                                                 indices = (:,:,ind),
                                                 verbose=true,
                                                 filename = string(dir, fname, "_slices_xy.nc"),
                                                 overwrite_existing = overwrite_output)
     # yz
         simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-                                                schedule = TimeInterval(slice_internal),
+                                                schedule = TimeInterval(slice_interval),
                                                 indices = (Nx÷2,:,:), # center of the domain (along the sill)
                                                 verbose=true,
                                                 filename = string(dir, fname, "_slices_yz.nc"),

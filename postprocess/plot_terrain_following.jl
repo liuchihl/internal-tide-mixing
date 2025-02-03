@@ -10,11 +10,18 @@ function deriv(z,y)
 # this script plots terrain following horizontal averaged quantities
 
 slope = "tilt"
-tᶠ = "10"
-θ=0.0036
+tᶠ = "50"
+if  tᶠ ≤ 10
+    output_mode = "verification"
+elseif tᶠ ≤ 1010
+    output_mode = "spinup"
+else
+    output_mode = "analysis"
+end
+
 
 ## plot b, and Bz
-file = string("output/",slope,"/TF_avg_tᶠ=",tᶠ,"_bin.nc")
+file = string("output/",slope,"/TF_avg_tᶠ=",tᶠ,"_",output_mode,".nc")
 ds = Dataset(file,"r")
 t = ds["t"][:]/(2*pi/1.4e-4)
 z = ds["bin_center"][:]

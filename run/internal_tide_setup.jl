@@ -29,12 +29,14 @@ function run_internal_tide(tᶠ,θ)
         output_mode = "verification"
         solver = "FFT"   
         avg_interval = 1*2π/ω₀ * 0.9999    # 0.9999 is for round-off issues: the final averaging window cannot be saved because the simulation endtime could be slightly less than the wta saving endtime 
+        snapshot_interval = 0              # no snapshot
         slice_interval = Δtᵒ
         pickup = false             
     elseif tᶠ ≤ 1010*2π/ω₀
         output_mode = "spinup"
         solver = "FFT"    
         avg_interval = 10*2π/ω₀ * 0.9999
+        snapshot_interval = 0              # no snapshot
         slice_interval = 13/12*2π/ω₀       # snapshot at different point in the tidal cycle
         pickup = true            
     else
@@ -83,7 +85,8 @@ function run_internal_tide(tᶠ,θ)
                                         output_mode=output_mode, output_writer=output_writer,
                                         architecture=architecture,
                                         clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
-                                        closure=closure, solver=solver)
+                                        closure=closure, solver=solver, snapshot_interval=snapshot_interval, 
+                                        slice_interval=slice_interval, avg_interval=avg_interval)
         simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
         
         run!(simulation; pickup=pickup)
