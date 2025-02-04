@@ -282,10 +282,11 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
     @info "spinup"
     for (i,time) in enumerate(endtime)
         filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",time, "_threeD_timeavg.nc")
+        filename_verification = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",10, "_threeD_timeavg.nc")
         @info (i,time)
         ds_field = Dataset(filename_field,"r")
+        ds_verification = Dataset(filename_verification,"r")
         t = ds_field["time"][:];
-
         # grids
         zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
         Nz=length(zC[:]); 
@@ -297,6 +298,7 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
 
         for n in 1:Nt
             B = ds_field["B"][:,:,:,n:n];          # total buoyancy
+            b = ds_verification["b"][:,:,:,n:n];# buoyancy perturbation
             uhat = ds_field["uhat"][:,:,:,n:n];    # true u
             what = ds_field["what"][:,:,:,n:n];    # true w
             what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
@@ -309,8 +311,7 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
             else
                 N = 1.e-3
                 Bz =  deriv(zC,B);
-                # Bz[b[:,:,1:end-1,:].==0] .= 0      # the grids are staggered, but this will effectively set the points inside and right above the immersed boudary to 0
-                Bz[what_cen[:,:,1:end-1,:].==0] .= 0      # the grids are staggered, but this will effectively set the points inside and right above the immersed boudary to 0
+                Bz[b[:,:,1:end-1,:].==0] .= 0      # the grids are staggered, but this will effectively set the points inside and right above the immersed boudary to 0
             end
             # interpolate Bz from faces to center cell
             using Interpolations

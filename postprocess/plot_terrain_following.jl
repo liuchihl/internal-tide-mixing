@@ -10,7 +10,7 @@ function deriv(z,y)
 # this script plots terrain following horizontal averaged quantities
 
 slope = "tilt"
-tᶠ = "50"
+tᶠ = 50
 if  tᶠ ≤ 10
     output_mode = "verification"
 elseif tᶠ ≤ 1010
