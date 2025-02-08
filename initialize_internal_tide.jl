@@ -228,8 +228,8 @@ elseif output_mode == "spinup"
         ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
         
         checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; uhat=û, w=ŵ, B=B)
-        threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
+        slice_diags = (; uhat=û, what=ŵ, B=B)
+        threeD_diags_avg = (; uhat=û, v=v, what=ŵ, B=B)
 elseif output_mode == "analysis"
         b = model.tracers.b
         B̄ = model.background_fields.tracers.b
