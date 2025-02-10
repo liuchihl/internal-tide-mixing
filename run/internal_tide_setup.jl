@@ -28,22 +28,24 @@ function run_internal_tide(tᶠ,θ)
     if tᶠ ≤ 10*2π/ω₀
         output_mode = "verification"
         solver = "FFT"   
-        avg_interval = 1*2π/ω₀ * 0.9999    # 0.9999 is for round-off issues: the final averaging window cannot be saved because the simulation endtime could be slightly less than the wta saving endtime 
+        avg_interval = 1*2π/ω₀   
         snapshot_interval = 0              # no snapshot
         slice_interval = Δtᵒ
         pickup = false             
     elseif tᶠ ≤ 1010*2π/ω₀
         output_mode = "spinup"
         solver = "FFT"    
-        avg_interval = 10*2π/ω₀ * 0.9999
+        avg_interval = 10*2π/ω₀
         snapshot_interval = 0              # no snapshot
         slice_interval = 13/12*2π/ω₀       # snapshot at different point in the tidal cycle
-        pickup = true            
+        # pickup = true  
+        ###### remember to switch back to true after testing this part    
+        pickup = "output/tilt/checkpoint_iteration315391.jld2"      
     else
         output_mode = "analysis"
         solver = "Conjugate Gradient"                
-        avg_interval = 1/12*2π/ω₀ * 0.9999
-        snapshot_interval = 1/12*2π/ω₀ * 0.9999
+        avg_interval = 1/12*2π/ω₀
+        snapshot_interval = 1/12*2π/ω₀
         slice_interval = Δtᵒ
         pickup = true  
         # set initial condition to be the final state of the spinup simulation by extracting information from the checkpoint file         

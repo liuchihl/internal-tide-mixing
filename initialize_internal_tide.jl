@@ -196,7 +196,8 @@ set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
 Δt = (1/N)*0.03
-simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
+simulation = Simulation(model, Δt = Δt, stop_time = tᶠ+50Δt)
+# add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
 # # (CFL) number close to `0.5` while ensuring the time-step does not increase beyond the

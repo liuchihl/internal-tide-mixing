@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="tilt" 
+#SBATCH --job-name="tilt_190-210" 
 #SBATCH --output="output_message/tilt.out.%j.%N.out"
 #SBATCH --partition=gpuA100x4
 #SBATCH --mem=16G
