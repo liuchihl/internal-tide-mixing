@@ -38,9 +38,9 @@ function run_internal_tide(tᶠ,θ)
         avg_interval = 10*2π/ω₀
         snapshot_interval = 0              # no snapshot
         slice_interval = 13/12*2π/ω₀       # snapshot at different point in the tidal cycle
-        # pickup = true  
+        pickup = true  
         ###### remember to switch back to true after testing this part    
-        pickup = "output/tilt/checkpoint_iteration315391.jld2"      
+        # pickup = "output/tilt/checkpoint_iteration315391.jld2"      
     else
         output_mode = "analysis"
         solver = "Conjugate Gradient"                

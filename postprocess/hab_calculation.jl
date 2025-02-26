@@ -2,7 +2,7 @@
 # reason for doing this is that it took a while to calculate hab, so it's best to calculate once and save it.
 using NCDatasets
 using MAT
-filename_field = "output/higher_top_resolution/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_0-13_threeD_timeavg.nc"
+filename_field = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=10_threeD_timeavg.nc"
 ds_field = Dataset(filename_field,"r")
 
 # grids
@@ -25,8 +25,6 @@ x_interp = range(x_topo[1],x_topo[end], length=Nx)
 y_interp = range(y_topo[1],y_topo[end], length=Ny)
 
 using Interpolations
-# Interpolation object (caches coefficients and such)
-itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 # Interpolate z_topo onto a higher-resolution grid
 itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 z_interp = [itp(x_topo_lin, y_topo_lin) for x_topo_lin in x_interp, y_topo_lin in y_interp]
@@ -39,7 +37,7 @@ hab = ones(Nx,Ny).*reshape(zC,1,1,Nz) .- z_interp  # height above bottom [Nx,Ny,
 # save hab into NetCDF file 
 # The mode "c" stands for creating a new file
 
-ds_hab = Dataset("output/hab.nc","c")
+ds_hab = Dataset("output/hab_proper_reshape.nc","c")
 # Define the dimensions
 defDim(ds_hab,"xC",length(xC))
 defDim(ds_hab,"yC",length(yC))

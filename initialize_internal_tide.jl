@@ -16,7 +16,6 @@ using Interpolations: LinearInterpolation
 using CUDA
 using Suppressor
 
-
 function initialize_internal_tide(
     simname,
     Nx,
@@ -216,7 +215,7 @@ if output_mode == "verification"
         ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
         ε = KineticEnergyDissipationRate(model)
         χ = TracerVarianceDissipationRate(model, :b)
-        
+
         checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, B=B, b=b, ε=ε, χ=χ)
         threeD_diags_avg = (; uhat=û, what=ŵ, B=B, b=b)

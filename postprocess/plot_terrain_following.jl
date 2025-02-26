@@ -9,153 +9,292 @@ function deriv(z,y)
  end
 # this script plots terrain following horizontal averaged quantities
 
-slope = "tilt"
-tᶠ = 50
+simname = "tilt"
+tᶠ = 410
 if  tᶠ ≤ 10
     output_mode = "verification"
 elseif tᶠ ≤ 1010
     output_mode = "spinup"
+    time = 10:40:tᶠ
 else
     output_mode = "analysis"
 end
 
+# extracting data
+# Initialize arrays
+ds_init = Dataset(string("output/",simname,"/TF_avg_tᶠ=",time[1],"_", "verification",".nc"),"r")
+Bz_avg_acc = ds_init["Bz_avg"][:,:]
+u_avg_acc = ds_init["u_avg"][:,:]
+what_avg_acc = ds_init["what_avg"][:,:]
+t_acc = ds_init["t"][:]./(2*pi/1.4e-4)
+z = ds_init["bin_center"][:]
+close(ds_init)
 
-## plot b, and Bz
-file = string("output/",slope,"/TF_avg_tᶠ=",tᶠ,"_",output_mode,".nc")
-ds = Dataset(file,"r")
-t = ds["t"][:]/(2*pi/1.4e-4)
-z = ds["bin_center"][:]
-Bz_avg = ds["Bz_avg"][:,:]
-Bz_avg[1,:] .= 0
-b_avg = ds["b_avg"][:,:]
+if output_mode == "spinup"
 
-# b_avg_110_120 = dropdims(mean(b_avg[:,30:40],dims=2),dims=2)
-# Bz_avg_110_120 = dropdims(mean(Bz_avg[:,30:40],dims=2),dims=2)
+    for i in eachindex(time)[2:end]
+        output_mode = "spinup"
+        file = string("output/",simname,"/TF_avg_tᶠ=",time[i],"_",output_mode,".nc")
+        ds = Dataset(file,"r")
+        
+        # Concatenate subsequent timesteps horizontally
+        Bz_avg_acc = hcat(Bz_avg_acc, ds["Bz_avg"][:,:])
+        u_avg_acc = hcat(u_avg_acc, ds["u_avg"][:,:]) 
+        what_avg_acc = hcat(what_avg_acc, ds["what_avg"][:,:])
+        t_acc = round.(vcat(t_acc, ds["t"][:]./(2*pi/1.4e-4)))
+        close(ds)
+        @info i
+    end
+end
+## plot Bz, u (cross-slope), what (true)
+# dt = diff(t_acc)
+# t_cen =  t_acc .- dt/2
 
-fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,800),
+fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(1000,1200),
             fontsize=20)
+
 axis_kwargs_hm = (xlabel = "time (tidal cycle)",
                   ylabel = "hab (m)",
                   yminorticksvisible = true,
-                  limits = ((t[1], t[end]), (0, z[end]))
+                  limits = ((t_acc[1], t_acc[end]), (0, z[end]))
                   )
+axis_kwargs_ln_Bz = (ylabel = "hab (m)",
+                yminorticksvisible = true,
+                limits = ((0.1,1.8),(0, 500))) 
+axis_kwargs_ln_u = (ylabel = "hab (m)",
+                yminorticksvisible = true,
+                limits = ((-0.003,0.003),(0, 500))) 
+axis_kwargs_ln_w = (ylabel = "hab (m)",
+                yminorticksvisible = true,
+                limits = ((-0.0025,0.0005),(0, 500))) 
 
-axis_kwargs_line_b = (ylabel = "hab (m)",yminorticksvisible = true,limits = ((0,maximum(b_avg)),(0, 500)) )   
-axis_kwargs_line_Bz = (ylabel = "hab (m)",yminorticksvisible = true,limits = (nothing,(0, 500)) ) 
+# First row - Bz
+ax_Bz = Axis(fig[1, 1]; title = "dB/dz (Total buoyancy gradient)", 
+             yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+ax_Bz_ln = Axis(fig[1, 3]; title = "10⁻⁶ x dB/dz", 
+                yminorticks = IntervalsBetween(5), axis_kwargs_ln_Bz...)
 
-ax_b = Axis(fig[1, 1]; title = "b (buoyancy perturbation)", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
-ax_Bz = Axis(fig[2, 1]; title = "dB/dz (Total buoyancy gradient)", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
+# Second row - u
+ax_u = Axis(fig[2, 1]; title = "Cross-slope velocity", 
+            yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+ax_u_ln = Axis(fig[2, 3]; title = "Cross-slope velocity", 
+               yminorticks = IntervalsBetween(5), axis_kwargs_ln_u...)
 
-ax_b_ln = Axis(fig[1, 3]; title = "b (buoyancy perturbation)", yminorticks = IntervalsBetween(5),axis_kwargs_line_b...)
-ax_Bz_ln = Axis(fig[2, 3]; title = "10⁻⁶ x dB/dz (Total buoyancy gradient)",yminorticks = IntervalsBetween(5), axis_kwargs_line_Bz...)
+# Third row - what
+ax_what = Axis(fig[3, 1]; title = "True vertical velocity", 
+               yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+ax_what_ln = Axis(fig[3, 3]; title = "True vertical velocity", 
+                  yminorticks = IntervalsBetween(5), axis_kwargs_ln_w...)
 
-using ColorSchemes
-U₀ = 0.025
-hm_b = heatmap!(ax_b, t[:], z[:], b_avg',
-    #colorrange = (minimum(filter(!isnan,b_avg)),maximum(filter(!isnan,b_avg))*0.8), 
-    colorrange = (0,0.00012), 
-    colormap = :diverging_bwr_20_95_c54_n256,
-    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
-    Colorbar(fig[1,2], hm_b )
-hm_Bz = heatmap!(ax_Bz, t[:], z[:], Bz_avg',
-    colormap = :diverging_bwr_20_95_c54_n256, colorrange=(8.e-7,10.e-7),
-    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
-    Colorbar(fig[2,2], hm_Bz)
+# Heatmaps with colorbars
+hm_Bz = heatmap!(ax_Bz, t_acc[:], z[:], Bz_avg_acc',
+    colormap = :GnBu_9, colorrange=(5.e-7,10.e-7),
+    lowclip=cgrad(:GnBu_9)[1], highclip=cgrad(:GnBu_9)[end])
+contour!(ax_Bz, t_acc[:], z[:], Bz_avg_acc', 
+    levels=5e-7:1e-7:10e-7, color=:black, linewidth=1)
+Colorbar(fig[1,2], hm_Bz)
 
-ind = argmin(abs.(t .- 100))  
-lines!(ax_b_ln, b_avg[:,ind], z[:], linewidth=3, color=:black)
-lines!(ax_b_ln, b_avg[:,end], z[:], linewidth=3, color=:red)
-# lines!(ax_b_ln, b_avg_70_80[:], z[:], linewidth=3, color=:blue)
-ln1 = lines!(ax_Bz_ln, 1e6*Bz_avg[:,ind], z[:], linewidth=3,color=:black)
-ln2 = lines!(ax_Bz_ln, 1e6*Bz_avg[:,end], z[:], linewidth=3,color=:red)
-# ln3 = lines!(ax_Bz_ln, 1e6*Bz_avg_110_120[:], z[:], linewidth=3,color=:blue)
-# axislegend(ax_Bz_ln, [ln1,ln2],["100 tidal period","120 tidal period","110-120 tidal average"], position = :rc)
-display(fig)
-save(string("output/",slope,"/hab_buoyancy_tᶠ=",tᶠ,".png"),fig)
+hm_u = heatmap!(ax_u, t_acc[:], z[:], u_avg_acc',
+    colorrange = (-0.03, 0.03), colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
+    highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
+contour!(ax_u, t_acc[:], z[:], u_avg_acc',
+    color=:black, linewidth=1, levels=5)
+Colorbar(fig[2,2], hm_u)
 
-## plot velocities (along slope u, and true vertical velocity w)
-u_avg = ds["u_avg"][:,:]
-# uhat_avg = ds["uhat_avg"][:,:]
-what_avg = ds["what_avg"][:,:]
-u_avg[1,:] .= 0
-# what_avg[1,:] .= 0
-u_avg_5daverage = dropdims(mean(u_avg[:,30:40],dims=2),dims=2)
-what_avg_5daverage = dropdims(mean(what_avg[:,30:40],dims=2),dims=2)
-
-
-    fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(1000,800),fontsize=20)
-    axis_kwargs_hm = (xlabel = "time (tidal cycle)",
-                      ylabel = "hab (m)",
-                      yminorticksvisible = true,
-                      limits = ((t[1], t[end]), (0, 1500))
-                      )
-    axis_kwargs_ln = (ylabel = "hab (m)", yminorticksvisible = true, limits = (nothing,(0, 500)) )   
-    # axis_kwargs_zoom_ln = (ylabel = "hab (m)", yminorticksvisible = true, limits = (nothing,(0, 200)) )   
-    
-ax_u = Axis(fig[1, 1]; title = "Cross-slope velocity", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
-# ax_uhat = Axis(fig[2, 1]; title = "True zonal velocity", axis_kwargs_hm...)
-ax_u_ln = Axis(fig[1, 3]; title = "Cross-slope velocity", yminorticks = IntervalsBetween(5),axis_kwargs_ln...)
-# ax_u_zoom_ln = Axis(fig[1, 4]; title = "Cross-slope velocity", yminorticks = IntervalsBetween(5),axis_kwargs_zoom_ln...)
-# ax_uhat_ln = Axis(fig[2, 3]; title = "True zonal velocity", axis_kwargs_ln...)
-ax_what = Axis(fig[2, 1]; title = "True vertical velocity", yminorticks = IntervalsBetween(5),axis_kwargs_hm...)
-ax_what_ln = Axis(fig[2, 3]; 
-                  title = "True vertical velocity", 
-                  yminorticks = IntervalsBetween(5),
-                  xticks = ([-0.0015, -0.001, -0.0005, 0], ["-0.0015", "-0.001", "-0.0005", "0"]),
-                  axis_kwargs_ln...)
-                  # ax_what_zoom_ln = Axis(fig[2, 4]; title = "True vertical velocity", yminorticks = IntervalsBetween(5),axis_kwargs_zoom_ln...)
-
-hm_u = heatmap!(ax_u, t[:], z[:], u_avg',
-    colorrange = (-0.01, 0.01), colormap = :diverging_bwr_20_95_c54_n256,
-    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
-    nan_color = :gray)
-    Colorbar(fig[1,2], hm_u)
-# hm_uhat = heatmap!(ax_uhat, t[:], z[:], uhat_avg',
-#     colorrange = (-0.02, 0.02), colormap = :diverging_bwr_20_95_c54_n256,
-#     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],clim = (-3U₀,3U₀),
-#     nan_color = :gray)
-#     Colorbar(fig[2,2], hm_uhat)
-hm_what = heatmap!(ax_what, t[:], z[:], what_avg',
+hm_what = heatmap!(ax_what, t_acc[:], z[:], what_avg_acc',
     colorrange = (-0.001, 0.001), colormap = :diverging_bwr_20_95_c54_n256,
-    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
-    nan_color = :gray)
-    Colorbar(fig[2,2], hm_what)
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
+    highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
+contour!(ax_what, t_acc[:], z[:], what_avg_acc',
+    color=:black, linewidth=1,levels=5)
+Colorbar(fig[3,2], hm_what)
 
-ind = 20 # middle
-lines!(ax_u_ln, u_avg[:,ind], z[:], linewidth=3,color=:black)
-# lines!(ax_uhat_ln, uhat_avg[:,ind], z[:], linewidth=3,color=:black)
-lines!(ax_u_ln, u_avg[:,end], z[:], linewidth=3,color=:red)
-lines!(ax_u_ln, u_avg_5daverage[:], z[:], linewidth=3,color=:blue)
-lines!(ax_u_ln,[0,0],[0,z[end]],color=:black)
- 
-# lines!(ax_uhat_ln, uhat_avg[:,end], z[:], linewidth=3,color=:red)
-ln1 = lines!(ax_what_ln, what_avg[:,ind], z[:], linewidth=3,color=:black)
-ln2 = lines!(ax_what_ln, what_avg[:,end], z[:], linewidth=3,color=:red)
-ln3 = lines!(ax_what_ln, what_avg_5daverage[:], z[:], linewidth=3,color=:blue)
-lines!(ax_what_ln,[0,0],[0,z[end]],color=:black)
-# lines!(ax_u_zoom_ln, u_avg[:,ind], z[:], linewidth=3,color=:black)
-# # lines!(ax_uhat_ln, uhat_avg[:,ind], z[:], linewidth=3,color=:black)
-# lines!(ax_u_zoom_ln, u_avg[:,end], z[:], linewidth=3,color=:red)
-# lines!(ax_u_zoom_ln, u_avg_30_39[:], z[:], linewidth=3,color=:blue)
- 
-# # lines!(ax_uhat_ln, uhat_avg[:,end], z[:], linewidth=3,color=:red)
-# ln1 = lines!(ax_what_zoom_ln, what_avg[:,ind], z[:], linewidth=3,color=:black)
-# ln2 = lines!(ax_what_zoom_ln, what_avg[:,end], z[:], linewidth=3,color=:red)
-# ln3 = lines!(ax_what_zoom_ln, what_avg_30_39[:], z[:], linewidth=3,color=:blue)
-label1 = "$(Int(round(t[ind]))) tidal cycle"
-label2 = "$(Int(round(t[end]))) tidal cycle"
-label3 = "$(Int(round(t[30])))-$(Int(round(t[40]))) tidal average"
+# Line plots
+mid_time_idx = 10#Int(floor(length(t_cen)/2))
 
-# Add the legend to the axis
-axislegend(
-    ax_what_ln, 
-    [ln1, ln2, ln3],
-    [label1, label2, label3],
-    position = :lt,
-    orientation = :vertical
-)
+# Bz profiles
+ln1_Bz = lines!(ax_Bz_ln, 1e6*Bz_avg_acc[:,mid_time_idx], z[:], linewidth=3, color=:black)
+ln2_Bz = lines!(ax_Bz_ln, 1e6*Bz_avg_acc[:,end], z[:], linewidth=3, color=:red)
+
+# u profiles
+ln1_u = lines!(ax_u_ln, u_avg_acc[:,mid_time_idx], z[:], linewidth=3, color=:black)
+ln2_u = lines!(ax_u_ln, u_avg_acc[:,end], z[:], linewidth=3, color=:red)
+lines!(ax_u_ln, [0,0], [0,z[end]], color=:black, linewidth=1) # Zero line
+
+# what profiles
+ln1_what = lines!(ax_what_ln, what_avg_acc[:,mid_time_idx], z[:], linewidth=3, color=:black)
+ln2_what = lines!(ax_what_ln, what_avg_acc[:,end], z[:], linewidth=3, color=:red)
+lines!(ax_what_ln, [0,0], [0,z[end]], color=:black, linewidth=1) # Zero line
+
+# Add legend to each profile plot
+for (ax, ln1, ln2) in [(ax_Bz_ln, ln1_Bz, ln2_Bz), 
+                       (ax_u_ln, ln1_u, ln2_u), 
+                       (ax_what_ln, ln1_what, ln2_what)]
+    axislegend(ax, 
+               [ln1, ln2],
+               ["t = $(t_acc[mid_time_idx]) TP", "t = $(t_acc[end]) TP"],
+               position = :rt)
+end
+
 display(fig)
-save(string("output/",slope,"/hab_velocities_",timerange,".png"),fig)
+save(string("output/",simname,"/hab_combined_tᶠ=",tᶠ,".png"), fig)
+
+
+## plot only specfic time steps
+
+simname = "tilt"
+tᶠ = 210
+if  tᶠ ≤ 10
+    output_mode = "verification"
+elseif tᶠ ≤ 1010
+    output_mode = "spinup"
+    time = 10:40:tᶠ
+else
+    output_mode = "analysis"
+end
+
+# extracting data
+# Initialize arrays
+ds_init = Dataset(string("output/",simname,"/TF_avg_tᶠ=",tᶠ,"_", output_mode,".nc"),"r")
+Bz_avg = ds_init["Bz_avg"][:,:]
+u_avg = ds_init["u_avg"][:,:]
+what_avg = ds_init["what_avg"][:,:]
+
+filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg.nc")
+ds_field = Dataset(filename_field,"r")
+t = ds_field["time"][1:2]/(2*pi/1.4e-4);
+z = ds_init["bin_center"][:]
+close(ds_init)
+
+fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(1000,1200),
+            fontsize=20)
+
+axis_kwargs_hm = (xlabel = "time (tidal cycle)",
+                  ylabel = "hab (m)",
+                  yminorticksvisible = true,
+                  limits = ((t[1], t[2]), (0, z[end]))
+                  )
+axis_kwargs_Bz_ln = (ylabel = "hab (m)",
+                yminorticksvisible = true,
+                limits = ((0.45,1.55),(0, 500)))
+axis_kwargs_ln = (ylabel = "hab (m)",
+                yminorticksvisible = true,
+                limits = (nothing,(0, 500)))
+
+# First row - Bz
+ax_Bz = Axis(fig[1, 1]; title = "dB/dz (Total buoyancy gradient)", 
+             yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+ax_Bz_ln = Axis(fig[1, 3]; title = "10⁻⁶ x dB/dz", 
+                yminorticks = IntervalsBetween(5), axis_kwargs_Bz_ln...)
+
+# Second row - u
+ax_u = Axis(fig[2, 1]; title = "Cross-slope velocity", 
+            yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+ax_u_ln = Axis(fig[2, 3]; title = "Cross-slope velocity", 
+               yminorticks = IntervalsBetween(5), axis_kwargs_ln...)
+
+# Third row - what
+ax_what = Axis(fig[3, 1]; title = "True vertical velocity", 
+               yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+ax_what_ln = Axis(fig[3, 3]; title = "True vertical velocity", 
+                  yminorticks = IntervalsBetween(5), axis_kwargs_ln...)
+
+# Heatmaps with colorbars
+hm_Bz = heatmap!(ax_Bz, t[:], z[:], Bz_avg[:,1:2]',
+    colormap = :GnBu_9, colorrange=(5.e-7,10.e-7),
+    lowclip=cgrad(:GnBu_9)[1], highclip=cgrad(:GnBu_9)[end])
+contour!(ax_Bz, t[1:2], z[:], Bz_avg[:,1:2]', 
+    levels=5e-7:1e-7:10e-7, color=:black, linewidth=1)
+Colorbar(fig[1,2], hm_Bz)
+
+hm_u = heatmap!(ax_u, t[:], z[:], u_avg[:,1:2]',
+    colorrange = (-0.03, 0.03), colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
+    highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
+contour!(ax_u, t[:], z[:], u_avg[:,1:2]',
+    color=:black, linewidth=1, levels=5)
+Colorbar(fig[2,2], hm_u)
+
+hm_what = heatmap!(ax_what, t[:], z[:], what_avg[:,1:2]',
+    colorrange = (-0.001, 0.001), colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
+    highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
+contour!(ax_what, t[:], z[:], what_avg[:,1:2]',
+    color=:black, linewidth=1,levels=5)
+Colorbar(fig[3,2], hm_what)
+
+# Line plots
+
+# Bz profiles
+ln1_Bz = lines!(ax_Bz_ln, 1e6*Bz_avg[:,1], z[:], linewidth=3, color=:black)
+ln2_Bz = lines!(ax_Bz_ln, 1e6*Bz_avg[:,2], z[:], linewidth=3, color=:red)
+
+# u profiles
+ln1_u = lines!(ax_u_ln, u_avg[:,1], z[:], linewidth=3, color=:black)
+ln2_u = lines!(ax_u_ln, u_avg[:,2], z[:], linewidth=3, color=:red)
+lines!(ax_u_ln, [0,0], [0,z[end]], color=:black, linewidth=1) # Zero line
+
+# what profiles
+ln1_what = lines!(ax_what_ln, what_avg[:,1], z[:], linewidth=3, color=:black)
+ln2_what = lines!(ax_what_ln, what_avg[:,2], z[:], linewidth=3, color=:red)
+lines!(ax_what_ln, [0,0], [0,z[end]], color=:black, linewidth=1) # Zero line
+
+# Add legend to each profile plot
+for (ax, ln1, ln2) in [(ax_Bz_ln, ln1_Bz, ln2_Bz), 
+                       (ax_u_ln, ln1_u, ln2_u), 
+                       (ax_what_ln, ln1_what, ln2_what)]
+    axislegend(ax, 
+               [ln1, ln2],
+               ["t = $(round(t[1])) TP", "t = $(round(t[2])) TP"],
+               position = :rt)
+end
+
+display(fig)
+save(string("output/",simname,"/hab_combined_tᶠ=","200-210",".png"), fig)
+
+
+
+
+
+
+########### compare the incorrect plot at 200-210 TP with the correct one at 210 TP
+ds_wrong = Dataset(string("output/tilt/TF_avg_tᶠ=210_spinup_old.nc"),"r")
+ds_right = Dataset(string("output/tilt/TF_avg_tᶠ=210_spinup.nc"),"r")
+Bz_wrong = ds_wrong["Bz_avg"][:,4]
+u_wrong = ds_wrong["u_avg"][:,4]
+what_wrong = ds_wrong["what_avg"][:,4]
+Bz_right = ds_right["Bz_avg"][:,2]
+u_right = ds_right["u_avg"][:,2]
+what_right = ds_right["what_avg"][:,2]
+fig = Figure(resolution = (1000, 400), figure_padding=(10, 40, 10, 10), size=(1200,400),
+            fontsize=20)
+
+axis_kwargs_ln = (ylabel = "hab (m)",
+                yminorticksvisible = true,
+                limits = (nothing,(0, 1500))) 
+
+ax_Bz = Axis(fig[1, 1]; title = "10⁻⁶ x dB/dz", axis_kwargs_ln...)
+ax_u = Axis(fig[1, 2]; title = "Cross-slope velocity", axis_kwargs_ln...)
+ax_what = Axis(fig[1, 3]; title = "True vertical velocity", axis_kwargs_ln...)
+
+ln1_Bz = lines!(ax_Bz, 1e6*Bz_wrong, z[:], linewidth=3, color=:black, label="wrong")
+ln2_Bz = lines!(ax_Bz, 1e6*Bz_right, z[:], linewidth=3, color=:red, label="right", linestyle=:dash)
+
+ln1_u = lines!(ax_u, u_wrong, z[:], linewidth=3, color=:black)
+ln2_u = lines!(ax_u, u_right, z[:], linewidth=3, color=:red, linestyle=:dash)
+
+ln1_what = lines!(ax_what, what_wrong, z[:], linewidth=3, color=:black)
+ln2_what = lines!(ax_what, what_right, z[:], linewidth=3, color=:red, linestyle=:dash)
+
+axislegend(ax_what,[ln1_what,ln2_what], ["wrong", "right"], position = :rt)
+
+display(fig)
+save("output/tilt/comparison_wrong_right.png", fig)
+
+
+
+
 
 
 

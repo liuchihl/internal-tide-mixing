@@ -7,19 +7,49 @@ using CairoMakie
 using NCDatasets
 
 
-filename_field = "output/higher_top_resolution/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_5-10_threeD.nc"
-# ds_field_no_20_30 = Dataset(filename_field,"r")
-# filename_field = "output/supercritical_tilt/internal_tide_5days-theta=0.0036_realtopo3D_Nx500_Nz250_fields_timeavg_50_60.nc"
-ds_field = Dataset(filename_field,"r")
+filename_ver = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=10_threeD_timeavg.nc"
+filename_spinup = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=170_threeD_timeavg.nc"
 
+ds_ver = Dataset(filename_ver,"r")
+ds_spinup = Dataset(filename_spinup,"r")
+ds_field = ds_ver  # Using ds_ver for the grid information
+b_ver = ds_ver["b"][:,:,:,1]
+B_spinup = ds_spinup["B"][:,:,:,4]
+t = ds_spinup["time"][4]
 # grids
-zC = ds_field["zC"]; Nz=length(zC[:])
-zF = ds_field["zF"]; zF = zF[:];
-xC = ds_field["xC"]; Nx=length(xC[:])
-xF = ds_field["xF"]; 
-yC = ds_field["yC"]; Ny=length(yC[:])
-yF = ds_field["yF"]; 
-t = ds_field["time"][:];
+zC = ds_spinup["zC"][:]; Nz=length(zC[:])
+xC = ds_spinup["xC"][:]; Nx=length(xC[:])
+yC = ds_spinup["yC"][:]; Ny=length(yC[:])
+
+# Create a new NetCDF file
+ds_save = Dataset("output/tilt/buoyancy_timeaverage_160-170.nc", "c")
+
+# Define dimensions
+defDim(ds_save, "xC", length(xC))
+defDim(ds_save, "yC", length(yC))
+defDim(ds_save, "zC", length(zC))
+
+# Define variables
+v1 = defVar(ds_save, "b", Float64, ("xC", "yC", "zC"))
+v1[:,:,:] = b_ver
+
+v2 = defVar(ds_save, "B", Float64, ("xC", "yC", "zC"))
+v2[:,:,:] = B_spinup
+
+v4 = defVar(ds_save, "xC", Float64, ("xC",))
+v4[:] = xC[:]
+
+v5 = defVar(ds_save, "yC", Float64, ("yC",))
+v5[:] = yC[:]
+
+v6 = defVar(ds_save, "zC", Float64, ("zC",))
+v6[:] = zC[:]
+
+close(ds_save)
+
+file = "output/tilt/buoyancy_timeaverage_160-170.nc"
+ds = Dataset(file, "r")
+
 
 b = ds_field["b"][:,:,:,end];
 B = ds_field["B"][:,:,:,end];

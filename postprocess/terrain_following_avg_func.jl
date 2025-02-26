@@ -21,25 +21,26 @@ end
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/bins.jl")
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/mmderiv.jl")
 
-tᶠ = 50
+tᶠ = 410
 θ = 3.6e-3
 if θ==3.6e-3
     simname = "tilt"
 else 
-    simname == "flat"
+    simname = "flat"
 end
 
 if  tᶠ ≤ 10
     output_mode = "verification"
-    Nt = 10      # number of time averages
+    Nt = 11      # number of time averages
     endtime = tᶠ
-elseif tᶠ ≤ 1010
+elseif tᶠ ≤ 450
     output_mode = "spinup"
     Nt = 4
-    if tᶠ == 1010
-        endtime = ["$i" for i in 50:40:1010]
+    if tᶠ == 410
+        endtime = ["$i" for i in 210:40:410]
+        # endtime = tᶠ   # if you want to run only one case
     else
-        endtime = tᶠ
+        # endtime = tᶠ
     end
 else
     output_mode = "analysis"
@@ -48,20 +49,37 @@ else
 end
 
 
-bin_edge = 0:5:1500
+bin_edge = 0:8:1500
 bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
 # load hab
-filename_hab = "output/hab.nc"
-ds_hab = Dataset(filename_hab,"r")
-hab = ds_hab["hab"][:,:,:];
-bin_mask = hab
-
+# filename_hab = "output/hab.nc"
+# ds_hab = Dataset(filename_hab,"r")
+# hab = ds_hab["hab"][:,:,:];
+# bin_mask = hab
+ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=50_threeD_timeavg.nc","r")
+w_data = ds["what"][:,:,:,1]  # get buoyancy data for first time step
+Nx = length(ds["xC"][:])
+Ny = length(ds["yC"][:])
+Nz = length(ds["zC"][:])
+zC = ds["zC"][:]; zF = ds["zF"][:];
+bin_mask = zeros(Nx,Ny,Nz)
+for i in 1:Nx    # loop over x dimension
+    for j in 1:Ny # loop over y dimension
+        first_nonzero = findfirst(w_data[i,j,:] .> 0)  # find first index where b >= 0 in z dimension
+        if first_nonzero !== nothing
+            for k in first_nonzero:Nz
+                bin_mask[i,j,k] = zF[k] - zF[first_nonzero]  # distance above topography
+            end
+        end
+    end
+end
 # preallocate
 b_avg = zeros(length(bin_edge)-1,Nt)
 Bz_avg = zeros(length(bin_edge)-1,Nt)
 uhat_avg = zeros(length(bin_edge)-1,Nt)
 u_avg = zeros(length(bin_edge)-1,Nt)
 what_avg = zeros(length(bin_edge)-1,Nt)
+τ_avg = zeros(length(bin_edge)-1,Nt)
 
 if output_mode == "analysis"
 epsilon_avg = zeros(length(bin_edge)-1,Nt)
@@ -75,7 +93,7 @@ end
 
 if output_mode == "verification" 
     # verification and analysis mode
-    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",endtime, "_threeD_timeavg.nc")
+    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg.nc")
     ds_field = Dataset(filename_field,"r")
     t = ds_field["time"][:];
 
@@ -94,6 +112,7 @@ if output_mode == "verification"
         B = ds_field["B"][:,:,:,n:n];          # total buoyancy
         uhat = ds_field["uhat"][:,:,:,n:n];    # true u
         what = ds_field["what"][:,:,:,n:n];    # true w
+        what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
         # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
         wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
         u = uhat[:,:,:,1]*cos(θ) .+ wtemp*sin(θ) # cross-slope velocity
@@ -123,7 +142,7 @@ if output_mode == "verification"
     end
     close(ds_field)
     close(ds_hab)
-
+    
 
     ds_create = Dataset(string("output/",simname,"/TF_avg_tᶠ=",endtime,"_",output_mode,".nc"),"c")
     # Define the dimension
@@ -281,7 +300,7 @@ elseif output_mode == "analysis"
 else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
     @info "spinup"
     for (i,time) in enumerate(endtime)
-        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",time, "_threeD_timeavg.nc")
+        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",endtime[i], "_threeD_timeavg.nc")
         filename_verification = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",10, "_threeD_timeavg.nc")
         @info (i,time)
         ds_field = Dataset(filename_field,"r")
@@ -295,7 +314,13 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
         yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
         Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
         z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
-
+        # for topostrophy
+        dHdy = zeros(size(bin_mask))
+        dHdx = zeros(size(bin_mask))
+        for k in 1:size(bin_mask,3)
+            dHdy[:,:,k] = mmderiv(yC,bin_mask[:,:,k]')'
+            dHdx[:,:,k] = mmderiv(xC,bin_mask[:,:,k])
+        end
         for n in 1:Nt
             B = ds_field["B"][:,:,:,n:n];          # total buoyancy
             b = ds_verification["b"][:,:,:,n:n];# buoyancy perturbation
@@ -306,6 +331,13 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
             wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
             u = uhat[:,:,:,1]*cos(θ) .+ wtemp*sin(θ) # cross-slope velocity
             w = -uhat[:,:,:,1]*sin(θ) .+ wtemp*cos(θ)# slope-normal velocity
+            u_cen = (u[1:end,:,:] .+ vcat(u[2:end,:,:],u[1:1,:,:]))./2 # u at center in the x dimension
+            if haskey(ds_field,"v")
+                v = ds_field["v"][:,:,:,n:n];    # true u
+                τ = @. -(u_cen*dHdy - v*dHdx)
+            end
+            # topostrophy
+
             if haskey(ds_field,"Bz")
                 Bz = ds_field["Bz"][:,:,:,n:n];   
             else
@@ -327,12 +359,14 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
             @time Bz_avg[:,n], _ = bins(Bz_center,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
             @time what_avg[:,n], _ = bins(what_cen,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
             @time u_avg[:,n], _ = bins(u,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)        
+            if haskey(ds_field,"v")
+            @time τ_avg[:,n], _ = bins(τ,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)        
+            end
         end
-        close(ds_field)
-        close(ds_hab)
+ 
 
         t_diff = diff(t)  # Precompute time differences
-        ds_create = Dataset(string("output/",simname,"/TF_avg_tᶠ=",endtime,"_",output_mode,".nc"),"c")
+        ds_create = Dataset(string("output/",simname,"/TF_avg_tᶠ=",endtime[i],"_",output_mode,".nc"),"c")
         # Define the dimension
         defDim(ds_create,"z_TF",length(bin_center))
         defDim(ds_create,"t",Nt)
@@ -349,22 +383,30 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
         v3[:,:] = u_avg
         v4 = defVar(ds_create,"what_avg",Float64,("z_TF","t"))
         v4[:,:] = what_avg
-        v5 = defVar(ds_create,"bin_center",Float64,("z_TF",))
-        v5[:,1] = bin_center
-        v6 = defVar(ds_create,"t",Float64,("t",))
-        v6[:,1] = t   
+        if haskey(ds_field,"v")
+            v5 = defVar(ds_create,"τ_avg",Float64,("z_TF","t"))
+            v5[:,:] = τ_avg
+        end
+        v6 = defVar(ds_create,"bin_center",Float64,("z_TF",))
+        v6[:,1] = bin_center
+        v7 = defVar(ds_create,"t",Float64,("t",))
+        v7[:,1] = t   
 
         # write attributes
         v1.attrib["units"] = "m/s²"
         v2.attrib["units"] = "1/s²"
         v3.attrib["units"] = "m/s"
         v4.attrib["units"] = "m/s"
-        v5.attrib["units"] = "m"
-        v6.attrib["units"] = "s"
+        if haskey(ds_field,"v")
+            v5.attrib["units"] = "m/s"
+        end
+        v6.attrib["units"] = "m"
+        v7.attrib["units"] = "s"
 
         close(ds_create)
+        close(ds_field)
     end
 end
 
+# include("plot_terrain_following.jl")
 
-include("plot_terrain_following.jl")

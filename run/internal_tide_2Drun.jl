@@ -18,14 +18,14 @@ function log_gpu_memory_usage()
     return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
-simname = "2D_notilt"
+simname = "2D_tilt"
 const Nx = 500
 const Ny = 1
 const Nz = 250        
 const Δtᵒ = 30minutes # interval for saving output
 const ω₀ = 1.4e-4     # tidal freq.
 const tᶠ = 500*2π/ω₀    # endtime of the simulation
-const θ = 0#3.6e-3      # slope angle
+const θ = 3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
@@ -156,7 +156,7 @@ set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
 Δt = (1/N)*0.03
-simulation = Simulation(model, Δt = Δt, stop_time = tᶠ)
+simulation = Simulation(model, Δt = Δt, stop_time = tᶠ+50Δt)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
 # # (CFL) number close to `0.5` while ensuring the time-step does not increase beyond the
@@ -206,10 +206,10 @@ dir = string("output/",simname, "/")
                                             cleanup=true)
 
     ## output field window time average
-    tidal_period = 2π/ω₀ * 0.9999
-    simulation.output_writers[:nc_threeD_1TP_timeavg] = NetCDFOutputWriter(model, merge(twoD_avg_diags),
+    tidal_period = 2π/ω₀
+    simulation.output_writers[:nc_1TP_timeavg] = NetCDFOutputWriter(model, merge(twoD_avg_diags),
                                         verbose=true,
-                                        filename = string(dir, fname, "_threeD_1TP_timeavg.nc"),
+                                        filename = string(dir, fname, "_1TP_timeavg.nc"),
                                         overwrite_existing = true,
                                         schedule = AveragedTimeInterval(1tidal_period, window=1tidal_period, stride=1)
                                         )
