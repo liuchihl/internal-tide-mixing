@@ -32,7 +32,7 @@ function run_internal_tide(tᶠ,θ)
         snapshot_interval = 0              # no snapshot
         slice_interval = Δtᵒ
         pickup = false             
-    elseif tᶠ ≤ 1010*2π/ω₀
+    elseif tᶠ ≤ 450*2π/ω₀
         output_mode = "spinup"
         solver = "FFT"    
         avg_interval = 10*2π/ω₀
@@ -74,12 +74,14 @@ function run_internal_tide(tᶠ,θ)
         if tᶠ == 50*2π/ω₀
             # actuation = the endtime of the verification period divided by the average interval in spinup period 
             checkpointed_actuations = round(10*2π/ω₀/(avg_interval))
-        elseif 50*2π/ω₀ < tᶠ ≤ 1010*2π/ω₀
+        elseif 50*2π/ω₀ < tᶠ ≤ 450*2π/ω₀
             # the rest of the time during spinup period
             checkpointed_actuations = actuation
         else 
-            # the time during analysis period
-            checkpointed_actuations = round(1010*2π/ω₀/(avg_interval))
+            # the time during analysis period: we don't pickup checkpointer, 
+            # we set initial condition, set!(model,checkpoint_path.jld2), from the end of the spinup period
+            pickup = false
+            # checkpointed_actuations = round(450*2π/ω₀/(avg_interval))
         end
         # Reading actuation from a text file
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 

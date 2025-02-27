@@ -191,7 +191,24 @@ else solver == "Conjugate Gradient"
         background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
     )
 end    
-set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
+
+if output_mode !== "analysis"    # before analysis period, set initial condition as usual because we are picking up from a checkpoint
+    set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
+else    # during analysis period, set initial condition from the final checkpoint of the spinup period
+    function find_last_checkpoint(dir)
+        # Get all jld2 files in the directory
+        checkpoint_files = filter(f -> endswith(f, ".jld2"), readdir(dir))
+        # Extract iteration numbers using regex
+        iter_numbers = map(f -> parse(Int, match(r"iteration(\d+)", f)[1]), checkpoint_files)
+        # Find the file with maximum iteration number
+        max_idx = argmax(iter_numbers)
+        return joinpath(dir, checkpoint_files[max_idx])
+    end
+
+    checkpoint_file = find_last_checkpoint(string("output/",simname))
+    set!(model, checkpoint_file)
+end
+
 
 ## Configure simulation
 Δt = (1/N)*0.03
