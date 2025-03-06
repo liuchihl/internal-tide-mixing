@@ -15,6 +15,7 @@ using Oceanostics.TKEBudgetTerms: BuoyancyProductionTerm
 using Interpolations: LinearInterpolation
 using CUDA
 using Suppressor
+using StructArrays: StructArray
 
 function initialize_internal_tide(
     simname,
@@ -28,6 +29,7 @@ function initialize_internal_tide(
     N=1.e-3,
     f₀ = -0.53e-4,
     architecture=GPU(),
+    particles=particles,
     closure = SmagorinskyLilly(),
     solver = "FFT",
     output_mode = "test",
@@ -136,8 +138,8 @@ B_bcs = FieldBoundaryConditions(
 # (2) Gradients are positive in the direction of the coordinate.
 
 # Tidal forcing
- U₀ = U₀
- ω₀ = 1.4e-4
+U₀ = U₀
+ω₀ = 1.4e-4
 u_tidal_forcing(x, y, z, t) = U₀*ω₀*sin(ω₀*t)
 
 # IC such that flow is in phase with predicted linear response, but otherwise quiescent
@@ -146,8 +148,38 @@ uᵢ(x, y, z) = -Uᵣ
 vᵢ(x, y, z) = 0.
 bᵢ(x, y, z) = 1e-9*rand() # seed infinitesimal random perturbations in the buoyancy field
 
+# tracer initial distribution
+x_center = 0
+y_center = Ny÷2
+z_above_bottom = 100  # z_above_bottom
+z_center = z_above_bottom + z_interp[1, Ny÷2]
+σ_x = 2000  # in meters
+σ_y = 2000  
+σ_z = 50    
+C = 1.0  # Amplitude of the tracer concentration at the center
+cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
 
-s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
+# define particles
+Nparticles = 1e4
+# particles are released at 700 m above the bottom, which is about z=967 m
+x₀, y₀, z₀ = gaussian_particle_generator(
+            Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
+            x_center_ratio=0, y_center_ratio=0.5, z_above_bottom=700,
+            σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )          
+b = 1e-5*ones(Nparticles)
+struct CustomParticle
+    x::Float64  # x-coordinate
+    y::Float64  # y-coordinate
+    z::Float64  # z-coordinate
+    b::Float64  # buoyancy
+end
+lagrangian_particles = StructArray{CustomParticle}((x₀, y₀, z₀, b));
+# all tracers
+tracers = (; b=CenterField(grid), c=CenterField(grid))
+# Define tracked fields as a NamedTuple
+tracked_fields = (; b=tracers.b)
+particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)
+# s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
 
 # Rotate gravity vector
 buoyancy = BuoyancyForce(BuoyancyTracer(), gravity_unit_vector = -[ĝ...])
@@ -159,7 +191,7 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
 
 if solver == "FFT"
-    model = NonhydrostaticModel(
+    model = NonhydrostaticModel(;
         grid = grid,
         advection = WENO(),
         buoyancy = buoyancy,
@@ -167,7 +199,8 @@ if solver == "FFT"
         boundary_conditions=(u=u_bcs, v=v_bcs,  b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
-        tracers = :b,
+        particles = output_mode !== "analysis" ? nothing : particles,
+        tracers = output_mode !== "analysis" ? :b : tracers,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
         background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
@@ -185,10 +218,11 @@ else solver == "Conjugate Gradient"
         boundary_conditions=(u=u_bcs, v=v_bcs, b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
-        tracers = :b,
+        particles = output_mode !== "analysis" ? nothing : particles,
+        tracers = output_mode !== "analysis" ? :b : tracers,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
-        background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
+        background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field)
     )
 end    
 
@@ -207,6 +241,7 @@ else    # during analysis period, set initial condition from the final checkpoin
 
     checkpoint_file = find_last_checkpoint(string("output/",simname))
     set!(model, checkpoint_file)
+    set!(model, c=cᵢ)
 end
 
 
@@ -251,6 +286,7 @@ elseif output_mode == "analysis"
         b = model.tracers.b
         B̄ = model.background_fields.tracers.b
         B = B̄ + b # total buoyancy field
+        c = model.tracers.c
         u, v, w = model.velocities
         û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
         ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
@@ -261,11 +297,16 @@ elseif output_mode == "analysis"
         χ = TracerVarianceDissipationRate(model, :b)
         Bbudget=get_budget_outputs_tuple(model;)
         
-        checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; ε, χ, uhat=û, what=ŵ, B=B, b=b)
-        point_diags = (; ε, χ, uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz)
-        threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
-        threeD_diags = merge(Bbudget, (; B=B))
+        checkpoint_interval = 10*2π/ω₀
+        slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
+        point_diags = (; uhat=û, v=v, what=ŵ, B=B)
+        threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B))
+        threeD_diags = merge(Bbudget, (; B=B, c=c))
+        
+        # slice_diags = (; ε, χ)
+        # point_diags = (; ε, χ, wb)
+        # threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b))
+        # threeD_diags = merge(Bbudget, (; B=B))
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
@@ -335,6 +376,12 @@ if output_writer
                                                 verbose=true,
                                                 filename = string(dir, fname, "_point_center.nc"),
                                                 overwrite_existing = overwrite_output)
+    # particels
+        simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
+                                                verbose=true,
+                                                string(dir, fname, "_particles.nc"), 
+                                                schedule = TimeInterval(Δtᵒ),
+                                                overwrite_existing=true)
     end
 end
 ### Progress messages

@@ -4,16 +4,16 @@ using NCDatasets
 using Statistics
 using NaNStatistics
 function deriv(z,y)
-    dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
+    dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(z)-1)
     return dydz
  end
 # this script plots terrain following horizontal averaged quantities
 
 simname = "tilt"
-tᶠ = 410
+tᶠ = 450
 if  tᶠ ≤ 10
     output_mode = "verification"
-elseif tᶠ ≤ 1010
+elseif tᶠ ≤ 450
     output_mode = "spinup"
     time = 10:40:tᶠ
 else
@@ -87,14 +87,14 @@ ax_what_ln = Axis(fig[3, 3]; title = "True vertical velocity",
                   yminorticks = IntervalsBetween(5), axis_kwargs_ln_w...)
 
 # Heatmaps with colorbars
-hm_Bz = heatmap!(ax_Bz, t_acc[:], z[:], Bz_avg_acc',
+hm_Bz = heatmap!(ax_Bz, t_acc[1:end-1], z[:], Bz_avg_acc[:,1:end-1]',
     colormap = :GnBu_9, colorrange=(5.e-7,10.e-7),
     lowclip=cgrad(:GnBu_9)[1], highclip=cgrad(:GnBu_9)[end])
 contour!(ax_Bz, t_acc[:], z[:], Bz_avg_acc', 
     levels=5e-7:1e-7:10e-7, color=:black, linewidth=1)
 Colorbar(fig[1,2], hm_Bz)
 
-hm_u = heatmap!(ax_u, t_acc[:], z[:], u_avg_acc',
+hm_u = heatmap!(ax_u, t_acc[1:end-1], z[:], u_avg_acc[:,1:end-1]',
     colorrange = (-0.03, 0.03), colormap = :diverging_bwr_20_95_c54_n256,
     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
     highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
@@ -102,7 +102,7 @@ contour!(ax_u, t_acc[:], z[:], u_avg_acc',
     color=:black, linewidth=1, levels=5)
 Colorbar(fig[2,2], hm_u)
 
-hm_what = heatmap!(ax_what, t_acc[:], z[:], what_avg_acc',
+hm_what = heatmap!(ax_what, t_acc[1:end-1], z[:], what_avg_acc[:,1:end-1]',
     colorrange = (-0.001, 0.001), colormap = :diverging_bwr_20_95_c54_n256,
     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
     highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end])
@@ -115,16 +115,16 @@ mid_time_idx = 10#Int(floor(length(t_cen)/2))
 
 # Bz profiles
 ln1_Bz = lines!(ax_Bz_ln, 1e6*Bz_avg_acc[:,mid_time_idx], z[:], linewidth=3, color=:black)
-ln2_Bz = lines!(ax_Bz_ln, 1e6*Bz_avg_acc[:,end], z[:], linewidth=3, color=:red)
+ln2_Bz = lines!(ax_Bz_ln, 1e6*Bz_avg_acc[:,end-1], z[:], linewidth=3, color=:red)
 
 # u profiles
 ln1_u = lines!(ax_u_ln, u_avg_acc[:,mid_time_idx], z[:], linewidth=3, color=:black)
-ln2_u = lines!(ax_u_ln, u_avg_acc[:,end], z[:], linewidth=3, color=:red)
+ln2_u = lines!(ax_u_ln, u_avg_acc[:,end-1], z[:], linewidth=3, color=:red)
 lines!(ax_u_ln, [0,0], [0,z[end]], color=:black, linewidth=1) # Zero line
 
 # what profiles
 ln1_what = lines!(ax_what_ln, what_avg_acc[:,mid_time_idx], z[:], linewidth=3, color=:black)
-ln2_what = lines!(ax_what_ln, what_avg_acc[:,end], z[:], linewidth=3, color=:red)
+ln2_what = lines!(ax_what_ln, what_avg_acc[:,end-1], z[:], linewidth=3, color=:red)
 lines!(ax_what_ln, [0,0], [0,z[end]], color=:black, linewidth=1) # Zero line
 
 # Add legend to each profile plot
@@ -133,7 +133,7 @@ for (ax, ln1, ln2) in [(ax_Bz_ln, ln1_Bz, ln2_Bz),
                        (ax_what_ln, ln1_what, ln2_what)]
     axislegend(ax, 
                [ln1, ln2],
-               ["t = $(t_acc[mid_time_idx]) TP", "t = $(t_acc[end]) TP"],
+               ["t = $(t_acc[mid_time_idx]) TP", "t = $(t_acc[end-1]) TP"],
                position = :rt)
 end
 

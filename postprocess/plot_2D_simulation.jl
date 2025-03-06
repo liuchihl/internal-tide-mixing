@@ -185,14 +185,27 @@ z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
 t = ds_tilt["time"][:];
 # mask it with buoyancy 
 # Find height above bottom from buoyancy field
-hab_mask = zeros(Nx,Ny,Nz)
+habmask_cen = zeros(Nx,Ny,Nz)
+habmask_fac = zeros(Nx,Ny,Nz+1)
+
+b_data = ds_tilt["b"][:,:,:,1]  # get buoyancy data for first time step
+for i in 1:Nx    # loop over x dimension
+    for j in 1:Ny # loop over y dimension
+        first_nonzero = findfirst(b_data[i,j,:] .!== 0)  # find first index where b >= 0 in z dimension
+        if first_nonzero !== nothing
+            for k in first_nonzero:Nz
+                habmask_cen[i,j,k] = zC[k] - zC[first_nonzero]  # distance above topography
+            end
+        end
+    end
+end
 w_data = ds_tilt["what"][:,:,:,1]  # get buoyancy data for first time step
 for i in 1:Nx    # loop over x dimension
     for j in 1:Ny # loop over y dimension
-        first_nonzero = findfirst(w_data[i,j,:] .> 0)  # find first index where b >= 0 in z dimension
+        first_nonzero = findfirst(w_data[i,j,:] .!== 0)  # find first index where b >= 0 in z dimension
         if first_nonzero !== nothing
             for k in first_nonzero:Nz
-                hab_mask[i,j,k] = zF[k] - zF[first_nonzero]  # distance above topography
+                habmask_fac[i,j,k] = zF[k] - zF[first_nonzero]  # distance above topography
             end
         end
     end
@@ -267,17 +280,47 @@ filename_slice = string("output/",simname,"/internal_tide_theta=",θ,"_realtopo2
 ds = Dataset(filename_slice,"r")
 
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/bins.jl")
-bin_edge = 0:9:1500
-bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
 
 # grids
 zC = ds["zC"][:]; Nz=length(zC); 
-zF = ds["zF"][:]; dx = xF[end]-xF[end-1];
-xF = ds["xF"][:];
+zF = ds["zF"][:]; 
+xF = ds["xF"][:];dx = xF[end]-xF[end-1];
 xC = ds["xC"][:]; Nx=length(xC)
 yC = ds["yC"][:]; Ny=length(yC)
 t = ds["time"][:];
-z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
+z_face = zF
+
+# make a more sophisticated bin edges: a uniform bin would cause wiggles
+b_data = ds["b"][:,:,:,1]  # get buoyancy data for first time step
+
+function find_max_z_index_above_topography(data)
+    nx, ny, nz = size(data)
+    max_z_index = 0
+
+    for i in 1:nx
+        for j in 1:ny
+            first_nonzero = findfirst(x -> x != 0, view(data, i, j, :))
+            
+            if !isnothing(first_nonzero)
+                if first_nonzero > max_z_index
+                    max_z_index = first_nonzero
+                end
+            end
+        end
+        @info i
+    end
+
+    return max_z_index
+end
+max_z = find_max_z_index_above_topography(b_data)
+
+top_z = argmin(abs.(zC .- 2000))
+diff_zF = diff(zF[:])
+bin_edge = vcat(0, cumsum(diff_zF[max_z:top_z]))
+bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
+
+
+
 
 Nt = length(t)
 b_avg = zeros(length(bin_edge)-1,Nt)
@@ -285,16 +328,25 @@ Bz_avg = zeros(length(bin_edge)-1,Nt)
 uhat_avg = zeros(length(bin_edge)-1,Nt)
 u_avg = zeros(length(bin_edge)-1,Nt)
 what_avg = zeros(length(bin_edge)-1,Nt)
+b_avg_mask = zeros(length(bin_edge)-1,Nt)
+Bz_avg_mask = zeros(length(bin_edge)-1,Nt)
+uhat_avg_mask = zeros(length(bin_edge)-1,Nt)
+u_avg_mask = zeros(length(bin_edge)-1,Nt)
+what_avg_mask = zeros(length(bin_edge)-1,Nt)
 τ_avg = zeros(length(bin_edge)-1,Nt)
 # Find height above bottom from buoyancy field
-hab_mask = zeros(Nx,Ny,Nz)
-w_data = ds["what"][:,:,:,1]  # get buoyancy data for first time step
+# Find height above bottom from buoyancy field
+habmask_cen = zeros(Nx,Ny,Nz)
+habmask_fac = zeros(Nx,Ny,Nz+1)
+
+b_data = ds["b"][:,:,:,1]  # get buoyancy data for first time step
 for i in 1:Nx    # loop over x dimension
     for j in 1:Ny # loop over y dimension
-        first_nonzero = findfirst(w_data[i,j,:] .> 0)  # find first index where b >= 0 in z dimension
+        first_nonzero = findfirst(b_data[i,j,:] .!== 0.)  # find first index where b != 0 in z dimension
         if first_nonzero !== nothing
             for k in first_nonzero:Nz
-                hab_mask[i,j,k] = zF[k] - zF[first_nonzero]  # distance above topography
+                # distance above topography: since first nonzero point is not topography, we need to add half of the cell size (right above the topography)
+                habmask_cen[i,j,k] = zC[k] - zC[first_nonzero] + diff(zF)[first_nonzero]/2 
             end
         end
     end
@@ -310,12 +362,89 @@ for n in 1:Nt
     wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
     u = uhat[:,:,:,1]*cos(θ) .+ wtemp*sin(θ) # cross-slope velocity
     w = -uhat[:,:,:,1]*sin(θ) .+ wtemp*cos(θ)# slope-normal velocity
-    @time Bz_avg[:,n], _ = bins(Bz,bin_edge,hab_mask,dx=dx,dy=30,z_face=z_face,normalize=true)
-    @time what_avg[:,n], _ = bins(what_cen,bin_edge,hab_mask,dx=dx,dy=30,z_face=z_face,normalize=true)
-    @time u_avg[:,n], _ = bins(u,bin_edge,hab_mask,dx=dx,dy=30,z_face=z_face,normalize=true)        
-    @time b_avg[:,n], _ = bins(b,bin_edge,hab_mask,dx=dx,dy=30,z_face=z_face,normalize=true)        
+    Bz_avg[:,n], _ = bins(Bz,bin_edge,hab,dx=dx,dy=30,z_face=z_face,normalize=true)
+    what_avg[:,n], _ = bins(what_cen,bin_edge,hab,dx=dx,dy=30,z_face=z_face,normalize=true)
+    u_avg[:,n], _ = bins(u,bin_edge,hab,dx=dx,dy=30,z_face=z_face,normalize=true)        
+    b_avg[:,n], _ = bins(b,bin_edge,hab,dx=dx,dy=30,z_face=z_face,normalize=true)        
+    
+    Bz_avg_mask[:,n], _ = bins(Bz,bin_edge,habmask_cen,dx=dx,dy=30,z_face=z_face,normalize=true)
+    what_avg_mask[:,n], _ = bins(what_cen,bin_edge,habmask_cen,dx=dx,dy=30,z_face=z_face,normalize=true)
+    u_avg_mask[:,n], _ = bins(u,bin_edge,habmask_cen,dx=dx,dy=30,z_face=z_face,normalize=true)        
+    b_avg_mask[:,n], _ = bins(b,bin_edge,habmask_cen,dx=dx,dy=30,z_face=z_face,normalize=true)        
+
 @info n
 end
+
+# using interpolation methods to compare with our binning method
+include("functions/interpolation_z_dimension.jl")
+
+
+file = matopen("topo.mat")
+z_topo = read(file, "z_noslope_periodic") 
+z_topo = z_topo[:,Int(round((65/2)))]   # take the middle column
+x_topo = read(file, "x_domain")
+# grids has to be evenly spaced
+x_topo_lin = range(x_topo[1],x_topo[end],size(z_topo,1))
+close(file)
+# high-resolution grids
+x_interp = range(x_topo[1],x_topo[end], length=Nx)
+
+# Interpolation object (caches coefficients and such)
+itp = LinearInterpolation(x_topo_lin, z_topo)
+# Interpolate z_topo onto a higher-resolution grid
+z_interp = [itp(x) for x in x_interp]
+z_interp = z_interp.-minimum(z_interp)
+hab = ones(Nx,Ny).*reshape(zC,1,1,Nz) .- z_interp  # height above bottom [Nx,Ny,Nz]
+
+
+
+n=501
+b = ds["b"][:,:,:,n:n];           # buoyancy perturbation
+B = ds["B"][:,:,:,n:n];           # total buoyancy
+Bz = ds["Bz"][:,:,:,n:n];           # total buoyancy
+uhat = ds["uhat"][:,:,:,n:n];     # true u
+what = ds["what"][:,:,:,n:n];     # true w
+what_cen = (what[:,:,1:end-1,1:1] .+ what[:,:,2:end,1:1])./2 # what at center
+# piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
+wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
+u = uhat[:,:,:,1:1]*cos(θ) .+ wtemp*sin(θ) # cross-slope velocity
+w = -uhat[:,:,:,1:1]*sin(θ) .+ wtemp*cos(θ)# slope-normal velocity
+new_bin_edges = 0:7:1500
+new_bin_center = (new_bin_edges[1:end-1] .+ new_bin_edges[2:end]) ./ 2
+b_interp,_ = interpolate_z_dimension(b, hab, new_bin_edges)
+Bz_interp,_ = interpolate_z_dimension(Bz, hab, new_bin_edges)
+u_interp,_ = interpolate_z_dimension(u, hab, new_bin_edges)
+what_cen_interp,_ = interpolate_z_dimension(what_cen, hab, new_bin_edges)
+b_interp_avg = mean(b_interp, dims=1)
+Bz_interp_avg = mean(Bz_interp, dims=1)
+u_interp_avg = mean(u_interp, dims=1)
+what_cen_interp_avg = mean(what_cen_interp, dims=1)
+
+# # Quick plot of b_data heatmap
+# fig_profile = Figure()
+# ax_profile = Axis(fig_profile[1,1], 
+#                   xlabel = "Buoyancy", 
+#                   ylabel = "z (m)")
+# lines!(ax_profile, b_data[1,1,10:50], zC[10:50])
+# scatter!(ax_profile, b_data[1,1,10:50], zC[10:50], markersize=5)
+# display(fig_profile)
+# save("output/2D_tilt/b_profile.png", fig_profile)
+# # Plot heatmap of b_data
+# Bz[Bz.==0] .= NaN
+# fig_heatmap = Figure()
+# ax_heatmap = Axis(fig_heatmap[1,1], 
+#                   xlabel = "x index", 
+#                   ylabel = "z index",
+#                   title = "Buoyancy field")
+# hm = heatmap!(ax_heatmap, xC, zC, Bz[:,1,:,end], 
+#               colormap = :viridis,
+#               nan_color = :gray)
+# Colorbar(fig_heatmap[1,2], hm)
+# display(fig_heatmap)
+# save("output/2D_tilt/Bz_heatmap.png", fig_heatmap)
+
+
+# plot terrain following averages
 
 what_avg_100TPaverage = mean(what_avg[:,400:501], dims=2)
 fig = Figure(resolution = (1600, 1600), figure_padding=(10, 40, 10, 10), size=(1600,1600), fontsize=20)
@@ -383,31 +512,45 @@ ind = argmin(abs.(t/(2*pi/1.4e-4) .- 300))
 # Buoyancy lines
 lines!(ax_b_ln, b_avg[:,ind], bin_center[:], linewidth=3, color=:black)
 lines!(ax_b_ln, b_avg[:,end], bin_center[:], linewidth=3, color=:red)
+lines!(ax_b_ln, b_avg_mask[:,end], bin_center[:], linewidth=3, color=:green,linestyle=:dot)
+lines!(ax_b_ln, b_interp_avg[1,1,:,1], new_bin_center[:], linewidth=3, color=:blue,linestyle=:dash)
 
 lines!(ax_Bz_ln, 1e6*Bz_avg[:,ind], bin_center[:], linewidth=3, color=:black)
 lines!(ax_Bz_ln, 1e6*Bz_avg[:,end], bin_center[:], linewidth=3, color=:red)
+lines!(ax_Bz_ln, 1e6*Bz_avg_mask[:,end], bin_center[:], linewidth=3, color=:green,linestyle=:dot)
+lines!(ax_Bz_ln, 1e6*Bz_interp_avg[1,1,:,1], new_bin_center[:], linewidth=3, color=:blue,linestyle=:dash)
 
 # Velocity lines
 lines!(ax_u_ln, u_avg[:,ind], bin_center[:], linewidth=3, color=:black)
 lines!(ax_u_ln, u_avg[:,end], bin_center[:], linewidth=3, color=:red)
-lines!(ax_u_ln, u_avg_20TPaverage[:], bin_center[:], linewidth=3, color=:blue)
+lines!(ax_u_ln, u_avg_mask[:,end], bin_center[:], linewidth=3, color=:green,linestyle=:dot)
+lines!(ax_u_ln, u_interp_avg[1,1,:,1], new_bin_center[:], linewidth=3, color=:blue,linestyle=:dash)
+# lines!(ax_u_ln, u_avg_100TPaverage[:], bin_center[:], linewidth=3, color=:blue)
 lines!(ax_u_ln, [0,0], [0,bin_center[end]], color=:black)
 
 lines!(ax_what_ln, what_avg[:,ind], bin_center[:], linewidth=3, color=:black)
 lines!(ax_what_ln, what_avg[:,end], bin_center[:], linewidth=3, color=:red)
-lines!(ax_what_ln, what_avg_100TPaverage[:], bin_center[:], linewidth=3, color=:blue)
+lines!(ax_what_ln, what_avg_mask[:,end], bin_center[:], linewidth=3, color=:green,linestyle=:dash)
+lines!(ax_what_ln, what_cen_interp_avg[1,1,:,1], new_bin_center[:], linewidth=3, color=:blue, linestyle=:dash)
+# lines!(ax_what_ln, what_avg_100TPaverage[:], bin_center[:], linewidth=3, color=:blue)
 lines!(ax_what_ln, [0,0], [0,bin_center[end]], color=:black)
 
 # Add legends
-label1 = "$(Int(round(t[ind]/(2*pi/1.4e-4)))) tidal cycle"
-label2 = "$(Int(round(t[end]/(2*pi/1.4e-4)))) tidal cycle"
-label3 = "$(Int(round(t[400]/(2*pi/1.4e-4))))-$(Int(round(t[501]/(2*pi/1.4e-4)))) tidal average"
+label1 = "$(Int(round(t[ind]/(2*pi/1.4e-4)))) tidal cycle, hab"
+label2 = "$(Int(round(t[end]/(2*pi/1.4e-4)))) tidal cycle, hab"
+label3 = "$(Int(round(t[end]/(2*pi/1.4e-4)))) tidal cycle, mask"
+label4 = "$(Int(round(t[end]/(2*pi/1.4e-4)))) tidal cycle, interpolation"
+# label3 = "$(Int(round(t[400]/(2*pi/1.4e-4))))-$(Int(round(t[501]/(2*pi/1.4e-4)))) tidal average"
 
 axislegend(ax_what_ln, 
-    [LineElement(color=:black), LineElement(color=:red), LineElement(color=:blue)],
-    [label1, label2, label3],
+    [LineElement(color=:black), LineElement(color=:red), LineElement(color=:green), LineElement(color=:blue)],
+    [label1, label2, label3, label4],
     position = :lt,
     orientation = :vertical)
 
 display(fig)
-save(string("output/",simname,"/hab_buoyancy_velocities_",timerange,".png"), fig)
+save(string("output/",simname,"/hab_buoyancy_velocities_oldbinhab_",timerange,".png"), fig)
+
+
+
+

@@ -75,7 +75,7 @@ hab_mask = zeros(Nx,Ny,Nz)
 w_data = ds_tilt["what"][:,:,:,1]  # get buoyancy data for first time step
 for i in 1:Nx    # loop over x dimension
     for j in 1:Ny # loop over y dimension
-        first_nonzero = findfirst(w_data[i,j,:] .> 0)  # find first index where b >= 0 in z dimension
+        first_nonzero = findfirst(w_data[i,j,:] !== 0)  # find first index where b >= 0 in z dimension
         if first_nonzero !== nothing
             for k in first_nonzero:Nz
                 hab_mask[i,j,k] = zF[k] - zF[first_nonzero]  # distance above topography

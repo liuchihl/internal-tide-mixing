@@ -1,10 +1,10 @@
 using NCDatasets
 using NaNStatistics
-slope = "2D_tilt"
-timerange = "0-500"
-θ=3.6e-3
+tᶠ=126
+θ=0#3.6e-3
+simname = "2D_notilt"
 # load data
-filename_field = string("output/2D_tilt/internal_tide_theta=0.0036_realtopo2D_Nx=500_Nz=250_0-500_1TP_timeavg.nc")
+filename_field = string("output/",simname,"/internal_tide_theta=",θ,"_realtopo2D_Nx=500_Nz=250_tᶠ=",tᶠ,"_1TP_timeavg.nc")
 ds_field = Dataset(filename_field,"r")
 zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
 Nz=length(zC[:]);       dz = abs.(zF[1:end-1]-zF[2:end])
@@ -13,12 +13,12 @@ xC = ds_field["xC"][:]; xF = ds_field["xF"][:];
 Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
 
 yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
-Ny=length(yC[:]);       #dy = yF[end]-yF[end-1];
+Ny=length(yC[:]);       dy=30#dy = yF[end]-yF[end-1]; 
 # Ly = yF[end]+dy
 t = ds_field["time"][:];
-n=490 #30
-    uhat = nansum(nanmean(ds_field["uhat"][:,:,:,n:n+10],dim=(4))*dy,dim=2);    # true u (integral)
-    what = nansum(nanmean(ds_field["what"][:,:,:,n:n+10],dim=(4))*dy,dim=2);    # true w (integral)
+n=26 #30
+    uhat = nansum(nanmean(ds_field["uhat"][:,:,:,n:n+100],dim=(4))*dy,dim=2);    # true u (integral)
+    what = nansum(nanmean(ds_field["what"][:,:,:,n:n+100],dim=(4))*dy,dim=2);    # true w (integral)
     what_cen = (what[:,1:end-1] .+ what[:,2:end])./2 # what at center
     # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
     wtemp = (vcat(what_cen[end:end,:],what_cen[1:end-1,:]) .+ what_cen[:,:])./2
@@ -71,13 +71,13 @@ z_interp = z_interp.-minimum(z_interp)
                 # , scale=1, width=0.001,
                 # headwidth=5, headlength=.1, headaxislength=20,linewidth=1.0)
     time_start = round(Int, t[n]/(2π/1.4e-4))
-    time_end = round(Int, t[n+10]/(2π/1.4e-4))
+    time_end = round(Int, t[n+100]/(2π/1.4e-4))
     title("$(time_start)-$(time_end) tidal periods")   
     ax.set_facecolor("gray")
     xlabel("x (m)") 
     ylabel("z (m)")
     # PyPlot.plot(xC[:],z_interp_y,linewidth=2.5,color="brown")
-    savefig("output/$slope/streamfunction_yavg_$slope.png",dpi=200)
+    savefig("output/$simname/streamfunction_yavg_$simname.png",dpi=200)
 
 
 

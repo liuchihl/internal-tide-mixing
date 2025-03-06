@@ -13,15 +13,15 @@ using LinearAlgebra
 using Interpolations
 using MAT
 ##
-function deriv(z,y)
-   dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
-   return dydz
-end
+function deriv(z, y)
+    dydz = diff(y[:,:,:,:], dims=3) ./ reshape(diff(z), 1, 1, length(z)-1)
+    return dydz
+ end
 
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/bins.jl")
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/mmderiv.jl")
 
-tᶠ = 410
+tᶠ = 10
 θ = 3.6e-3
 if θ==3.6e-3
     simname = "tilt"
@@ -36,8 +36,8 @@ if  tᶠ ≤ 10
 elseif tᶠ ≤ 450
     output_mode = "spinup"
     Nt = 4
-    if tᶠ == 410
-        endtime = ["$i" for i in 210:40:410]
+    if tᶠ == 450
+        endtime = ["$i" for i in 50:40:450]
         # endtime = tᶠ   # if you want to run only one case
     else
         # endtime = tᶠ
@@ -52,27 +52,11 @@ end
 bin_edge = 0:8:1500
 bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
 # load hab
-# filename_hab = "output/hab.nc"
-# ds_hab = Dataset(filename_hab,"r")
-# hab = ds_hab["hab"][:,:,:];
-# bin_mask = hab
-ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=50_threeD_timeavg.nc","r")
-w_data = ds["what"][:,:,:,1]  # get buoyancy data for first time step
-Nx = length(ds["xC"][:])
-Ny = length(ds["yC"][:])
-Nz = length(ds["zC"][:])
-zC = ds["zC"][:]; zF = ds["zF"][:];
-bin_mask = zeros(Nx,Ny,Nz)
-for i in 1:Nx    # loop over x dimension
-    for j in 1:Ny # loop over y dimension
-        first_nonzero = findfirst(w_data[i,j,:] .> 0)  # find first index where b >= 0 in z dimension
-        if first_nonzero !== nothing
-            for k in first_nonzero:Nz
-                bin_mask[i,j,k] = zF[k] - zF[first_nonzero]  # distance above topography
-            end
-        end
-    end
-end
+filename_hab = "output/hab.nc"
+ds_hab = Dataset(filename_hab,"r")
+hab = ds_hab["hab"][:,:,:];
+bin_mask = hab
+
 # preallocate
 b_avg = zeros(length(bin_edge)-1,Nt)
 Bz_avg = zeros(length(bin_edge)-1,Nt)
@@ -106,7 +90,7 @@ if output_mode == "verification"
 
     yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
     Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
-    z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
+    z_face = zF
     for n in 1:Nt
         b = ds_field["b"][:,:,:,n:n];          # buoyancy perturbation
         B = ds_field["B"][:,:,:,n:n];          # total buoyancy
@@ -147,18 +131,18 @@ if output_mode == "verification"
     ds_create = Dataset(string("output/",simname,"/TF_avg_tᶠ=",endtime,"_",output_mode,".nc"),"c")
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center))
-    defDim(ds_create,"t",Nt)
+    defDim(ds_create,"t",Nt-1)
         # Define a global attribute
     ds_create.attrib["title"] = "Terrain-following averages"
     # Define the variables
     v1 = defVar(ds_create,"b_avg",Float64,("z_TF","t"))
-    v1[:,:] = b_avg
+    v1[:,:] = b_avg[:,1:end]
     v2 = defVar(ds_create,"Bz_avg",Float64,("z_TF","t"))
-    v2[:,:] = Bz_avg
+    v2[:,:] = Bz_avg[:,1:end]
     v3 = defVar(ds_create,"u_avg",Float64,("z_TF","t"))
-    v3[:,:] = u_avg
+    v3[:,:] = u_avg[:,1:end]
     v4 = defVar(ds_create,"what_avg",Float64,("z_TF","t"))
-    v4[:,:] = what_avg
+    v4[:,:] = what_avg[:,1:end]
     v5 = defVar(ds_create,"bin_center",Float64,("z_TF",))
     v5[:,1] = bin_center
     v6 = defVar(ds_create,"t",Float64,("t",))
@@ -183,7 +167,7 @@ elseif output_mode == "analysis"
     Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
     yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
     Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
-    z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
+    z_face = zF
 
     t_diff = diff(t)  # Precompute time differences
     dB̄dx = zeros(Nx,Ny,Nz,1)
@@ -313,7 +297,8 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
         Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
         yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
         Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
-        z_face = xF * sin(θ) .+ zF' * cos(θ)     # Cartesian coordinate
+        z_face = zF
+
         # for topostrophy
         dHdy = zeros(size(bin_mask))
         dHdx = zeros(size(bin_mask))
