@@ -17,6 +17,13 @@ using CUDA
 using Suppressor
 using StructArrays: StructArray
 
+struct CustomParticle
+    x::Float64  # x-coordinate
+    y::Float64  # y-coordinate
+    z::Float64  # z-coordinate
+    b::Float64  # buoyancy
+end
+
 function initialize_internal_tide(
     simname,
     Nx,
@@ -29,7 +36,6 @@ function initialize_internal_tide(
     N=1.e-3,
     f₀ = -0.53e-4,
     architecture=GPU(),
-    particles=particles,
     closure = SmagorinskyLilly(),
     solver = "FFT",
     output_mode = "test",
@@ -148,37 +154,36 @@ uᵢ(x, y, z) = -Uᵣ
 vᵢ(x, y, z) = 0.
 bᵢ(x, y, z) = 1e-9*rand() # seed infinitesimal random perturbations in the buoyancy field
 
-# tracer initial distribution
-x_center = 0
-y_center = Ny÷2
-z_above_bottom = 100  # z_above_bottom
-z_center = z_above_bottom + z_interp[1, Ny÷2]
-σ_x = 2000  # in meters
-σ_y = 2000  
-σ_z = 50    
-C = 1.0  # Amplitude of the tracer concentration at the center
-cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
+# set tracer and particles
+if output_mode == "analysis"
+    # tracer initial distribution
+    x_center = 0
+    y_center = Ny÷2
+    z_above_bottom = 100  # z_above_bottom
+    z_center = z_above_bottom + z_interp[1, Ny÷2]
+    σ_x = 2000  # in meters
+    σ_y = 2000  
+    σ_z = 50    
+    C = 1.0  # Amplitude of the tracer concentration at the center
+    cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
 
-# define particles
-Nparticles = 1e4
-# particles are released at 700 m above the bottom, which is about z=967 m
-x₀, y₀, z₀ = gaussian_particle_generator(
-            Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
-            x_center_ratio=0, y_center_ratio=0.5, z_above_bottom=700,
-            σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )          
-b = 1e-5*ones(Nparticles)
-struct CustomParticle
-    x::Float64  # x-coordinate
-    y::Float64  # y-coordinate
-    z::Float64  # z-coordinate
-    b::Float64  # buoyancy
+    # define particles
+    Nparticles = 1e4
+    # particles are released at 700 m above the bottom, which is about z=967 m
+    x₀, y₀, z₀ = gaussian_particle_generator(
+                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
+                x_center_ratio=0, y_center_ratio=0.5, z_above_bottom=700,
+                σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )          
+    b = 1e-5*ones(Float64,Int(length(x₀)))
+    b = architecture == GPU() ? CuArray(b) : b
+
+    lagrangian_particles = StructArray{CustomParticle}((x₀, y₀, z₀, b));
+    # all tracers
+    tracers = (; b=CenterField(grid), c=CenterField(grid))
+    # Define tracked fields as a NamedTuple
+    tracked_fields = (; b=tracers.b)
+    particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)
 end
-lagrangian_particles = StructArray{CustomParticle}((x₀, y₀, z₀, b));
-# all tracers
-tracers = (; b=CenterField(grid), c=CenterField(grid))
-# Define tracked fields as a NamedTuple
-tracked_fields = (; b=tracers.b)
-particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)
 # s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
 
 # Rotate gravity vector
@@ -190,6 +195,7 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
 B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
 
+# set model
 if solver == "FFT"
     model = NonhydrostaticModel(;
         grid = grid,
@@ -206,7 +212,12 @@ if solver == "FFT"
         background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
     )
 else solver == "Conjugate Gradient"
+    # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
+    # There is no particles in the spinup period, so we need to set two models in the analysis period 
+    # (1) temporary model: does not include particles so can initialize from the spinup checkpoint
+    # (2) the model with particles 
     tol = 1e-9
+    # add particles
     model = NonhydrostaticModel(;
         grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(
@@ -218,14 +229,15 @@ else solver == "Conjugate Gradient"
         boundary_conditions=(u=u_bcs, v=v_bcs, b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
-        particles = output_mode !== "analysis" ? nothing : particles,
-        tracers = output_mode !== "analysis" ? :b : tracers,
+        particles = particles,
+        tracers = tracers,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
         background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field)
     )
 end    
 
+# initialize the model
 if output_mode !== "analysis"    # before analysis period, set initial condition as usual because we are picking up from a checkpoint
     set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 else    # during analysis period, set initial condition from the final checkpoint of the spinup period
@@ -243,8 +255,6 @@ else    # during analysis period, set initial condition from the final checkpoin
     set!(model, checkpoint_file)
     set!(model, c=cᵢ)
 end
-
-
 ## Configure simulation
 Δt = (1/N)*0.03
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ+50Δt)

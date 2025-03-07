@@ -83,7 +83,9 @@ function run_internal_tide(tᶠ,θ)
             # the time during analysis period: we don't pickup checkpointer, 
             # we set initial condition, set!(model,checkpoint_path.jld2), from the end of the spinup period
             pickup = false
-            # checkpointed_actuations = round(450*T₀/(avg_interval))
+            # the second half of the analysis period, we need to recalculate actuation and pickup (do this manually)
+            # pickup = ""
+            # checkpointed_actuations = 10
         end
         # Reading actuation from a text file
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
