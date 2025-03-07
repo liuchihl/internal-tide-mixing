@@ -213,9 +213,6 @@ if solver == "FFT"
     )
 else solver == "Conjugate Gradient"
     # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-    # There is no particles in the spinup period, so we need to set two models in the analysis period 
-    # (1) temporary model: does not include particles so can initialize from the spinup checkpoint
-    # (2) the model with particles 
     tol = 1e-9
     # add particles
     model = NonhydrostaticModel(;
