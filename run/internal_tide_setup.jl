@@ -10,7 +10,7 @@ function run_internal_tide(tᶠ,θ)
     Nz = 250        
     ω₀ = 1.4e-4     # tidal freq.
     T₀ = 2π/ω₀      # tidal period
-    Δtᵒ = 1/24*T₀ # interval for saving output: 1/24 of a tidal period (~31 minutes) 
+    Δtᵒ = 1/24*T₀   # interval for saving output: 1/24 of a tidal period (~31 minutes) 
     U₀ = 0.025      # tidal amplitude
     N = 1.e-3       # Buoyancy frequency
     f₀ = -0.53e-4   # Coriolis frequency

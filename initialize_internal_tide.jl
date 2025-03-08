@@ -159,10 +159,9 @@ if output_mode == "analysis"
     # tracer initial distribution
     x_center = 0
     y_center = Ny÷2
-    z_above_bottom = 100  # z_above_bottom
-    z_center = z_above_bottom + z_interp[1, Ny÷2]
-    σ_x = 2000  # in meters
-    σ_y = 2000  
+    z_center = 1000
+    σ_x = 1000  # in meters
+    σ_y = 1000  
     σ_z = 50    
     C = 1.0  # Amplitude of the tracer concentration at the center
     cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
@@ -172,7 +171,7 @@ if output_mode == "analysis"
     # particles are released at 700 m above the bottom, which is about z=967 m
     x₀, y₀, z₀ = gaussian_particle_generator(
                 Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
-                x_center_ratio=0, y_center_ratio=0.5, z_above_bottom=700,
+                x_center_ratio=0, y_center_ratio=0.5, z_center=z_center,
                 σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )          
     b = 1e-5*ones(Float64,Int(length(x₀)))
     b = architecture == GPU() ? CuArray(b) : b
@@ -213,12 +212,12 @@ if solver == "FFT"
     )
 else solver == "Conjugate Gradient"
     # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-    tol = 1e-9
+    tol = 1e-10
     # add particles
     model = NonhydrostaticModel(;
         grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(
-                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=200, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
@@ -312,8 +311,6 @@ elseif output_mode == "analysis"
         
         # slice_diags = (; ε, χ)
         # point_diags = (; ε, χ, wb)
-        # threeD_diags_avg = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b))
-        # threeD_diags = merge(Bbudget, (; B=B))
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
@@ -386,8 +383,8 @@ if output_writer
     # particels
         simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
                                                 verbose=true,
-                                                string(dir, fname, "_particles.nc"), 
-                                                schedule = TimeInterval(Δtᵒ),
+                                                filename = string(dir, fname, "_particles.nc"), 
+                                                schedule = TimeInterval(Δtᵒ/3),
                                                 overwrite_existing=true)
     end
 end

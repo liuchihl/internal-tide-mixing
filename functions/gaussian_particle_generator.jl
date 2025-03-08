@@ -3,7 +3,7 @@ using Random
 
 function gaussian_particle_generator(
     Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
-    x_center_ratio=0.25, y_center_ratio=0.5, z_above_bottom=100, σ_x=1000, σ_y=1000, σ_z=100
+    x_center_ratio=0.25, y_center_ratio=0.5, z_center=1000, σ_x=1000, σ_y=1000, σ_z=100
 )
     is_3D = !isnothing(Ly) && !isnothing(Ny)
 
@@ -14,16 +14,8 @@ function gaussian_particle_generator(
         y_center = 0
     end
 
-    # Find the z-center
-    # Make sure indices are within valid bounds (1 to Nx/Ny)
-    x_center_idx = max(1, min(Nx, round(Int, x_center / Lx * Nx)))
-    if is_3D
-        y_center_idx = max(1, min(Ny, round(Int, y_center / Ly * Ny)))
-        bottom_z_at_center = z_interp[x_center_idx, y_center_idx]
-    else
-        bottom_z_at_center = z_interp[x_center_idx, 1]
-    end
-    z_center = bottom_z_at_center + z_above_bottom
+    # set z_center: the depth of the center patch
+    z_center = z_center
 
     # Use H as the maximum z-value
     max_z = H
@@ -31,44 +23,41 @@ function gaussian_particle_generator(
     # Generate particles with Gaussian distribution
     ArrayType = architecture == CPU() ? Array : CuArray
     
-    # Generate more particles than needed to account for invalid ones
-    oversampling_factor = 2
-    n_samples = Nparticles * oversampling_factor
-
+    Nparticles = Int(Nparticles)
     if architecture == CPU()
         if is_3D
-            samples = randn(Float32, (3, n_samples))
+            samples = randn(Float64, (3, Nparticles))
             samples[1, :] .= x_center .+ σ_x .* samples[1, :]
             samples[2, :] .= y_center .+ σ_y .* samples[2, :]
             samples[3, :] .= z_center .+ σ_z .* samples[3, :]
         else # for 2D
-            samples = randn(Float32, (2, n_samples))
+            samples = randn(Float64, (2, Nparticles))
             samples[1, :] .= x_center .+ σ_x .* samples[1, :]
             samples[2, :] .= z_center .+ σ_z .* samples[2, :]
         end
-        valid_mask = trues(n_samples)
+        valid_mask = trues(Nparticles)
     else
         # For GPU, use CUDA's random number generation
         if is_3D
-            samples = CUDA.randn(Float32, (3, n_samples))
+            samples = CUDA.randn(Float64, (3, Nparticles))
             samples[1, :] .= x_center .+ σ_x .* samples[1, :]
             samples[2, :] .= y_center .+ σ_y .* samples[2, :]
             samples[3, :] .= z_center .+ σ_z .* samples[3, :]
         else # for 2D
-            samples = CUDA.randn(Float32, (2, n_samples))
+            samples = CUDA.randn(Float64, (2, Nparticles))
             samples[1, :] .= x_center .+ σ_x .* samples[1, :]
             samples[2, :] .= z_center .+ σ_z .* samples[2, :]
         end
-        valid_mask = CUDA.ones(Bool, n_samples)
+        valid_mask = CUDA.ones(Bool, Nparticles)
     end
 
     # Precompute values for GPU kernel
-    x_scale = Float32(Nx / Lx)
-    y_scale = is_3D ? Float32(Ny / Ly) : Float32(0)
+    x_scale = Float64(Nx / Lx)
+    y_scale = is_3D ? Float64(Ny / Ly) : Float64(0)
 
-    # Validate particles
+    # Validate particles: some particles may be outside the domain or below the topography and we want to exclude them
     if architecture == CPU()
-        for i in 1:n_samples
+        for i in 1:Nparticles
             x = samples[1, i]
             z = is_3D ? samples[3, i] : samples[2, i]
             
@@ -98,7 +87,7 @@ function gaussian_particle_generator(
             end
         end
     else
-        # For GPU, we need to use a kernel or broadcast operation
+        # For GPU
         function validate_particle(sample, valid_mask, Lx, Nx, Ly, Ny, z_interp, max_z, is_3D, x_scale, y_scale)
             i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
             if i <= length(valid_mask)
@@ -137,7 +126,7 @@ function gaussian_particle_generator(
         z_interp_gpu = CuArray(z_interp)
 
         threads = 256
-        blocks = cld(n_samples, threads)
+        blocks = cld(Nparticles, threads)
         @cuda blocks=blocks threads=threads validate_particle(samples, valid_mask, Lx, Nx, Ly, Ny, z_interp_gpu, max_z, is_3D, x_scale, y_scale)
     end
 
@@ -154,7 +143,7 @@ function gaussian_particle_generator(
         z₀ = samples[3, valid_indices]
     else
         x₀ = samples[1, valid_indices]
-        y₀ = architecture == CPU() ? zeros(Float32, length(valid_indices)) : CUDA.zeros(Float32, length(valid_indices))
+        y₀ = architecture == CPU() ? zeros(Float64, length(valid_indices)) : CUDA.zeros(Float64, length(valid_indices))
         z₀ = samples[2, valid_indices]
     end
 
