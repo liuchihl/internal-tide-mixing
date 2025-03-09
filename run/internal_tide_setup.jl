@@ -5,9 +5,9 @@ include("../functions/gaussian_particle_generator.jl")
 include("../initialize_internal_tide.jl")
 
 function run_internal_tide(tᶠ,θ)
-    Nx = 500
-    Ny = 1000
-    Nz = 250        
+    Nx = 10#500
+    Ny = 10#1000
+    Nz = 10#250        
     ω₀ = 1.4e-4     # tidal freq.
     T₀ = 2π/ω₀      # tidal period
     Δtᵒ = 1/24*T₀   # interval for saving output: 1/24 of a tidal period (~31 minutes) 
@@ -83,6 +83,7 @@ function run_internal_tide(tᶠ,θ)
             # the time during analysis period: we don't pickup checkpointer, 
             # we set initial condition, set!(model,checkpoint_path.jld2), from the end of the spinup period
             pickup = false
+            checkpointed_actuations = 0
             # the second half of the analysis period, we need to recalculate actuation and pickup (do this manually)
             # pickup = ""
             # checkpointed_actuations = 10
