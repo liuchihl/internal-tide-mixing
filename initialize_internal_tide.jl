@@ -152,7 +152,7 @@ u_tidal_forcing(x, y, z, t) = U₀*ω₀*sin(ω₀*t)
 Uᵣ = U₀ * ω₀^2/(ω₀^2 - f₀^2 - (N*sin(θ))^2) # quasi-resonant linear barotropic response
 uᵢ(x, y, z) = -Uᵣ
 vᵢ(x, y, z) = 0.
-bᵢ(x, y, z) = architecture == CPU() ? 1e-9 * rand() : 1e-9 * CUDA.rand() # seed infinitesimal random perturbations in the buoyancy field
+bᵢ(x, y, z) = 1e-9 * rand() # seed infinitesimal random perturbations in the buoyancy field
 
 
 # set tracer and particles
@@ -213,12 +213,12 @@ if solver == "FFT"
     )
 else solver == "Conjugate Gradient"
     # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-    tol = 1e-10
+    tol = 1e-9
     # add particles
     model = NonhydrostaticModel(;
         grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(
-                grid; maxiter=200, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
@@ -226,7 +226,7 @@ else solver == "Conjugate Gradient"
         boundary_conditions=(u=u_bcs, v=v_bcs, b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
-        particles = particles,
+        particles = nothing,
         tracers = tracers,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
@@ -249,8 +249,7 @@ else    # during analysis period, set initial condition from the final checkpoin
     end
 
     checkpoint_file = find_last_checkpoint(string("output/",simname))
-    # set!(model, checkpoint_file)
-    set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
+    set!(model, checkpoint_file)
     set!(model, c=cᵢ)
 end
 ## Configure simulation

@@ -5,9 +5,9 @@ include("../functions/gaussian_particle_generator.jl")
 include("../initialize_internal_tide.jl")
 
 function run_internal_tide(tᶠ,θ)
-    Nx = 10#500
-    Ny = 10#1000
-    Nz = 10#250        
+    Nx = 10
+    Ny = 10
+    Nz = 10        
     ω₀ = 1.4e-4     # tidal freq.
     T₀ = 2π/ω₀      # tidal period
     Δtᵒ = 1/24*T₀   # interval for saving output: 1/24 of a tidal period (~31 minutes) 
