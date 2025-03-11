@@ -1,38 +1,12 @@
 using StatsBase
 
 @views function bins(var, bin_edge, bin_var; dx, dy, z_face, normalize = false)
-    """
-    1D binning using StatsBase's histogram.
-    
-    Parameters:
-    -----------
-    var : Array
-        Variable to bin (dimensions: x,y,z,t or x,1,z,t)
-    bin_edge : Vector
-        Bin edges for the variable
-    bin_var : Array
-        Variable for binning (same dimensions as var)
-    dx, dy : Float64
-        Grid spacing in x and y directions
-    z_face : Matrix
-        Z-face positions for volume calculation (dimensions: x,z+1)
-    normalize : Bool
-        Whether to normalize by volume
-    
-    Returns:
-    --------
-    integrand : Array
-        Binned data
-    bin_center : Vector
-        Bin centers
-    Chih-Lun Liu, Nov 12 2024
-    """
     # Calculate bin centers
     bin_center = @. (bin_edge[1:end-1] + bin_edge[2:end]) / 2
     
     # Calculate volume elements
-    z_diff = diff(z_face, dims=2)
-    ΔV = dx * dy * z_diff  # Shape: [nx, nz]
+    z_diff = diff(z_face)
+    ΔV = dx * dy * z_diff  # This might be [nz] or [nx, nz] depending on z_face shape
     
     # Initialize output arrays
     nt = size(var, 4)
@@ -42,44 +16,54 @@ using StatsBase
     # Determine if the data is 2D (i.e., y dimension is 1)
     is_2D = size(var, 2) == 1
     
-    # Pre-allocate arrays for the flattened data
+    # Get dimensions
     nx, ny, nz = size(var)[1:3]
-    flat_length = nx * ny * nz
-    
-    # Create views for better performance
-    var_view = view(var, :, :, :, :)
-    bin_var_view = view(bin_var, :, :, :, :)
     
     # Process each time step
     for l in 1:nt
-        # Flatten spatial dimensions
-        var_flat = reshape(view(var_view, :, :, :, l), flat_length)
-        bin_var_flat = reshape(view(bin_var_view, :, :, :, l), flat_length)
+        # Flatten spatial dimensions for this time step
+        var_flat = reshape(view(var, :, :, :, l), :)
+        bin_var_flat = reshape(view(bin_var, :, :, :), :)
         
-        # Create repeated ΔV array
-        if is_2D
-            ΔV_flat = repeat(vec(ΔV), ny)  # ny is 1 in this case
-        else
-            ΔV_flat = repeat(vec(ΔV), inner=ny)
+        # Create properly sized volume array
+        # First, create the correct sized ΔV array based on dimensions
+        if length(size(ΔV)) == 1  # ΔV is [nz]
+            # Need to replicate across x and y dimensions
+            ΔV_3D = ones(nx, ny, 1) .* reshape(ΔV, 1, 1, :)
+        else  # ΔV is [nx, nz]
+            # Need to replicate across y dimension
+            ΔV_3D = ones(1, ny, 1) .* reshape(ΔV, nx, 1, :)
         end
         
-        # Calculate histogram with weights
-        weights = Weights(var_flat .* ΔV_flat)
-        h = StatsBase.fit(Histogram, bin_var_flat, weights, bin_edge)
+        # Flatten volume array to match other arrays
+        ΔV_flat = reshape(ΔV_3D, :)
+        
+        # Print debug info
+        # println("Dimensions: var_flat: $(size(var_flat)), bin_var_flat: $(size(bin_var_flat)), ΔV_flat: $(size(ΔV_flat))")
+        
+        # Filter out points where bin_var is 0 (below topography)
+        valid_points = bin_var_flat .> 0
+        var_valid = var_flat[valid_points]
+        bin_valid = bin_var_flat[valid_points]
+        ΔV_valid = ΔV_flat[valid_points]
+        
+        # Calculate histogram with weights, only using valid points
+        weights = Weights(var_valid .* ΔV_valid)
+        h = StatsBase.fit(Histogram, bin_valid, weights, bin_edge)
         integrand[:, l] = h.weights
         
         if normalize
             # Calculate volume histogram
-            vol_weights = Weights(ΔV_flat)
-            h_vol = StatsBase.fit(Histogram, bin_var_flat, vol_weights, bin_edge)
+            vol_weights = Weights(ΔV_valid)
+            h_vol = StatsBase.fit(Histogram, bin_valid, vol_weights, bin_edge)
             norm_volume[:, l] = h_vol.weights
         end
     end
     
     if normalize
         # Avoid division by zero
-        bin_var = norm_volume .> 0
-        integrand[bin_var] ./= norm_volume[bin_var]
+        bin_mask = norm_volume .> 0
+        integrand[bin_mask] ./= norm_volume[bin_mask]
     end
     
     return integrand, bin_center

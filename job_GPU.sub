@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="tilt_190-210" 
+#SBATCH --job-name="tilt" 
 #SBATCH --output="output_message/tilt.out.%j.%N.out"
 #SBATCH --partition=gpuA100x4
 #SBATCH --mem=16G
@@ -17,6 +17,7 @@
 #SBATCH -t 48:00:00
 
 module restore internal-tide
+export PATH=$HOME/software/julia/current/bin:$PATH
 date
 rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_tilt.jl
 # rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_notilt.jl
