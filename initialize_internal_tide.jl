@@ -159,7 +159,7 @@ bᵢ(x, y, z) = 1e-9 * rand() # seed infinitesimal random perturbations in the b
 if output_mode == "analysis"
     # tracer initial distribution
     x_center = 0
-    y_center = Ny÷2
+    y_center = 15000
     z_center = 1000
     σ_x = 1000  # in meters
     σ_y = 1000  
@@ -213,12 +213,12 @@ if solver == "FFT"
     )
 else solver == "Conjugate Gradient"
     # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-    tol = 1e-9
+    tol = 1e-10
     # add particles
     model = NonhydrostaticModel(;
         grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(
-                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=200, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
@@ -226,7 +226,7 @@ else solver == "Conjugate Gradient"
         boundary_conditions=(u=u_bcs, v=v_bcs, b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
-        particles = nothing,
+        particles = particles,
         tracers = tracers,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
@@ -251,6 +251,7 @@ else    # during analysis period, set initial condition from the final checkpoin
     checkpoint_file = find_last_checkpoint(string("output/",simname))
     set!(model, checkpoint_file)
     set!(model, c=cᵢ)
+    # set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 end
 ## Configure simulation
 Δt = (1/N)*0.03
@@ -304,10 +305,10 @@ elseif output_mode == "analysis"
         χ = TracerVarianceDissipationRate(model, :b)
         Bbudget=get_budget_outputs_tuple(model;)
         
-        checkpoint_interval = 10*2π/ω₀
+        checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
         point_diags = (; uhat=û, v=v, what=ŵ, B=B)
-        threeD_diags_avg = (; B=B, c=c)#(; uhat=û, what=ŵ, v=v, B=B)
+        threeD_diags_avg = (; uhat=û, what=ŵ, v=v, B=B, c=c)
         threeD_diags = (; B=B, c=c)
         
         # slice_diags = (; ε, χ)
@@ -384,11 +385,11 @@ if output_writer
         #                                         filename = string(dir, fname, "_point_center.nc"),
         #                                         overwrite_existing = overwrite_output)
     # particels
-        # simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_particles.nc"), 
-        #                                         schedule = TimeInterval(Δtᵒ/3),
-        #                                         overwrite_existing=true)
+        simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
+                                                verbose=true,
+                                                filename = string(dir, fname, "_particles.nc"), 
+                                                schedule = TimeInterval(Δtᵒ/3),
+                                                overwrite_existing=true)
     end
 end
 ### Progress messages

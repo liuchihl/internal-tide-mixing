@@ -6,4 +6,3 @@ const ω₀ = 1.4e-4     # tidal freq.
 const tᶠ  = tp_end*2π/ω₀
 const θ = 3.6e-3      # slope angle
 run_internal_tide(tᶠ,θ)
-

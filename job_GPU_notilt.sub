@@ -17,6 +17,7 @@
 #SBATCH -t 48:00:00
 
 module restore internal-tide
+export PATH=$HOME/software/julia/current/bin:$PATH
 date
 rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_notilt.jl
 

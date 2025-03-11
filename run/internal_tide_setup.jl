@@ -5,9 +5,9 @@ include("../functions/gaussian_particle_generator.jl")
 include("../initialize_internal_tide.jl")
 
 function run_internal_tide(tᶠ,θ)
-    Nx = 10
-    Ny = 10
-    Nz = 10        
+    Nx = 500
+    Ny = 1000
+    Nz = 250        
     ω₀ = 1.4e-4     # tidal freq.
     T₀ = 2π/ω₀      # tidal period
     Δtᵒ = 1/24*T₀   # interval for saving output: 1/24 of a tidal period (~31 minutes) 
@@ -41,7 +41,7 @@ function run_internal_tide(tᶠ,θ)
         slice_interval = 13/12*T₀       # snapshot at different point in the tidal cycle
         pickup = true  
         ###### remember to switch back to true after testing this part    
-        # pickup = "output/tilt/checkpoint_iteration315391.jld2"      
+        # pickup = "output/tilt/checkpoint_iteration781253.jld2"      
     else
         output_mode = "analysis"
         solver = "Conjugate Gradient"                
