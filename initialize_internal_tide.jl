@@ -217,9 +217,9 @@ else solver == "Conjugate Gradient"
     # add particles
     model = NonhydrostaticModel(;
         grid=grid,
-        pressure_solver = ConjugateGradientPoissonSolver(
-                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
-                reltol=tol),
+        # pressure_solver = ConjugateGradientPoissonSolver(
+        #         grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+        #         reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
         coriolis = coriolis,
@@ -304,7 +304,7 @@ elseif output_mode == "analysis"
         χ = TracerVarianceDissipationRate(model, :b)
         Bbudget=get_budget_outputs_tuple(model;)
         
-        checkpoint_interval = 10*2π/ω₀
+        checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
         point_diags = (; uhat=û, v=v, what=ŵ, B=B)
         threeD_diags_avg = (; B=B, c=c)#(; uhat=û, what=ŵ, v=v, B=B)
@@ -346,23 +346,23 @@ if output_writer
 
     ## output 2D slices
     # xz
-    # simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-    #                                         schedule = TimeInterval(slice_interval),
-    #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-    #                                         verbose=true,
-    #                                         filename = string(dir, fname, "_slices_xz.nc"),
-    #                                         overwrite_existing = overwrite_output)
+    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
+                                            schedule = TimeInterval(slice_interval),
+                                            indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+                                            verbose=true,
+                                            filename = string(dir, fname, "_slices_xz.nc"),
+                                            overwrite_existing = overwrite_output)
 
     ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
     # xy
-    #     ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-    #     simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-    #                                             schedule = TimeInterval(slice_interval),
-    #                                             indices = (:,:,ind),
-    #                                             verbose=true,
-    #                                             filename = string(dir, fname, "_slices_xy.nc"),
-    #                                             overwrite_existing = overwrite_output)
+        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+                                                schedule = TimeInterval(slice_interval),
+                                                indices = (:,:,ind),
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_xy.nc"),
+                                                overwrite_existing = overwrite_output)
     # # yz
     #     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
     #                                             schedule = TimeInterval(slice_interval),
