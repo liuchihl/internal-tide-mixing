@@ -46,7 +46,7 @@ function initialize_internal_tide(
     topo_file = "topo.mat",
     clean_checkpoint = "false",
     overwrite_output = "true",
-    analysis_round = nothing
+    analysis_round = analysis_round
 )
 
 
