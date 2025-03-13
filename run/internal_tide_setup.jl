@@ -4,7 +4,7 @@ include("../functions/diagnostics_budget.jl")
 include("../functions/gaussian_particle_generator.jl")
 include("../initialize_internal_tide.jl")
 
-function run_internal_tide(tᶠ,θ)
+function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
     Nx = 500
     Ny = 1000
     Nz = 250      
@@ -19,7 +19,6 @@ function run_internal_tide(tᶠ,θ)
     output_writer = true
     clean_checkpoint = false         # cleanup checkpoint
     overwrite_output = true          # overwrite existing output (if pickup=true, clean=false, and vice versa)
-
     if θ == 0        # slope angle
         simname = "flat"
     else
@@ -49,7 +48,7 @@ function run_internal_tide(tᶠ,θ)
         snapshot_interval = 1/12*T₀
         slice_interval = Δtᵒ
         pickup = false  
-        
+        analysis_round = analysis_round               # number of analysis rounds
         # set initial condition to be the final state of the spinup simulation by extracting information from the checkpoint file         
     end
 
@@ -64,7 +63,8 @@ function run_internal_tide(tᶠ,θ)
                                         architecture=architecture,
                                         clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
                                         closure=closure, solver=solver, snapshot_interval=snapshot_interval, 
-                                        slice_interval=slice_interval, avg_interval=avg_interval)
+                                        slice_interval=slice_interval, avg_interval=avg_interval, analysis_round = analysis_round
+                                        )
         run!(simulation)
         checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
         checkpointed_actuations = checkpointed_wta.schedule.actuations
@@ -96,8 +96,9 @@ function run_internal_tide(tᶠ,θ)
                                         clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
                                         closure=closure, solver=solver, snapshot_interval=snapshot_interval, 
                                         slice_interval=slice_interval, avg_interval=avg_interval)
-        simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
-        
+        if output_mode !== "analysis" 
+            simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
+        end
         run!(simulation; pickup=pickup)
         # Overwrite and save actuation to actuation.txt
         checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]

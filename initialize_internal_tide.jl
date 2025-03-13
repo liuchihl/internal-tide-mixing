@@ -45,7 +45,8 @@ function initialize_internal_tide(
     slice_interval=slice_interval,
     topo_file = "topo.mat",
     clean_checkpoint = "false",
-    overwrite_output = "true"
+    overwrite_output = "true",
+    analysis_round = nothing
 )
 
 
@@ -242,6 +243,11 @@ else    # during analysis period, set initial condition from the final checkpoin
         # Get all jld2 files in the directory
         checkpoint_files = filter(f -> endswith(f, ".jld2"), readdir(dir))
         # Extract iteration numbers using regex
+        # Filter out any files that contain "analysis"
+        checkpoint_files = filter(f -> !occursin("analysis", f), checkpoint_files)
+        if isempty(checkpoint_files)
+            error("No valid checkpoint files found")
+        end
         iter_numbers = map(f -> parse(Int, match(r"iteration(\d+)", f)[1]), checkpoint_files)
         # Find the file with maximum iteration number
         max_idx = argmax(iter_numbers)
@@ -304,16 +310,24 @@ elseif output_mode == "analysis"
         χ = TracerVarianceDissipationRate(model, :b)
         Bbudget=get_budget_outputs_tuple(model;)
         
+        if analysis_round == 1
+        #1)first round output 
         checkpoint_interval = 5*2π/ω₀
         slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
         point_diags = (; uhat=û, v=v, what=ŵ, B=B)
         threeD_diags_avg = (; B=B, c=c)#(; uhat=û, what=ŵ, v=v, B=B)
         threeD_diags = (; B=B, c=c)
-        
+        elseif analysis_round == 2
+        #2) second round output
+        checkpoint_interval = 20*2π/ω₀  # I do not want a new checkpoint so I set it to a large number
         # slice_diags = (; ε, χ)
-        # point_diags = (; ε, χ, wb)
-        # threeD_diags_avg = Bbudget
-        # threeD_diags = Bbudget
+        point_diags = (; uhat=û, wb)
+        threeD_diags_avg = merge(Bbudget,(; wb=wb))
+        threeD_diags = Bbudget
+        elseif analysis_round == 3
+        #3) third round output
+        # checkpoint_interval = nothing
+        end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
@@ -346,23 +360,23 @@ if output_writer
 
     ## output 2D slices
     # xz
-    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-                                            schedule = TimeInterval(slice_interval),
-                                            indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_xz.nc"),
-                                            overwrite_existing = overwrite_output)
+    # simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
+    #                                         schedule = TimeInterval(slice_interval),
+    #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+    #                                         verbose=true,
+    #                                         filename = string(dir, fname, "_slices_xz.nc"),
+    #                                         overwrite_existing = overwrite_output)
 
     ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
     # xy
-        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                                schedule = TimeInterval(slice_interval),
-                                                indices = (:,:,ind),
-                                                verbose=true,
-                                                filename = string(dir, fname, "_slices_xy.nc"),
-                                                overwrite_existing = overwrite_output)
+        # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        # simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+        #                                         schedule = TimeInterval(slice_interval),
+        #                                         indices = (:,:,ind),
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_slices_xy.nc"),
+        #                                         overwrite_existing = overwrite_output)
     # # yz
     #     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
     #                                             schedule = TimeInterval(slice_interval),
@@ -384,11 +398,11 @@ if output_writer
         #                                         filename = string(dir, fname, "_point_center.nc"),
         #                                         overwrite_existing = overwrite_output)
     # particels
-        # simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_particles.nc"), 
-        #                                         schedule = TimeInterval(Δtᵒ/3),
-        #                                         overwrite_existing=true)
+        simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
+                                                verbose=true,
+                                                filename = string(dir, fname, "_particles.nc"), 
+                                                schedule = TimeInterval(Δtᵒ/3),
+                                                overwrite_existing=true)
     end
 end
 ### Progress messages
