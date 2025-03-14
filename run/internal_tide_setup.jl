@@ -88,22 +88,26 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
             # pickup = ""
             # checkpointed_actuations = 10
         end
-        # Reading actuation from a text file
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                         Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
                                         output_mode=output_mode, output_writer=output_writer,
                                         architecture=architecture,
                                         clean_checkpoint=clean_checkpoint, overwrite_output=overwrite_output, 
                                         closure=closure, solver=solver, snapshot_interval=snapshot_interval, 
-                                        slice_interval=slice_interval, avg_interval=avg_interval)
+                                        slice_interval=slice_interval, avg_interval=avg_interval, analysis_round=analysis_round)
         if output_mode !== "analysis" 
             simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
+            run!(simulation; pickup=pickup)
+            # Overwrite and save new actuation to actuation.txt
+            checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
+            checkpointed_actuations = checkpointed_wta.schedule.actuations
+            open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
+        else 
+            # in analysis period, change whatever output you have to set the actuation if B is not available
+            # simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
+            run!(simulation; pickup=pickup)
         end
-        run!(simulation; pickup=pickup)
-        # Overwrite and save actuation to actuation.txt
-        checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
-        checkpointed_actuations = checkpointed_wta.schedule.actuations
-        open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
+        
     end
     println("Simulation finished successfully!")
 end

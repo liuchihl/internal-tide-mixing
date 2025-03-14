@@ -227,7 +227,7 @@ else solver == "Conjugate Gradient"
         boundary_conditions=(u=u_bcs, v=v_bcs, b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
-        particles = nothing,
+        particles = output_mode !== "analysis" ? nothing : particles,
         tracers = tracers,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
@@ -397,7 +397,7 @@ if output_writer
         #                                         verbose=true,
         #                                         filename = string(dir, fname, "_point_center.nc"),
         #                                         overwrite_existing = overwrite_output)
-    # particels
+    # particles
         simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
                                                 verbose=true,
                                                 filename = string(dir, fname, "_particles.nc"), 
