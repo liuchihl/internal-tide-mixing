@@ -13,16 +13,22 @@ end
     include("../functions/mmderiv.jl")
 
     # load data
-    slope = "tilt"
-    timerange = "100-120"
-    θ=3.6e-3
+tᶠ = 460
+θ = 3.6e-3
+if θ==3.6e-3
+    simname = "tilt"
+else 
+    simname = "flat"
+end
 
-    filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", "80-120", "_threeD_timeavg.nc")
+    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget.nc")
     ds_field = Dataset(filename_field,"r")
-    # filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
-    # ds_budget = Dataset(filename_field_budget,"r")
-    filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
-    ds_3D = Dataset(filename_3D,"r")
+    filename_3D_B = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_B-c.nc")
+    ds_3D_B = Dataset(filename_3D_B,"r")
+    filename_3D_Bbudget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_Bbudget.nc")
+    ds_3D_Bbudget = Dataset(filename_3D_Bbudget,"r")
+    filename_b_verification = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=10_threeD_timeavg.nc"
+    ds_b = Dataset(filename_b_verification,"r")
     # grids
     zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
     Nz=length(zC[:]); 
@@ -33,9 +39,8 @@ end
     Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
     t = ds_3D["time"][:];
 
-    θ = 3.6e-3
 
-## coordinate transformation from slope-coordinate to Cartesian coordinate
+## coordinate transformation from simname-coordinate to Cartesian coordinate
     Lx = (xF[end]+dx) * cos(θ)
     Lz = (xF[end]+dx) * sin(θ)
     x = xC * cos(θ) .- zC' * sin(θ)
@@ -55,7 +60,7 @@ end
     ds_hab = Dataset(filename_hab,"r")
     hab = ds_hab["hab"][:,:,:]
     ranges = 0:-1:-40
-    bin_edge1 = 0:5:1500#0
+    bin_edge1 = 0:8:1500#0
     bin_center1 = (bin_edge1[1:end-1] .+ bin_edge1[2:end]) ./ 2
     bin_mask1 = hab
 
@@ -65,16 +70,16 @@ end
     global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
     ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
     div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
-    b = ds_field["b"][:,:,:,1:1]
+    b = ds_b["b"][:,:,:,1:1]
     
 ## 1) whole domain
     for n in 1:length(t)
-        global ∇κ∇B = ds_3D["∇κ∇B"][:,:,:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
-        global div_uB = ds_3D["div_uB"][:,:,:,n:n];
-        B = ds_3D["B"][:,:,:,n:n];
+        global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,:,:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
+        global div_uB = ds_3D_Bbudget["div_uB"][:,:,:,n:n];
+        B = ds_3D_B["B"][:,:,:,n:n];
         # ∇κ∇B[b.==0].=0
         # div_uB[b.==0].=0
-        @time B[b.==0].=0
+        B[b.==0].=0
 
         # Reset accumulator arrays for each timestep
         fill!(int_∇κ∇B, 0)
@@ -85,9 +90,9 @@ end
             B̃ = B .+ m*ΔB
             bin_mask2 = B̃
             @time f1, _, _= bins_2d(∇κ∇B,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z̃_face,normalize=false)
-            global int_∇κ∇B += f1
+            global int_∇κ∇B += f1   # f1 is the integrand
             @time f2, _, _= bins_2d(div_uB,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z̃_face,normalize=false)
-            global int_div_uB += f2
+            global int_div_uB += f2  # f2 is the integrand
             @info "m = $m, n= $n"  # Progress tracking
         end
     ∇κ∇B_t[:,:,n] .= int_∇κ∇B./diff(bin_edge2)[1]
@@ -102,7 +107,7 @@ end
     close(ds_3D)
     close(ds_hab)
 
-    ds_create = Dataset(string("output/",slope,"/WMT_total_100-120",".nc"),"c")
+    ds_create = Dataset(string("output/",simname,"/WMT_total_tᶠ=",tᶠ,".nc"),"c")
 
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
@@ -134,11 +139,14 @@ end
     
 
 ## 2) canyon
-    filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", "80-120", "_threeD_timeavg.nc")
+    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget.nc")
     ds_field = Dataset(filename_field,"r")
-    filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
-    ds_3D = Dataset(filename_3D,"r")
-    ## coordinate transformation from slope-coordinate to Cartesian coordinate
+    filename_3D_B = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_B-c.nc")
+    ds_3D_B = Dataset(filename_3D_B,"r")
+    filename_3D_Bbudget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_Bbudget.nc")
+    ds_3D_Bbudget = Dataset(filename_3D_Bbudget,"r")  ## coordinate transformation from simname-coordinate to Cartesian coordinate
+    ds_b = Dataset(filename_b_verification,"r")
+
     Lx = (xF[end]+dx) * cos(θ)
     Lz = (xF[end]+dx) * sin(θ)
     x = xC * cos(θ) .- zC' * sin(θ)
@@ -154,7 +162,7 @@ end
     ds_hab = Dataset(filename_hab,"r")
     hab = ds_hab["hab"][:,south:north,:];
     ranges = 0:-1:-40
-    bin_edge1 = 0:5:1500#0
+    bin_edge1 = 0:8:1500#0
     bin_center1 = (bin_edge1[1:end-1] .+ bin_edge1[2:end]) ./ 2
     bin_mask1 = hab
     # bin_edge2 = (0.1:0.02:0.9).*1e-3  # Define the edges of the bins
@@ -164,12 +172,12 @@ end
     global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
     ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
     div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
-    b = ds_field["b"][:,south:north,:,1:1]
+    b = ds_b["b"][:,south:north,:,1:1]
 
     for n in 1:length(t)
-        global ∇κ∇B = ds_3D["∇κ∇B"][:,south:north,:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
-        global div_uB = ds_3D["div_uB"][:,south:north,:,n:n];
-        B = ds_3D["B"][:,south:north,:,n:n];
+        global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,south:north,:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
+        global div_uB = ds_3D_Bbudget["div_uB"][:,south:north,:,n:n];
+        B = ds_3D_B["B"][:,south:north,:,n:n];
         # ∇κ∇B[b.==0].=0
         # div_uB[b.==0].=0
         @time B[b.==0].=0
@@ -200,7 +208,7 @@ end
     close(ds_3D)
     close(ds_hab)
 
-    ds_create = Dataset(string("output/",slope,"/WMT_canyon_100-120",".nc"),"c")
+    ds_create = Dataset(string("output/",simname,"/WMT_canyon_tᶠ=",tᶠ,".nc"),"c")
 
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
@@ -231,14 +239,14 @@ end
     close(ds_create)
     
 
-## 2) flanks
-    filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", "80-120", "_threeD_timeavg.nc")
+## 3) flanks
+    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget.nc")
     ds_field = Dataset(filename_field,"r")
-    # filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
-    # ds_budget = Dataset(filename_field_budget,"r")
-    filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
-    ds_3D = Dataset(filename_3D,"r")
-    ## coordinate transformation from slope-coordinate to Cartesian coordinate
+    filename_3D_B = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_B-c.nc")
+    ds_3D_B = Dataset(filename_3D_B,"r")
+    filename_3D_Bbudget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_Bbudget.nc")
+    ds_3D_Bbudget = Dataset(filename_3D_Bbudget,"r")  ## coordinate transformation from simname-coordinate to Cartesian coordinate
+## coordinate transformation from simname-coordinate to Cartesian coordinate
     Lx = (xF[end]+dx) * cos(θ)
     Lz = (xF[end]+dx) * sin(θ)
     x = xC * cos(θ) .- zC' * sin(θ)
@@ -246,32 +254,27 @@ end
     z_face = xF * sin(θ) .+ zF' * cos(θ)
     N = 1e-3
     ΔB = N^2*Lz 
-filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
-ds_field = Dataset(filename_field,"r")
-filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
-ds_3D = Dataset(filename_3D,"r")
 north = argmin(abs.(yC[:] .- 20e3))  
 south = argmin(abs.(yC[:] .- 10e3))  
 filename_hab = "output/hab.nc"
 ds_hab = Dataset(filename_hab,"r")
 hab = ds_hab["hab"][:,vcat(1:south,north:end),:];
 ranges = 0:-1:-40
-bin_edge1 = 0:5:1500#0
+bin_edge1 = 0:8:1500#0
 bin_center1 = (bin_edge1[1:end-1] .+ bin_edge1[2:end]) ./ 2
 bin_mask1 = hab
-# bin_edge2 = (0.1:0.02:0.9).*1e-3  # Define the edges of the bins
 bin_edge2 = (0.1:0.02:0.9).*1e-3  # Define the edges of the bins
 bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
 global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
 global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
 ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
 div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
-b = ds_field["b"][:,vcat(1:south,north:end),:,1:1]
+b = ds_b["b"][:,vcat(1:south,north:end),:,1:1]
 
 for n in 1:length(t)
-    global ∇κ∇B = ds_3D["∇κ∇B"][:,vcat(1:south,north:end),:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
-    global div_uB = ds_3D["div_uB"][:,vcat(1:south,north:end),:,n:n];
-    B = ds_3D["B"][:,vcat(1:south,north:end),:,n:n];
+    global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,vcat(1:south,north:end),:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
+    global div_uB = ds_3D_Bbudget["div_uB"][:,vcat(1:south,north:end),:,n:n];
+    B = ds_3D_B["B"][:,vcat(1:south,north:end),:,n:n];
     # ∇κ∇B[b.==0].=0
     # div_uB[b.==0].=0
     @time B[b.==0].=0
@@ -302,7 +305,7 @@ close(ds_field)
 close(ds_3D)
 close(ds_hab)
 
-ds_create = Dataset(string("output/",slope,"/WMT_flanks_100-120",".nc"),"c")
+ds_create = Dataset(string("output/",simname,"/WMT_flanks_tᶠ",tᶠ,".nc"),"c")
 
 # Define the dimension
 defDim(ds_create,"z_TF",length(bin_center1))
@@ -383,7 +386,7 @@ close(ds_create)
 
 #     # Show the plot
 #     show()
-#     slope = "tilt"
-#     timerange = "40-80"
-#     savefig(string("output/",slope,"/water_mass_transformation_terms",timerange,".png"),dpi=200)
+#     simname = "tilt"
+#     tᶠ = "40-80"
+#     savefig(string("output/",simname,"/water_mass_transformation_terms",tᶠ,".png"),dpi=200)
     
