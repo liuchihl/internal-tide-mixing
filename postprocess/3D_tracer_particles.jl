@@ -10,7 +10,7 @@ using NaNStatistics
 using LinearAlgebra
 using MAT
 using Interpolations
-
+using ColorSchemes
 # define a function that loads particle data
 function load_particle_data(simname)
     θ = simname == "tilt" ? 0.0036 : 0
@@ -28,8 +28,45 @@ function load_particle_data(simname)
     )
 end
 
+function calculate_background_buoyancy(θ)
+    θ = θ
+    ĝ = (sin(θ), 0, cos(θ)) # the vertical unit vector in rotated coordinates
+    N = 1e-3
+    @inline ẑ(x, z, ĝ) = x*ĝ[1] + z*ĝ[3]
+    @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
+
+    # Create a background field
+    B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
+
+    # Setup grid
+    H = 2.25kilometers # vertical extent
+    Lx = 15kilometers # along-canyon extent
+    Ly = 30kilometers # cross-canyon extent
+    Nx = 500
+    Ny = 1000
+    Nz = 250
+    
+    # Bottom-intensified stretching for vertical grid
+    z_faces(k) = - H * ((1 + ((Nz + 1 - k) / Nz - 1) / 1.2) * 
+                        (1 - exp(-15 * (Nz + 1 - k) / Nz)) / (1 - exp(-15)) - 1)
+
+    grid = RectilinearGrid(size=(Nx, Ny, Nz), 
+            x = (0, Lx),
+            y = (0, Ly), 
+            z = z_faces,
+            halo = (4, 4, 4),
+            topology = (Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded))
+            
+    model = NonhydrostaticModel(
+        grid = grid,
+        background_fields = (; b=B̄_field),
+        tracers = :b
+    )
+    
+    return interior(compute!(Field(model.background_fields.tracers.b)))[:,1,:]
+end
 # Load data for both cases
-simname = "tilt" 
+simname = "tilt"    # this is the only thing that needs to be changed
 data = load_particle_data(simname)
 θ = simname == "tilt" ? 0.0036 : 0
 tᶠ = "460"
@@ -39,10 +76,68 @@ Ny = 1000
 Ly = 30kilometers  # Domain length in y
 N = 1e-3           # Buoyancy frequency
 Lz = 2.25kilometers  # Vertical extent (assuming Lz = H from your grid)
-unwrapped_x = data["x"]  # Unwrapped x-position
-unwrapped_y = data["y"]  # Unwrapped y-position
-unwrapped_z = data["z"]  # Unwrapped z-position
+# load topography 
+file = matopen("topo.mat")
+z_topo = read(file, "z_noslope_periodic") 
+x_topo = read(file, "x_domain")
+y_topo = read(file, "y_domain")
+# grids has to be evenly spaced
+x_topo_lin = range(x_topo[1],x_topo[end],size(z_topo,1))
+y_topo_lin = range(y_topo[1],y_topo[end],size(z_topo,2))
+close(file)
+# high-resolution grids
+x_interp = range(x_topo[1],x_topo[end], length=Nx)
+y_interp = range(y_topo[1],y_topo[end], length=Ny)
+
+
+# Interpolation object (caches coefficients and such)
+itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
+# Interpolate z_topo onto a higher-resolution grid
+z_interp = [itp(x, y) for x in x_interp, y in y_interp]
+z_interp = z_interp.-minimum(z_interp)
+
+# plot the particle trajectories
+
+# create an extended topography
+dx_interp = x_interp[2]-x_interp[1]
+dy_interp = y_interp[2]-y_interp[1]
+Lx_interp = x_interp[end]
+Ly_interp = y_interp[end]
+
+x_interp_ext = vcat(x_interp[3Nx÷4:Nx].-Lx_interp.-dx_interp, x_interp, x_interp.+ Lx_interp.+dx_interp, x_interp.+2Lx_interp.+dx_interp)
+y_interp_ext = vcat(y_interp, y_interp.+ Ly_interp.+dy_interp)
+z_interp_ext = vcat(z_interp[3Nx÷4:Nx,:], z_interp, z_interp, z_interp )
+z_interp_ext = vcat(z_interp_ext', z_interp_ext')'
+
+## transform the topography into Cartesian coordinates
+# create a meshgrid
+X_interp_ext = repeat(x_interp_ext, 1, length(y_interp_ext)) 
+Y_interp_ext = repeat(y_interp_ext', length(x_interp_ext), 1)
+Z_interp_ext = z_interp_ext
+# Transform topography to Cartesian coordinates
+X_cart_interp_ext = X_interp_ext .* cos(θ) .- Z_interp_ext .* sin(θ)
+Y_cart_interp_ext = Y_interp_ext  # y-coordinate is unchanged
+Z_cart_interp_ext = X_interp_ext .* sin(θ) .+ Z_interp_ext .* cos(θ)
+
+
+
+unwrapped_x = copy(data["x"])  # Unwrapped x-position
+unwrapped_y = copy(data["y"])  # Unwrapped y-position
+unwrapped_z = copy(data["z"])  # Unwrapped z-position
+B = zeros(size(data["x"]))  # Total buoyancy
+
 n_crossings = zeros(Int, size(data["x"]))  # Track number of crossings in x-direction
+
+# background buoyancy
+B̄ = calculate_background_buoyancy(θ)
+ΔB = N^2 * Lx*sin(θ)      # Buoyancy increment per domain crossing
+
+# define the grids
+filename = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_B-c.nc")
+ds = Dataset(filename,"r")
+zC = ds["zC"][:];
+xC = ds["xC"][:]; 
+
 
 # Adjust initial positions for particles starting on the right side
 for i in 1:size(data["x"], 1)
@@ -88,60 +183,42 @@ for i in 1:size(data["x"], 1)  # Particle ID
         
         # Update unwrapped y position
         unwrapped_y[i, j+1] = unwrapped_y[i, j] + dy
+
+        # Grid indices for background buoyancy
+        ind_x = argmin(abs.(xC[:] .- data["x"][i, j]))
+        ind_z = argmin(abs.(zC[:] .- data["z"][i, j]))
+        
+        # Compute total buoyancy: background + perturbation + domain crossing increment
+        B[i, j] = (B̄[ind_x, ind_z] + data["b"][i, j] + n_crossings[i, j] * ΔB)
     end
+    
+    # Handle the last time step
+    ind_x = argmin(abs.(xC[:] .- data["x"][i, end]))
+    ind_z = argmin(abs.(zC[:] .- data["z"][i, end]))
+    B[i, end] = (B̄[ind_x, ind_z] + data["b"][i, end] + n_crossings[i, end] * ΔB)
 end
 # transform the particle positions to the Cartesian coordinates
 # Initialize Cartesian coordinates
-x_cart = unwrapped_x
-y_cart = unwrapped_y
-z_cart = unwrapped_z
+x_cart = similar(unwrapped_x)
+y_cart = similar(unwrapped_y)
+z_cart = similar(unwrapped_z)
 
 # Compute sin and cos of θ for the transformation
 θ = 0.0036
 
-# Transform to Cartesian coordinates using broadcasting
-x_cart = unwrapped_x .* cos(θ) .+ unwrapped_z .* sin(θ)
+# Transform particle positions to Cartesian coordinates
+x_cart = unwrapped_x .* cos(θ) .- unwrapped_z .* sin(θ)
 y_cart = unwrapped_y
-z_cart = -unwrapped_x .* sin(θ) .+ unwrapped_z .* cos(θ)
+z_cart = unwrapped_x .* sin(θ) .+ unwrapped_z .* cos(θ)
 
 
-# load topography 
-file = matopen("topo.mat")
-z_topo = read(file, "z_noslope_periodic") 
-x_topo = read(file, "x_domain")
-y_topo = read(file, "y_domain")
-# grids has to be evenly spaced
-x_topo_lin = range(x_topo[1],x_topo[end],size(z_topo,1))
-y_topo_lin = range(y_topo[1],y_topo[end],size(z_topo,2))
-close(file)
-# high-resolution grids
-x_interp = range(x_topo[1],x_topo[end], length=Nx)
-y_interp = range(y_topo[1],y_topo[end], length=Ny)
-
-
-# Interpolation object (caches coefficients and such)
-itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
-# Interpolate z_topo onto a higher-resolution grid
-z_interp = [itp(x, y) for x in x_interp, y in y_interp]
-z_interp = z_interp.-minimum(z_interp)
-
-# plot the particle trajectories
-
-# create an extended topography
-dx_interp = x_interp[2]-x_interp[1]
-dy_interp = y_interp[2]-y_interp[1]
-Lx_interp = x_interp[end]
-Ly_interp = y_interp[end]
-
-x_interp_ext = vcat(x_interp[3Nx÷4:Nx].-Lx_interp.-dx_interp, x_interp, x_interp.+ Lx_interp.+dx_interp, x_interp.+2Lx_interp.+dx_interp)
-y_interp_ext = vcat(y_interp, y_interp.+ Ly_interp.+dy_interp)
-z_interp_ext = vcat(z_interp[3Nx÷4:Nx,:] .- Lx_interp*sin(θ), z_interp, z_interp.+ Lx_interp*sin(θ), z_interp.+2Lx_interp*sin(θ) )
-z_interp_ext = vcat(z_interp_ext', z_interp_ext')'
 # Create a figure to plot the particle trajectories
 using CairoMakie
 
-# Create a 3D figure for topography and particle trajectories
-fig = CairoMakie.Figure(resolution = (1200, 800))
+# Create a 3D figure for topography and particle trajectories with a specific layout
+fig = CairoMakie.Figure(resolution = (1200, 800), 
+                       layout = GridLayout(1, 2, width_ratios = [0.85, 0.15]))
+
 ax = Axis3(fig[1, 1], 
            xlabel = "X (m)", 
            ylabel = "Y (m)", 
@@ -149,31 +226,33 @@ ax = Axis3(fig[1, 1],
            title = "3D Particle Trajectories",
            aspect = (3, 4, 0.6))
 
+# Create a nested layout for the colorbars
+cbar_layout = GridLayout(2, 1)
+fig[1, 2] = cbar_layout
+
 # Create all static elements (terrain + walls) ONCE outside the animation loop
 # Main topography
-surface!(ax, x_interp_ext, y_interp_ext, z_interp_ext, 
-         colormap = :terrain,
+# Get the full colormap
+full_cmap = ColorSchemes.deepsea.colors
+# Take only the first 80% of colors
+custom_cmap = full_cmap[1:floor(Int, 1*length(full_cmap))]
+
+surface!(ax, X_cart_interp_ext, Y_cart_interp_ext, Z_cart_interp_ext, 
+         colormap = custom_cmap,
          shading = NoShading,
          transparency = false)
 
-# transform the particle positions to the extended domain
-
-
 # Define number of particles to plot
-n_particles, n_time_steps = size(unwrapped_x) 
-
+n_particles, n_time_steps = size(x_cart) 
 
 # Animation parameters
-# time_steps = [1, 100, 200, 300, 400, 500, 600, 700]
-time_steps = 1:n_time_steps#round.(Int, range(1, n_time_steps, length=length(n_frames)))
+time_steps = 1:n_time_steps 
 n_frames = 1:length(time_steps)
-
-
 
 # Create particle objects list to keep track of what to delete each frame
 particle_objects = []
 
-record(fig, string("output/", simname, "/3D_particle_trajectories_animated_extended.mp4"), n_frames; framerate = 30) do frame
+record(fig, string("output/", simname, "/3D_particle_trajectories_animated_extended_buoyancycolorcode.mp4"), n_frames; framerate = 30) do frame
     # Delete only the previous particles, not the terrain
     for obj in particle_objects
         try
@@ -186,14 +265,27 @@ record(fig, string("output/", simname, "/3D_particle_trajectories_animated_exten
     
     # Get current time step
     current_time_step = time_steps[frame]
+    # Get z values for current time step to use as color data
+    z_colors = B[:, current_time_step]
     
-    # Plot current particle positions
+    # Plot current particle positions with depth-based coloring
     particles = scatter!(ax, 
             x_cart[1:n_particles, current_time_step], 
             y_cart[1:n_particles, current_time_step], 
             z_cart[1:n_particles, current_time_step],
-             color = :blue,
-             markersize = 5)
+            color = z_colors,
+            markersize = 5,
+            colormap = :YlOrRd_9,
+            colorrange = (minimum(z_colors), maximum(z_colors))
+          )
+    
+    # Add colorbars only once
+    if frame == 1
+        Colorbar(cbar_layout[1, 1], label="Terrain Elevation", colormap=custom_cmap, 
+                 limits=(minimum(Z_cart_interp_ext), maximum(Z_cart_interp_ext)))
+        Colorbar(cbar_layout[2, 1], label="Particle Buoyancy", colormap=:YlOrRd_9, 
+                 limits=(minimum(B), maximum(B)))
+    end
     push!(particle_objects, particles)
     
     # Add trails (previous positions)
@@ -202,27 +294,30 @@ record(fig, string("output/", simname, "/3D_particle_trajectories_animated_exten
     for i in 1:n_particles
             start_idx = max(1, current_time_step - trail_length)
             if start_idx < current_time_step
+                # Get the buoyancy value for this particle at the current time step
+                particle_color = B[i, current_time_step]
+                
                 trail = lines!(ax, 
                     x_cart[i, start_idx:current_time_step], 
                     y_cart[i, start_idx:current_time_step], 
                     z_cart[i, start_idx:current_time_step],
-                    color = :cyan,
-                    linewidth = 1.0,
-                    alpha = 0.5)
+                    color = particle_color,  # Use the particle's current buoyancy as color
+                    colormap = :YlOrRd_9,    # Same colormap as the particles
+                    colorrange = (minimum(z_colors), maximum(z_colors)),
+                    linewidth = 1.5,
+                    alpha = 0.6)
                 push!(particle_objects, trail)
             end
-
     end
-    # Control the camera rotation within a specific range center around 0.5π
 
-    azimuth = range(1.3π,1.6π, length=length(n_frames))[frame]
+    # Control camera rotation
+    azimuth = range(1.3π, 1.6π, length=length(n_frames))[frame]
     ax.azimuth = azimuth
-    # ax.elevation = elevation
+    
     # Update title to show time
     ax.title = @sprintf("Particle Movement at t = %.2f hours", particle_time[current_time_step]/3600)
     @info current_time_step
 end
-
 
 
 
