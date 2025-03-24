@@ -161,7 +161,11 @@ if output_mode == "analysis"
     # tracer initial distribution
     x_center = 0
     y_center = Ny÷2
-    z_center = 1000
+    if analysis_round == 1 || analysis_round == 2
+        z_center = 500
+    elseif analysis_round == 3
+        z_center = 500
+    end
     σ_x = 1000  # in meters
     σ_y = 1000  
     σ_z = 50    
@@ -172,7 +176,7 @@ if output_mode == "analysis"
     Nparticles = 1e4
     # particles are released at 700 m above the bottom, which is about z=967 m
     x₀, y₀, z₀ = gaussian_particle_generator(
-                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
+                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H, θ;
                 x_center_ratio=0, y_center_ratio=0.5, z_center=z_center,
                 σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )          
     b = 1e-5*ones(Float64,Int(length(x₀)))
@@ -326,7 +330,8 @@ elseif output_mode == "analysis"
         threeD_diags = Bbudget
         elseif analysis_round == 3
         #3) third round output
-        # checkpoint_interval = nothing
+        checkpoint_interval = 20*2π/ω₀
+
         end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
@@ -400,7 +405,7 @@ if output_writer
     # particles
         simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
                                                 verbose=true,
-                                                filename = string(dir, fname, "_particles.nc"), 
+                                                filename = string(dir, fname, "_particles_z=",z_center,".nc"), 
                                                 schedule = TimeInterval(Δtᵒ/3),
                                                 overwrite_existing=true)
     end
