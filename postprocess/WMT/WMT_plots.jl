@@ -1,20 +1,21 @@
 ## this script plots water mass transformation results computed in water_mass_transformation.jl
      using NCDatasets
      # load data
-     slope = "tilt"
-     timerange = "100-120" 
-     θ=3.6e-3
-     ds_total = Dataset(string("output/",slope,"/WMT_120_added_diffusivity",".nc"),"r")
-     ∇κ∇B_t = ds_total["∇κ∇B_t"][:,:,1]
-     div_uB_t = ds_total["div_uB_t"][:,:,1]
+     simname = "tilt"
+     θ = simname == "tilt" ? 3.6e-3 : 0
+     tᶠ = 460 
      
-     ds_canyon = Dataset(string("output/",slope,"/WMT_canyon_120",".nc"),"r")
-     ∇κ∇B_c = ds_canyon["∇κ∇B_t"][:,:,1]
-     div_uB_c = ds_canyon["div_uB_t"][:,:,1]
+     ds_total = Dataset(string("output/",simname,"/WMT_total_tᶠ=",tᶠ,".nc"),"r")
+     ∇κ∇B_t = ds_total["∇κ∇B_t"][:,:,1:2:end]
+     div_uB_t = ds_total["div_uB_t"][:,:,1:2:end]
      
-     ds_flank = Dataset(string("output/",slope,"/WMT_flanks_120",".nc"),"r")
-     ∇κ∇B_f = ds_flank["∇κ∇B_t"][:,:,1]
-     div_uB_f = ds_flank["div_uB_t"][:,:,1]
+    #  ds_canyon = Dataset(string("output/",simname,"/WMT_canyon_120",".nc"),"r")
+    #  ∇κ∇B_c = ds_canyon["∇κ∇B_t"][:,:,1]
+    #  div_uB_c = ds_canyon["div_uB_t"][:,:,1]
+     
+    #  ds_flank = Dataset(string("output/",simname,"/WMT_flanks_120",".nc"),"r")
+    #  ∇κ∇B_f = ds_flank["∇κ∇B_t"][:,:,1]
+    #  div_uB_f = ds_flank["div_uB_t"][:,:,1]
      
      hab = ds_total["bin_center1"][:]
      b_bin = ds_total["bin_center2"][:]
@@ -31,43 +32,41 @@
     colors = [150 148 255;136 194 115;255 41 41]./255
 
     # line2,=axs.plot(-dropdims(mean(div_uB_t,dims=2),dims=(2))*1e-3, hab, label="", color="red", linestyle="-",marker="",markersize=3)
-    line1,=axs[1].plot(dropdims(mean(∇κ∇B_t,dims=2),dims=(2))*1e-3, hab, label="", color=colors[1,:], marker=".",markersize=6)
+    line1,=axs[1].plot(dropdims(mean(∇κ∇B_t,dims=2),dims=(2))*1e-3, hab, label="", color=colors[1,:], marker=".",markersize=2, alpha=0.5)
+    line1,=axs[1].plot(mean(dropdims(mean(∇κ∇B_t,dims=2),dims=(2)),dims=2)*1e-3, hab, label="", color=:black, marker=".",markersize=6)
     
-    # line4,=axs.plot(-dropdims(mean(div_uB_c,dims=2),dims=(2))*1e-3*1/3, hab, label="", color="red", linestyle="--", marker="",markersize=3)
-    line3,=axs[1].plot(dropdims(mean(∇κ∇B_c,dims=2),dims=(2))*1e-3, hab, label="", color=colors[2,:], linestyle="--", marker=".",markersize=6)
+    # # line4,=axs.plot(-dropdims(mean(div_uB_c,dims=2),dims=(2))*1e-3*1/3, hab, label="", color="red", linestyle="--", marker="",markersize=3)
+    # line3,=axs[1].plot(dropdims(mean(∇κ∇B_c,dims=2),dims=(2))*1e-3, hab, label="", color=colors[2,:], linestyle="--", marker=".",markersize=6)
     
-    # line6,=axs.plot(-dropdims(mean(div_uB_f,dims=2),dims=(2))*1e-3./(2/3*A), hab, label="", color="red", linestyle=":", marker="",markersize=3)
-    line5,=axs[1].plot(dropdims(mean(∇κ∇B_f,dims=2),dims=(2))*1e-3, hab, label="", linestyle=":", color=colors[3,:], marker=".",markersize=6)
+    # # line6,=axs.plot(-dropdims(mean(div_uB_f,dims=2),dims=(2))*1e-3./(2/3*A), hab, label="", color="red", linestyle=":", marker="",markersize=3)
+    # line5,=axs[1].plot(dropdims(mean(∇κ∇B_f,dims=2),dims=(2))*1e-3, hab, label="", linestyle=":", color=colors[3,:], marker=".",markersize=6)
     axs[1].set_ylabel("HAB (m)")
     axs[1].set_xlabel("mSv")
-    # axs.legend([line1, line2], 
-    # [L"\frac{\partial}{\partial B}\iiint_{V(B'\leq B)} ∇⋅κ∇B ~dV", 
-    # L"-\frac{\partial}{\partial B}\iiint_{V(B'\leq B)} ∇⋅(\mathbf{u}B) ~dV"],
-    # loc="upper right")
-    axs[1].legend([line1, line3, line5], title=L"\mathcal{E}^{diff}",
-    ["Total","Canyon","Flanks"], loc="upper right")
+
+    # axs[1].legend([line1, line3, line5], title=L"\mathcal{E}^{diff}",
+    # ["Total","Canyon","Flanks"], loc="upper right")
     axs[1].grid(true)
     axs[1].set_ylim(0,70)
     axs[1].minorticks_on()
 
     # plot histogram
-    ∇κ∇B_t_BBL = mean(sum(∇κ∇B_t[1:3,:]*1e-3,dims=1))
-    ∇κ∇B_c_BBL = mean(sum(∇κ∇B_c[1:3,:]*1e-3,dims=1))
-    ∇κ∇B_f_BBL = mean(sum(∇κ∇B_f[1:3,:]*1e-3,dims=1))
+    # ∇κ∇B_t_BBL = mean(sum(∇κ∇B_t[1:3,:]*1e-3,dims=1))
+    # # ∇κ∇B_c_BBL = mean(sum(∇κ∇B_c[1:3,:]*1e-3,dims=1))
+    # # ∇κ∇B_f_BBL = mean(sum(∇κ∇B_f[1:3,:]*1e-3,dims=1))
 
-    data1 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL,∇κ∇B_f_BBL]
-    data2 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL/(1/3),∇κ∇B_f_BBL/(2/3)]
-    labels = ["Total","Canyon","Flanks"]
-    bar1=axs[2].bar(labels, data2, edgecolor = "black",color=colors,alpha=0.2)
-    bar2=axs[2].bar(labels, data1, edgecolor = "black",color=colors,alpha=1, width=0.5)
-    axs[2].set_title("Transport in BBL (mSv)")
-    axs[2].set_ylim(0,220)
-    axs[2].legend([bar1[1],bar2[1]],[L"\mathcal{E}_{BBL}^{diff}\times A_R/A",L"\mathcal{E}_{BBL}^{diff}"],loc="upper left")
+    # data1 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL,∇κ∇B_f_BBL]
+    # data2 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL/(1/3),∇κ∇B_f_BBL/(2/3)]
+    # labels = ["Total","Canyon","Flanks"]
+    # bar1=axs[2].bar(labels, data2, edgecolor = "black",color=colors,alpha=0.2)
+    # bar2=axs[2].bar(labels, data1, edgecolor = "black",color=colors,alpha=1, width=0.5)
+    # axs[2].set_title("Transport in BBL (mSv)")
+    # axs[2].set_ylim(0,220)
+    # axs[2].legend([bar1[1],bar2[1]],[L"\mathcal{E}_{BBL}^{diff}\times A_R/A",L"\mathcal{E}_{BBL}^{diff}"],loc="upper left")
     
 
     tight_layout()
     gcf()   
-    savefig(string("output/",slope,"/water_mass_transformation_terms_120_together_differentregions",".png"),dpi=250)
+    savefig(string("output/",simname,"/water_mass_transformation_diffusive_flux",".png"),dpi=250)
 
 
 ## plot diffusive and advective terms together with respect to HAB
@@ -77,8 +76,8 @@
     # Create a figure and an array of subplots
     fig, axs = subplots(1, 1, figsize=(3.5, 3.5))  # 1 row, 2 columns
 
-    line1,=axs.plot(dropdims(mean(∇κ∇B_t,dims=2),dims=(2))*1e-3, hab, label="", color=[71,147,175]./255, marker=".",markersize=6)
-    line2,=axs.plot(dropdims(mean(div_uB_t,dims=2),dims=(2))*1e-3, hab, label="", color="red", marker=".",markersize=6)
+    line1,=axs.plot(dropdims(mean(∇κ∇B_t[:,:,1],dims=2),dims=(2))*1e-3, hab, label="", color=[71,147,175]./255, marker=".",markersize=6)
+    line2,=axs.plot(dropdims(mean(div_uB_t[:,:,1],dims=2),dims=(2))*1e-3, hab, label="", color="red", marker=".",markersize=6)
     axs.set_ylabel("HAB (m)")
     axs.set_xlabel("mSv")
     axs.legend([line1, line2], 
@@ -91,7 +90,7 @@
     minorticks_on()
     tight_layout()
     gcf()   
-    savefig(string("output/",slope,"/water_mass_transformation_terms_120_together_added_diffusivity",".png"),dpi=250)
+    savefig(string("output/",simname,"/water_mass_transformation_terms",".png"),dpi=250)
 
     
 ## 
@@ -115,18 +114,18 @@
     axs[2].set_xlabel("B")
     axs[2].set_title(L"\frac{\partial}{\partial B}\iiint_V ∇⋅(\mathbf{u}B) ~dV")
     gcf()
-    savefig(string("output/",slope,"/water_mass_transformation_terms_pcolor",".png"),dpi=100)
+    savefig(string("output/",simname,"/water_mass_transformation_terms_pcolor",".png"),dpi=100)
     
     
     
 ## plot the heatmap of ∇κ∇B 
     using NCDatasets
-    slope = "tilt"
+    simname = "tilt"
     timerange = "100-120"
     θ=3.6e-3
-    filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
+    filename_3D = string("output/", simname, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
     ds_3D = Dataset(filename_3D,"r")
-    filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
     ds_field = Dataset(filename_field,"r")
    
     # grids
