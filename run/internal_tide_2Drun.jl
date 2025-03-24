@@ -25,14 +25,13 @@ const Ny = 1
 const Nz = 250        
 const Δtᵒ = 30minutes # interval for saving output
 const ω₀ = 1.4e-4     # tidal freq.
-const tᶠ = 300*2π/ω₀    # endtime of the simulation
+const tᶠ = 5*2π/ω₀    # endtime of the simulation
 const θ = 0#3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
 architecture=GPU()
 closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
-solver = "FFT"
 ## Simulation parameters
  H = 2.25kilometers # vertical extent
  Lx = 15kilometers # along-canyon extent
@@ -79,16 +78,6 @@ ĝ = (sin(θ),0 ,cos(θ)) # the vertical (oriented opposite gravity) unit vecto
 z_interp_data = architecture == CPU() ? z_interp : CuArray(z_interp)
 grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp_data))
 
-# Gaussian topography of similar width and height as z_interp
-h = maximum(z_interp)  # Height of the bump
-σ = Lx * 1/6  # half width of the bump (adjust as needed)
-x₀ = Lx / 2  # Center of the bump
-
-topog(x, z) = h * exp(-(x - x₀)^2 / (2 * σ^2)) + 2minimum(grid.Δzᵃᵃᶜ)
-topog_mask(x, z) = z < topog(x, z)
-
-# Create immersed boundary grid
-grid = ImmersedBoundaryGrid(grid, GridFittedBoundary(topog_mask))
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
  z₀ = 0.1 # m (roughness length)
  κ_von = 0.4  # von Karman constant
@@ -131,21 +120,6 @@ B_bcs = FieldBoundaryConditions(
 # Tidal forcing
 @inline u_tidal_forcing(x, z, t) = U₀*ω₀*sin(ω₀*t)
 
-# IC such that flow is in phase with predicted linear response, but otherwise quiescent
-Uᵣ = U₀ * ω₀^2/(ω₀^2 - f₀^2 - (N*sin(θ))^2) # quasi-resonant linear barotropic response
-uᵢ(x, z) = -Uᵣ
-vᵢ(x, z) = 0.
-bᵢ(x, z) = 1e-9*rand() # seed infinitesimal random perturbations in the buoyancy field
-
-# Parameters from particle distribution
-x_center = Lx * 0.25  # x_center_ratio = 0.25
-z_above_bottom = 100  # z_above_bottom
-z_center = z_above_bottom + z_interp[round(Int, 0.25 * Nx), 1]  # Assuming 2D for simplicity
-σ_x = Lx * 0.02  # σ_x_ratio = 0.02
-σ_z = 100.0  # Given σ_z
-C = 1.0  # Amplitude of the tracer concentration at the center
-cᵢ(x, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (z - z_center)^2 / (2σ_z^2)))
-
 s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
 
 # Rotate gravity vector
@@ -155,34 +129,29 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 # Linear background stratification (in ẑ)
 @inline ẑ(x, z, ĝ) = x*ĝ[1] .+ z*ĝ[3]
 @inline constant_stratification(x, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
-B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
 
-# Create LagrangianParticles object
-# For 2D case
-include("../functions/gaussian_particle_generator.jl")
-x₀, y₀, z₀ = gaussian_particle_generator(
-            5000, Lx, Nx, z_interp, architecture, H;
-            x_center_ratio=0.25, z_above_bottom=100, σ_x_ratio=0.02, σ_z=100
-)          # σ_x_ratio=0.02 makes sure that the spread in x is the same as the vertical spread
+# IC such that flow is in phase with predicted linear response, but otherwise quiescent
+Uᵣ = U₀ * ω₀^2/(ω₀^2 - f₀^2 - (N*sin(θ))^2) # quasi-resonant linear barotropic response
+uᵢ(x, z) = -Uᵣ
+vᵢ(x, z) = 0
+Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2)) + 1e-9*rand()   # background + perturbation (only works in flat)
 
-particles = LagrangianParticles(x=x₀, y=y₀, z=z₀)
-
-
+tol = 1e-9
     model = NonhydrostaticModel(
         grid = grid,
-        particles=particles,
+        pressure_solver = ConjugateGradientPoissonSolver(
+                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
         coriolis = coriolis,
         boundary_conditions=(u=u_bcs, v=v_bcs,  b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
         closure = closure,
-        tracers = (:b, :c),
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
-        background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
     )
-set!(model, b=bᵢ, u=uᵢ, v=vᵢ, c = cᵢ)
+set!(model, b=Bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
 Δt = (1/N)*0.03
@@ -205,15 +174,14 @@ û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
 Bz = @at (Center, Center, Center) ∂z(B)
 # Oceanostics
-wb = BuoyancyProductionTerm(model)
-ε = KineticEnergyDissipationRate(model)
-χ = TracerVarianceDissipationRate(model, :b)
-Bbudget=get_budget_outputs_tuple(model;)
+# wb = BuoyancyProductionTerm(model)
+# ε = KineticEnergyDissipationRate(model)
+# χ = TracerVarianceDissipationRate(model, :b)
+# Bbudget=get_budget_outputs_tuple(model;)
 
 checkpoint_interval = tᶠ
-twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, c=c, Bz=Bz, wb=wb, ε=ε, χ=χ))
-
-# set the ouput mode:
+# twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, c=c, Bz=Bz, wb=wb, ε=ε, χ=χ))
+twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
 
 fname = string("internal_tide_theta=",string(θ),"_realtopo2D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",tᶠ/(2*pi/1.4e-4))
 dir = string("output/",simname, "/")
@@ -225,7 +193,7 @@ dir = string("output/",simname, "/")
                                             prefix="checkpoint",
                                             cleanup=true)
     ## output particles
-    simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, filename=string(dir, fname, "_particles.nc"), schedule=TimeInterval(Δtᵒ))
+    # simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, filename=string(dir, fname, "_particles.nc"), schedule=TimeInterval(Δtᵒ))
     ## output field 
     simulation.output_writers[:nc_snapshot] = NetCDFOutputWriter(model, twoD_diags,
                                         verbose=true,
