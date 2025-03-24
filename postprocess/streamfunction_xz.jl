@@ -3,11 +3,11 @@ using NaNStatistics
 # slope = "tilt"
 # timerange = "80-120"
 # θ=3.6e-3
-slope = "notilt"
-timerange = "40-80"
-θ=0
+simname = "flat"
+tᶠ=450
+θ = simname == "tilt" ? 0.0036 : 0
 # load data
-filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg.nc")
 ds_field = Dataset(filename_field,"r")
 zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
 Nz=length(zC[:]);       dz = abs.(zF[1:end-1]-zF[2:end])
@@ -19,9 +19,12 @@ yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
 Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
 Ly = yF[end]+dy
 t = ds_field["time"][:];
-n=29 #30
-    uhat = nansum(nanmean(ds_field["uhat"][:,:,:,n:n+10],dim=(4))*dy,dim=2);    # true u (integral)
-    what = nansum(nanmean(ds_field["what"][:,:,:,n:n+10],dim=(4))*dy,dim=2);    # true w (integral)
+if tᶠ == 450
+    n = simname=="tilt" ? 1 : 3
+end
+
+    uhat = nansum(nanmean(ds_field["uhat"][:,:,:,n:n+1],dim=(4))*dy,dim=2);    # true u (integral)
+    what = nansum(nanmean(ds_field["what"][:,:,:,n:n+1],dim=(4))*dy,dim=2);    # true w (integral)
     what_cen = (what[:,1:end-1] .+ what[:,2:end])./2 # what at center
     # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
     wtemp = (vcat(what_cen[end:end,:],what_cen[1:end-1,:]) .+ what_cen[:,:])./2
@@ -66,40 +69,40 @@ z_interp_y = nanmean(z_interp,dim=2)
 # This creates a new NetCDF file 
 # The mode "c" stands for creating a new file
 
-ds_create = Dataset(string("output/",slope,"/streamfunction_",timerange,".nc"),"c")
+# ds_create = Dataset(string("output/",slope,"/streamfunction_",timerange,".nc"),"c")
 # Define the dimension
-defDim(ds_create,"x",Nx)
-defDim(ds_create,"z",Nz)
-# Define a global attribute
-ds_create.attrib["title"] = "Transport Streamfunction"
-# Define the variables
-v1 = defVar(ds_create,"ψ",Float64,("x","z"))
-v1[:,:] = ψ
-v2 = defVar(ds_create,"U",Float64,("x","z"))
-v2[:,:] = U
-v3 = defVar(ds_create,"W",Float64,("x","z"))
-v3[:,:] = W
-v4 = defVar(ds_create,"xC",Float64,("x",))
-v4[:] = xC[:]
-v5 = defVar(ds_create,"zC",Float64,("z",))
-v5[:] = zC[:]
+# defDim(ds_create,"x",Nx)
+# defDim(ds_create,"z",Nz)
+# # Define a global attribute
+# ds_create.attrib["title"] = "Transport Streamfunction"
+# # Define the variables
+# v1 = defVar(ds_create,"ψ",Float64,("x","z"))
+# v1[:,:] = ψ
+# v2 = defVar(ds_create,"U",Float64,("x","z"))
+# v2[:,:] = U
+# v3 = defVar(ds_create,"W",Float64,("x","z"))
+# v3[:,:] = W
+# v4 = defVar(ds_create,"xC",Float64,("x",))
+# v4[:] = xC[:]
+# v5 = defVar(ds_create,"zC",Float64,("z",))
+# v5[:] = zC[:]
 
-# write attributes
-v1.attrib["units"] = "m³/s"
-v2.attrib["units"] = "m²/s"
-v3.attrib["units"] = "m²/s"
-v4.attrib["units"] = "m"
-v5.attrib["units"] = "m"
-close(ds_create)
+# # write attributes
+# v1.attrib["units"] = "m³/s"
+# v2.attrib["units"] = "m²/s"
+# v3.attrib["units"] = "m²/s"
+# v4.attrib["units"] = "m"
+# v5.attrib["units"] = "m"
+# close(ds_create)
 
 ## plot
-    filename = "output/$slope/streamfunction_$timerange.nc"
-    ds = NCDataset(filename)
-    ψ = ds["ψ"][:,:]
-    U = ds["U"][:,:]
-    W = ds["W"][:,:]
-    xC = ds["xC"][:]
-    zC = ds["zC"][:]
+    # filename = "output/$slope/streamfunction_$timerange.nc"
+    # ds = NCDataset(filename)
+    # ψ = ds["ψ"][:,:]
+    # U = ds["U"][:,:]
+    # W = ds["W"][:,:]
+    # xC = ds["xC"][:]
+    # zC = ds["zC"][:]
     using PyPlot
 
     close("all")
@@ -115,14 +118,14 @@ close(ds_create)
                 angles="xy", scale_units="xy")
                 # , scale=1, width=0.001,
                 # headwidth=5, headlength=.1, headaxislength=20,linewidth=1.0)
-    time_start = round(Int, t[n]/(2π/1.4e-4))
-    time_end = round(Int, t[n+10]/(2π/1.4e-4))
+    time_start = round(Int, t[n]/(2π/1.4e-4)-10)
+    time_end = round(Int, t[n+1]/(2π/1.4e-4))
     title("$(time_start)-$(time_end) tidal periods")   
     ax.set_facecolor("gray")
     xlabel("x (m)") 
     ylabel("z (m)")
     PyPlot.plot(xC[:],z_interp_y,linewidth=2.5,color="brown")
-    savefig("output/$slope/streamfunction_yavg_$slope.png",dpi=200)
+    savefig("output/$simname/streamfunction_yavg_$simname.png",dpi=200)
 
 
 

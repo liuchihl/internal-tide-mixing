@@ -21,7 +21,7 @@ function deriv(z, y)
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/bins.jl")
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/mmderiv.jl")
 
-tᶠ = 10
+tᶠ = 450
 θ = 3.6e-3
 if θ==3.6e-3
     simname = "tilt"

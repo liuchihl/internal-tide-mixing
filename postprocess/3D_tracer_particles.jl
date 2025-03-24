@@ -12,11 +12,11 @@ using MAT
 using Interpolations
 using ColorSchemes
 # define a function that loads particle data
-function load_particle_data(simname)
+function load_particle_data(; simname, z_center_particle=1000)
     θ = simname == "tilt" ? 0.0036 : 0
     tᶠ = "460"
     
-    filename_particles = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_particles.nc")
+    filename_particles = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_particles_z=",z_center_particle,".nc")
     ds_particles = Dataset(filename_particles,"r")
     
     return Dict(
@@ -67,7 +67,7 @@ function calculate_background_buoyancy(θ)
 end
 # Load data for both cases
 simname = "tilt"    # this is the only thing that needs to be changed
-data = load_particle_data(simname)
+data = load_particle_data(; simname, z_center_particle=1000)
 θ = simname == "tilt" ? 0.0036 : 0
 tᶠ = "460"
 Lx = 15kilometers  # Domain length in x
@@ -276,7 +276,7 @@ record(fig, string("output/", simname, "/3D_particle_trajectories_animated_exten
             color = z_colors,
             markersize = 5,
             colormap = :YlOrRd_9,
-            colorrange = (minimum(z_colors), maximum(z_colors))
+            colorrange = (0.001, 0.0013)
           )
     
     # Add colorbars only once
@@ -284,7 +284,7 @@ record(fig, string("output/", simname, "/3D_particle_trajectories_animated_exten
         Colorbar(cbar_layout[1, 1], label="Terrain Elevation", colormap=custom_cmap, 
                  limits=(minimum(Z_cart_interp_ext), maximum(Z_cart_interp_ext)))
         Colorbar(cbar_layout[2, 1], label="Particle Buoyancy", colormap=:YlOrRd_9, 
-                 limits=(minimum(B), maximum(B)))
+                 limits=(0.001, 0.0013))
     end
     push!(particle_objects, particles)
     
@@ -303,7 +303,8 @@ record(fig, string("output/", simname, "/3D_particle_trajectories_animated_exten
                     z_cart[i, start_idx:current_time_step],
                     color = particle_color,  # Use the particle's current buoyancy as color
                     colormap = :YlOrRd_9,    # Same colormap as the particles
-                    colorrange = (minimum(z_colors), maximum(z_colors)),
+                    # color = :gray,
+                    colorrange = (0.001, 0.0013),
                     linewidth = 1.5,
                     alpha = 0.6)
                 push!(particle_objects, trail)
@@ -320,235 +321,240 @@ record(fig, string("output/", simname, "/3D_particle_trajectories_animated_exten
 end
 
 
+## tracer weighted buoyancy: comparison with the particle buoyancy
+
+
+
+
 
 ################# compare buoyancy on each particles
 # Function to load particle data for a given simulation
-# using Oceananigans
-# using Oceananigans.Units
-# using CairoMakie
-# using NCDatasets
-# using Statistics
-# using NaNStatistics
+using Oceananigans
+using Oceananigans.Units
+using CairoMakie
+using NCDatasets
+using Statistics
+using NaNStatistics
 
 
-# simname = "tilt" 
-# θ = θ = simname == "tilt" ? 0.0036 : 0
-# tᶠ = "460"
+simname = "tilt" 
+θ = θ = simname == "tilt" ? 0.0036 : 0
+tᶠ = "460"
 
-# # Function to calculate background buoyancy field for a given slope
-# function calculate_background_buoyancy(θ)
-#     θ = θ
-#     ĝ = (sin(θ), 0, cos(θ)) # the vertical unit vector in rotated coordinates
-#     N = 1e-3
-#     @inline ẑ(x, z, ĝ) = x*ĝ[1] + z*ĝ[3]
-#     @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
+# Function to calculate background buoyancy field for a given slope
+function calculate_background_buoyancy(θ)
+    θ = θ
+    ĝ = (sin(θ), 0, cos(θ)) # the vertical unit vector in rotated coordinates
+    N = 1e-3
+    @inline ẑ(x, z, ĝ) = x*ĝ[1] + z*ĝ[3]
+    @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
 
-#     # Create a background field
-#     B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
+    # Create a background field
+    B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N² = N^2))
 
-#     # Setup grid
-#     H = 2.25kilometers # vertical extent
-#     Lx = 15kilometers # along-canyon extent
-#     Ly = 30kilometers # cross-canyon extent
-#     Nx = 500
-#     Ny = 1000
-#     Nz = 250
+    # Setup grid
+    H = 2.25kilometers # vertical extent
+    Lx = 15kilometers # along-canyon extent
+    Ly = 30kilometers # cross-canyon extent
+    Nx = 500
+    Ny = 1000
+    Nz = 250
     
-#     # Bottom-intensified stretching for vertical grid
-#     z_faces(k) = - H * ((1 + ((Nz + 1 - k) / Nz - 1) / 1.2) * 
-#                         (1 - exp(-15 * (Nz + 1 - k) / Nz)) / (1 - exp(-15)) - 1)
+    # Bottom-intensified stretching for vertical grid
+    z_faces(k) = - H * ((1 + ((Nz + 1 - k) / Nz - 1) / 1.2) * 
+                        (1 - exp(-15 * (Nz + 1 - k) / Nz)) / (1 - exp(-15)) - 1)
 
-#     grid = RectilinearGrid(size=(Nx, Ny, Nz), 
-#            x = (0, Lx),
-#            y = (0, Ly), 
-#            z = z_faces,
-#            halo = (4, 4, 4),
-#            topology = (Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded))
+    grid = RectilinearGrid(size=(Nx, Ny, Nz), 
+           x = (0, Lx),
+           y = (0, Ly), 
+           z = z_faces,
+           halo = (4, 4, 4),
+           topology = (Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded))
            
-#     model = NonhydrostaticModel(
-#         grid = grid,
-#         background_fields = (; b=B̄_field),
-#         tracers = :b
-#     )
+    model = NonhydrostaticModel(
+        grid = grid,
+        background_fields = (; b=B̄_field),
+        tracers = :b
+    )
     
-#     return interior(compute!(Field(model.background_fields.tracers.b)))[:,1,:]
-# end
+    return interior(compute!(Field(model.background_fields.tracers.b)))[:,1,:]
+end
 
-# # define a function that loads particle data
-# function load_particle_data(simname)
-#     θ = simname == "tilt" ? 0.0036 : 0
-#     tᶠ = "460"
+# define a function that loads particle data
+function load_particle_data(simname)
+    θ = simname == "tilt" ? 0.0036 : 0
+    tᶠ = "460"
     
-#     filename_particles = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_particles.nc")
-#     ds_particles = Dataset(filename_particles,"r")
+    filename_particles = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_particles.nc")
+    ds_particles = Dataset(filename_particles,"r")
     
-#     return Dict(
-#         "x" => ds_particles["x"][:,:],
-#         "y" => ds_particles["y"][:,:],
-#         "z" => ds_particles["z"][:,:],
-#         "time" => ds_particles["time"][:],
-#         "b" => ds_particles["b"][:,:]
-#     )
-# end
+    return Dict(
+        "x" => ds_particles["x"][:,:],
+        "y" => ds_particles["y"][:,:],
+        "z" => ds_particles["z"][:,:],
+        "time" => ds_particles["time"][:],
+        "b" => ds_particles["b"][:,:]
+    )
+end
 
-# # load background buoyancy fields for both cases
-# B̄_tilt = calculate_background_buoyancy(0.0036)
-# B̄_flat = calculate_background_buoyancy(0.0)
+# load background buoyancy fields for both cases
+B̄_tilt = calculate_background_buoyancy(0.0036)
+B̄_flat = calculate_background_buoyancy(0.0)
 
-# # Load data for both cases
-# tilt_data = load_particle_data("tilt")
-# flat_data = load_particle_data("flat")
+# Load data for both cases
+tilt_data = load_particle_data("tilt")
+flat_data = load_particle_data("flat")
 
 
-# filename = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_B-c.nc")
-# ds = Dataset(filename,"r")
-# zC = ds["zC"][:]; Nz=length(zC);
-# xC = ds["xC"][:]; Nx=length(xC)
-# # find the index of each particles in the grid and compute total buoyancy
-# # Constants from your grid setup
-# Lx = 15kilometers  # Domain length in x
-# Ly = 30kilometers  # Domain length in y
-# N = 1e-3           # Buoyancy frequency
-# Lz = 2.25kilometers  # Vertical extent (assuming Lz = H from your grid)
-# θ = 0.0036
-# ΔB = N^2 * Lx*sin(θ)      # Buoyancy increment per domain crossing
+filename = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_B-c.nc")
+ds = Dataset(filename,"r")
+zC = ds["zC"][:]; Nz=length(zC);
+xC = ds["xC"][:]; Nx=length(xC)
+# find the index of each particles in the grid and compute total buoyancy
+# Constants from your grid setup
+Lx = 15kilometers  # Domain length in x
+Ly = 30kilometers  # Domain length in y
+N = 1e-3           # Buoyancy frequency
+Lz = 2.25kilometers  # Vertical extent (assuming Lz = H from your grid)
+θ = 0.0036
+ΔB = N^2 * Lx*sin(θ)      # Buoyancy increment per domain crossing
 
-# # Initialize arrays
-# B_tilt = zeros(size(tilt_data["x"]))  # Total buoyancy
-# unwrapped_x = zeros(size(tilt_data["x"]))  # Unwrapped x-position
-# unwrapped_y = zeros(size(tilt_data["y"]))  # Unwrapped y-position
-# unwrapped_z = zeros(size(tilt_data["z"]))  # Unwrapped y-position
-# n_crossings = zeros(Int, size(tilt_data["x"]))  # Number of domain crossings
+# Initialize arrays
+B_tilt = zeros(size(tilt_data["x"]))  # Total buoyancy
+unwrapped_x = zeros(size(tilt_data["x"]))  # Unwrapped x-position
+unwrapped_y = zeros(size(tilt_data["y"]))  # Unwrapped y-position
+unwrapped_z = zeros(size(tilt_data["z"]))  # Unwrapped y-position
+n_crossings = zeros(Int, size(tilt_data["x"]))  # Number of domain crossings
 
-# # Set initial unwrapped positions (at t=1)
-# unwrapped_x[:, 1] = tilt_data["x"][:, 1]
-# unwrapped_y[:, 1] = tilt_data["y"][:, 1]
-# unwrapped_z[:, 1] = tilt_data["z"][:, 1]
-# # Compute unwrapped positions and buoyancy over time
-# for i in 1:size(tilt_data["x"], 1)  # Particle ID
-#     for j in 1:size(tilt_data["x"], 2)-1  # Time steps
-#         # Calculate displacement between consecutive time steps
-#         dx = tilt_data["x"][i, j+1] - tilt_data["x"][i, j]
-#         dy = tilt_data["y"][i, j+1] - tilt_data["y"][i, j]
-#         dz = tilt_data["z"][i, j+1] - tilt_data["z"][i, j]
+# Set initial unwrapped positions (at t=1)
+unwrapped_x[:, 1] = tilt_data["x"][:, 1]
+unwrapped_y[:, 1] = tilt_data["y"][:, 1]
+unwrapped_z[:, 1] = tilt_data["z"][:, 1]
+# Compute unwrapped positions and buoyancy over time
+for i in 1:size(tilt_data["x"], 1)  # Particle ID
+    for j in 1:size(tilt_data["x"], 2)-1  # Time steps
+        # Calculate displacement between consecutive time steps
+        dx = tilt_data["x"][i, j+1] - tilt_data["x"][i, j]
+        dy = tilt_data["y"][i, j+1] - tilt_data["y"][i, j]
+        dz = tilt_data["z"][i, j+1] - tilt_data["z"][i, j]
         
-#         # Handle periodic crossing in x direction
-#         if dx > 0.5 * Lx  # Moved left-to-right across boundary
-#             dx -= Lx
-#             dz -= Lx*sin(θ)
-#             n_crossings[i, j+1] = n_crossings[i, j] - 1
-#         elseif dx < -0.5 * Lx  # Moved right-to-left across boundary
-#             dx += Lx
-#             dz += Lx*sin(θ)
-#             n_crossings[i, j+1] = n_crossings[i, j] + 1
-#         else
-#             n_crossings[i, j+1] = n_crossings[i, j]  # No crossing
-#         end
+        # Handle periodic crossing in x direction
+        if dx > 0.5 * Lx  # Moved left-to-right across boundary
+            dx -= Lx
+            dz -= Lx*sin(θ)
+            n_crossings[i, j+1] = n_crossings[i, j] - 1
+        elseif dx < -0.5 * Lx  # Moved right-to-left across boundary
+            dx += Lx
+            dz += Lx*sin(θ)
+            n_crossings[i, j+1] = n_crossings[i, j] + 1
+        else
+            n_crossings[i, j+1] = n_crossings[i, j]  # No crossing
+        end
         
-#         # Handle periodic crossing in y direction
-#         if dy > 0.5 * Ly  # Moved across boundary in y-direction
-#             dy -= Ly
-#         elseif dy < -0.5 * Ly
-#             dy += Ly
-#         end
+        # Handle periodic crossing in y direction
+        if dy > 0.5 * Ly  # Moved across boundary in y-direction
+            dy -= Ly
+        elseif dy < -0.5 * Ly
+            dy += Ly
+        end
         
-#         # Update unwrapped positions
-#         unwrapped_x[i, j+1] = unwrapped_x[i, j] + dx
-#         unwrapped_y[i, j+1] = unwrapped_y[i, j] + dy
-#         unwrapped_z[i, j+1] = unwrapped_z[i, j] + dz
+        # Update unwrapped positions
+        unwrapped_x[i, j+1] = unwrapped_x[i, j] + dx
+        unwrapped_y[i, j+1] = unwrapped_y[i, j] + dy
+        unwrapped_z[i, j+1] = unwrapped_z[i, j] + dz
         
-#         # Grid indices for background buoyancy
-#         ind_tilt_x = argmin(abs.(xC[:] .- tilt_data["x"][i, j]))
-#         ind_tilt_z = argmin(abs.(zC[:] .- tilt_data["z"][i, j]))
+        # Grid indices for background buoyancy
+        ind_tilt_x = argmin(abs.(xC[:] .- tilt_data["x"][i, j]))
+        ind_tilt_z = argmin(abs.(zC[:] .- tilt_data["z"][i, j]))
         
-#         # Compute total buoyancy: background + perturbation + domain crossing increment
-#         B_tilt[i, j] = (B̄_tilt[ind_tilt_x, ind_tilt_z] + 
-#                         tilt_data["b"][i, j] + 
-#                         n_crossings[i, j] * ΔB)
-#     end
+        # Compute total buoyancy: background + perturbation + domain crossing increment
+        B_tilt[i, j] = (B̄_tilt[ind_tilt_x, ind_tilt_z] + 
+                        tilt_data["b"][i, j] + 
+                        n_crossings[i, j] * ΔB)
+    end
     
-#     # Handle the last time step
-#     ind_tilt_x = argmin(abs.(xC[:] .- tilt_data["x"][i, end]))
-#     ind_tilt_z = argmin(abs.(zC[:] .- tilt_data["z"][i, end]))
-#     B_tilt[i, end] = (B̄_tilt[ind_tilt_x, ind_tilt_z] + 
-#                       tilt_data["b"][i, end] + 
-#                       n_crossings[i, end] * ΔB)
-# end
+    # Handle the last time step
+    ind_tilt_x = argmin(abs.(xC[:] .- tilt_data["x"][i, end]))
+    ind_tilt_z = argmin(abs.(zC[:] .- tilt_data["z"][i, end]))
+    B_tilt[i, end] = (B̄_tilt[ind_tilt_x, ind_tilt_z] + 
+                      tilt_data["b"][i, end] + 
+                      n_crossings[i, end] * ΔB)
+end
 
-# # For flat case (no slope, so no ΔB increment needed)
-# B_flat = zeros(size(flat_data["x"]))
-# for i in 1:size(flat_data["x"], 1)
-#     for j in 1:size(flat_data["x"], 2)
-#         ind_flat_x = argmin(abs.(xC[:] .- flat_data["x"][i, j]))
-#         ind_flat_z = argmin(abs.(zC[:] .- flat_data["z"][i, j]))
-#         B_flat[i, j] = B̄_flat[ind_flat_x, ind_flat_z] + flat_data["b"][i, j]
-#     end
-# end
-
-
+# For flat case (no slope, so no ΔB increment needed)
+B_flat = zeros(size(flat_data["x"]))
+for i in 1:size(flat_data["x"], 1)
+    for j in 1:size(flat_data["x"], 2)
+        ind_flat_x = argmin(abs.(xC[:] .- flat_data["x"][i, j]))
+        ind_flat_z = argmin(abs.(zC[:] .- flat_data["z"][i, j]))
+        B_flat[i, j] = B̄_flat[ind_flat_x, ind_flat_z] + flat_data["b"][i, j]
+    end
+end
 
 
 
-# # Calculate mean total buoyancy for each case
-# tilt_mean_total_B = nanmean(B_tilt, dims=1)[1, :]
-# flat_mean_total_B = nanmean(B_flat, dims=1)[1, :]
-# # Plot time in hours
-# tilt_time = tilt_data["time"] / 3600
-# flat_time = flat_data["time"] / 3600
-# # Create figure with two subplots to compare total buoyancy evolution
-# # empty!(fig)
-# fig = Figure(resolution=(1200, 600), fontsize=20)
-# using Printf
 
-# ax1 = Axis(fig[1, 1], 
-#           xlabel="Time (hours)", 
-#           ylabel="Particle-averaged total buoyancy", 
-#           title="Tilt Case (θ=0.0036)", 
-#           limits = ((tilt_time[1], tilt_time[end]), (0.00105,0.0012)),
-#           xminorticksvisible = true,
-#           yminorticksvisible = true,
-#           xminorticks = IntervalsBetween(5),
-#           yminorticks = IntervalsBetween(4))
 
-# ax2 = Axis(fig[1, 2], 
-#           xlabel="Time (hours)", 
-#           title="Flat Case (θ=0)", 
-#           limits = ((tilt_time[1],tilt_time[end]),(0.0015,0.00165)),
-#           xminorticksvisible = true,
-#           yminorticksvisible = true,
-#           xminorticks = IntervalsBetween(5),
-#           yminorticks = IntervalsBetween(4))
+# Calculate mean total buoyancy for each case
+tilt_mean_total_B = nanmean(B_tilt, dims=1)[1, :]
+flat_mean_total_B = nanmean(B_flat, dims=1)[1, :]
+# Plot time in hours
+tilt_time = tilt_data["time"] / 3600
+flat_time = flat_data["time"] / 3600
+# Create figure with two subplots to compare total buoyancy evolution
+# empty!(fig)
+fig = Figure(resolution=(1200, 600), fontsize=20)
+using Printf
 
-# # Set consistent scientific notation format for y-axis ticks on both plots
-# for ax in [ax1, ax2]
-#     ax.ytickformat = x -> [@sprintf("%.5f", v) for v in x]  # Increase precision to 5 decimal places
-# end
+ax1 = Axis(fig[1, 1], 
+          xlabel="Time (hours)", 
+          ylabel="Particle-averaged total buoyancy", 
+          title="Tilt Case (θ=0.0036)", 
+          limits = ((tilt_time[1], tilt_time[end]), (0.00105,0.0012)),
+          xminorticksvisible = true,
+          yminorticksvisible = true,
+          xminorticks = IntervalsBetween(5),
+          yminorticks = IntervalsBetween(4))
 
-# # Calculate standard deviations for each case
-# tilt_std_B = nanstd(B_tilt, dims=1)[1, :]
-# flat_std_B = nanstd(B_flat, dims=1)[1, :]
+ax2 = Axis(fig[1, 2], 
+          xlabel="Time (hours)", 
+          title="Flat Case (θ=0)", 
+          limits = ((tilt_time[1],tilt_time[end]),(0.0015,0.00165)),
+          xminorticksvisible = true,
+          yminorticksvisible = true,
+          xminorticks = IntervalsBetween(5),
+          yminorticks = IntervalsBetween(4))
 
-# # Tilt case - first subplot
-# band!(ax1, tilt_time, tilt_mean_total_B .- tilt_std_B, tilt_mean_total_B .+ tilt_std_B, 
-#     color=(Makie.RGB(1,0,0), 0.3), label="Standard deviation")
-# lines!(ax1, tilt_time, tilt_mean_total_B, 
-#      linewidth=3, color=:red, label="Mean buoyancy")
+# Set consistent scientific notation format for y-axis ticks on both plots
+for ax in [ax1, ax2]
+    ax.ytickformat = x -> [@sprintf("%.5f", v) for v in x]  # Increase precision to 5 decimal places
+end
 
-# # Flat case - second subplot
-# band!(ax2, flat_time, flat_mean_total_B .- flat_std_B, flat_mean_total_B .+ flat_std_B, 
-#     color=(Makie.RGB(0,0,1), 0.3), label="Standard deviation")
-# lines!(ax2, flat_time, flat_mean_total_B, 
-#      linewidth=3, color=:blue, label="Mean buoyancy")
+# Calculate standard deviations for each case
+tilt_std_B = nanstd(B_tilt, dims=1)[1, :]
+flat_std_B = nanstd(B_flat, dims=1)[1, :]
 
-# # Add legend to both subplots
-# # axislegend(ax1, position=:lt)
-# # axislegend(ax2, position=:lt)
+# Tilt case - first subplot
+band!(ax1, tilt_time, tilt_mean_total_B .- tilt_std_B, tilt_mean_total_B .+ tilt_std_B, 
+    color=(Makie.RGB(1,0,0), 0.3), label="Standard deviation")
+lines!(ax1, tilt_time, tilt_mean_total_B, 
+     linewidth=3, color=:red, label="Mean buoyancy")
 
-# # Link y-axes for better comparison
-# # linkaxes!(ax1, ax2)
+# Flat case - second subplot
+band!(ax2, flat_time, flat_mean_total_B .- flat_std_B, flat_mean_total_B .+ flat_std_B, 
+    color=(Makie.RGB(0,0,1), 0.3), label="Standard deviation")
+lines!(ax2, flat_time, flat_mean_total_B, 
+     linewidth=3, color=:blue, label="Mean buoyancy")
 
-# # Save the figure
-# save(string("output/comparison_mean_particle_total_buoyancy_subplots.png"), fig)
+# Add legend to both subplots
+# axislegend(ax1, position=:lt)
+# axislegend(ax2, position=:lt)
+
+# Link y-axes for better comparison
+# linkaxes!(ax1, ax2)
+
+# Save the figure
+save(string("output/comparison_mean_particle_total_buoyancy_subplots.png"), fig)
 
 
 
