@@ -3,7 +3,7 @@ using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
-using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner
 using LinearAlgebra
 using Adapt
 using MAT
@@ -147,6 +147,7 @@ tol = 1e-9
         coriolis = coriolis,
         boundary_conditions=(u=u_bcs, v=v_bcs,  b = B_bcs,),
         forcing = (u = u_tidal_forcing,),
+        tracers = :b,
         closure = closure,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
