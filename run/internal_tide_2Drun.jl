@@ -30,7 +30,7 @@ const θ = 0#3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
-architecture=GPU()
+architecture=CPU()
 closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
 ## Simulation parameters
  H = 2.25kilometers # vertical extent
@@ -134,7 +134,7 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 Uᵣ = U₀ * ω₀^2/(ω₀^2 - f₀^2 - (N*sin(θ))^2) # quasi-resonant linear barotropic response
 uᵢ(x, z) = -Uᵣ
 vᵢ(x, z) = 0
-Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2)) + 1e-9*rand()   # background + perturbation (only works in flat)
+Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2, ĝ=ĝ)) + 1e-9*rand()   # background + perturbation (only works in flat)
 
 tol = 1e-9
     model = NonhydrostaticModel(
@@ -167,7 +167,6 @@ simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
 
 # Diagnostics
 b = model.tracers.b
-c = model.tracers.c
 B̄ = model.background_fields.tracers.b
 B = B̄ + b # total buoyancy field
 u, v, w = model.velocities
@@ -182,9 +181,9 @@ Bz = @at (Center, Center, Center) ∂z(B)
 
 checkpoint_interval = tᶠ
 # twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, c=c, Bz=Bz, wb=wb, ε=ε, χ=χ))
-twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, Bz=Bz))
+twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, B=B, b=b, Bz=Bz))
 
-fname = string("internal_tide_theta=",string(θ),"_realtopo2D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",tᶠ/(2*pi/1.4e-4))
+fname = string("internal_tide_theta=",string(θ),"_realtopo2D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",round(tᶠ/(2*pi/1.4e-4)))
 dir = string("output/",simname, "/")
     ## checkpoint  
     simulation.output_writers[:checkpointer] = Checkpointer(
