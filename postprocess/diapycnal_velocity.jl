@@ -18,7 +18,7 @@ else
 end
 
 base_folder = "/scratch/bcpi/cliu28/internal-tide-mixing/"
-filename_field = string(base_folder, "output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget-wb.nc")
+filename_field = string(base_folder, "output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_Bbudget.nc")
 ds_field = Dataset(filename_field,"r")
 filename_field_B = string(base_folder, "output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_B-c.nc")
 ds_B = Dataset(filename_field_B,"r")
@@ -33,84 +33,137 @@ Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
 yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
 Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
 
-∇κ∇B = dropdims(mean(ds_field["∇κ∇B"][:,:,:,:],dims=4),dims=4)
+
 b = ds_b["b"][:,:,:,1]
-∇κ∇B[b .== 0] .= NaN
 B_time = ds_B["time"][:]
 Nt = length(B_time)
 
 Bx = zeros(Nx,Ny,Nz);
 By = zeros(Nx,Ny,Nz);
 Bz = zeros(Nx,Ny,Nz);
-∇B_mag = zeros(Nx,Ny,Nz);
+ẽ = zeros(Nx, Ny, Nz)
 
 for tt in 1:Nt
+    ∇κ∇B = ds_field["∇κ∇B"][:,:,:,tt]
+    ∇κ∇B[b .== 0] .= NaN
     B = ds_B["B"][:,:,:,tt]
+    
+    # Initialize temporary arrays for derivatives
+    Bx = zeros(size(B))
+    By = zeros(size(B))
+    Bz = zeros(size(B))
+    
     for j in 1:Ny
         Bx[:,j,:] = mmderiv(xC, B[:,j,:])
         Bz[:,j,:] = mmderiv(zC, B[:,j,:]')'
     end
+    
     for i in 1:Nx
         By[i,:,:] = mmderiv(yC, B[i,:,:])
     end
-    ∇B_mag += sqrt.(Bx.^2 + By.^2 + Bz.^2) 
+    
+    # Add to ∇B_mag using the global scope
+    ∇B_mag = sqrt.(Bx.^2 + By.^2 + Bz.^2) 
+    global ẽ += ∇κ∇B ./ ∇B_mag
     @info @sprintf("%.2f%%", 100*tt/Nt)
 end
-∇B_mag_avg = ∇B_mag ./ Nt
-# 10 TP average diapycnal velocity
-ẽ = ∇κ∇B ./ ∇B_mag[:,:,:]  
+ẽ_avg = ẽ ./ Nt
 # Save ẽ to a NetCDF file
 output_dir = string("output/", simname, "/")
 
 output_filename = string(output_dir, "diapycnal_velocity_tᶠ=", tᶠ, "_theta=", θ, ".nc")
-ds_out = NCDataset(output_filename, "c")
+ds_save = Dataset(output_filename, "c")
 
 # Define dimensions
-ds_out.dim["x"] = Nx
-ds_out.dim["y"] = Ny
-ds_out.dim["z"] = Nz
+defDim(ds_save, "xC", length(xC))
+defDim(ds_save, "yC", length(yC))
+defDim(ds_save, "zC", length(zC))
 
-# Define coordinates
-ds_out.defVar("xC", xC, ("x",))
-ds_out.defVar("yC", yC, ("y",))
-ds_out.defVar("zC", zC, ("z",))
+# Define variables
+v1 = defVar(ds_save, "ẽ_avg", Float64, ("xC", "yC", "zC"))
+v1.attrib["long_name"] = "10 tidal period average diapycnal velocity"
+v1.attrib["units"] = "m/s"
+v1[:,:,:] = ẽ_avg
 
-# Define and write the diapycnal velocity
-diapycnal_vel = ds_out.defVar("e_tilde", ẽ, ("x", "y", "z"), fillvalue=NaN)
-diapycnal_vel.attrib["long_name"] = "Diapycnal velocity"
-diapycnal_vel.attrib["units"] = "m/s"
+v2 = defVar(ds_save, "xC", Float64, ("xC",))
+v2[:] = xC[:]
 
-# Close the NetCDF file
-close(ds_out)
+v3 = defVar(ds_save, "yC", Float64, ("yC",))
+v3[:] = yC[:]
+
+v4 = defVar(ds_save, "zC", Float64, ("zC",))
+v4[:] = zC[:]
+
+close(ds_save)
 @info "Saved diapycnal velocity to $output_filename"
 
 
 
-# ẽ[b .== 0] .= NaN
-# ẽ_p = ẽ[ẽ .> 0]
-# ẽ_n = ẽ[ẽ .< 0]
+## read the data
+# Read the saved diapycnal velocity data
 
+# load data
+# Function to load data for a given case
+# function load_diapycnal_velocity(tᶠ, θ)
+#     if θ==3.6e-3
+#         simname = "tilt"
+#     else 
+#         simname = "flat"
+#     end
+#     output_filename = string("output/", simname, "/diapycnal_velocity_tᶠ=", tᶠ, "_theta=", θ, ".nc")
+#     ds_e = Dataset(output_filename, "r")
+#     ẽ = ds_e["ẽ"][:,:,:]
+#     xC = ds_e["xC"][:]
+#     yC = ds_e["yC"][:]
+#     zC = ds_e["zC"][:]
+#     close(ds_e)
+#     return ẽ, xC, yC, zC, simname
+# end
 
+# # Load flat case (θ = 0)
+# tᶠ = 460
+# ẽ_flat, xC_flat, yC_flat, zC_flat, simname_flat = load_diapycnal_velocity(tᶠ, 0)
 
-# # create a heatmap of the diapycnal velocity ẽ
-# fig = Figure(size=(800, 400))
-# ax = Axis(fig[1, 1], 
+# # Load tilt case (θ = 3.6e-3)
+# ẽ_tilt, xC_tilt, yC_tilt, zC_tilt, simname_tilt = load_diapycnal_velocity(tᶠ, 3.6e-3)
+
+# # Find common color range for proper comparison
+# max_val = max(
+#     nanmaximum(abs.(filter(isfinite, ẽ_flat))),
+#     nanmaximum(abs.(filter(isfinite, ẽ_tilt)))
+# ) * 0.01
+
+# # Create a figure with two subplots side by side
+# fig = Figure(size=(1200, 500))
+
+# # Flat case subplot
+# ax1 = Axis(fig[1, 1], 
 #     xlabel="x (m)", 
 #     ylabel="z (m)",
-#     title="Diapycnal velocity ẽ")
+#     title="Flat Case (θ = 0)")
 
-# # Plot the heatmap
-# hm = heatmap!(ax, xC, zC, ẽ,
+# # Tilt case subplot
+# ax2 = Axis(fig[1, 2], 
+#     xlabel="x (m)", 
+#     ylabel="z (m)",
+#     title="Tilt Case (θ = 3.6e-3)")
+
+# # Plot the heatmaps with the same colorrange
+# hm1 = heatmap!(ax1, xC_flat, zC_flat, ẽ_flat[:,length(yC_flat)÷2,:],
 #     colormap=:balance,
-#     colorrange=(-nanmaximum(abs.(filter(isfinite, ẽ)))*0.1, nanmaximum(abs.(filter(isfinite, ẽ)))*0.1),
-#     nan_color = :gray)
+#     colorrange=(-max_val, max_val),
+#     nan_color=:gray)
+
+# hm2 = heatmap!(ax2, xC_tilt, zC_tilt, ẽ_tilt[:,length(yC_tilt)÷2,:],
+#     colormap=:balance,
+#     colorrange=(-max_val, max_val),
+#     nan_color=:gray)
 
 # # Add colorbar
-# Colorbar(fig[1, 2], hm, label="ẽ (m/s)")
+# Colorbar(fig[1, 3], hm2, label="ẽ (m/s)")
 
 # # Save the figure
-# save(string("output/",simname,"/diapycnal_velocity_xz.png"), fig)
+# save("output/diapycnal_velocity_comparison.png", fig)
 
 # # Display the figure
 # fig
-
