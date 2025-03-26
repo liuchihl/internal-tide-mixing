@@ -105,13 +105,13 @@ v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(
 ∂B̄∂x = N^2*sin(θ)
 # In the following comments, ẑ=slope-normal unit vector and x̂=cross-slope unit vector
 B_bcs_immersed = ImmersedBoundaryCondition(
-        bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
+        bottom = GradientBoundaryCondition(0), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
           west = GradientBoundaryCondition(-∂B̄∂x), # ∇B⋅x̂ = 0 → ∂B∂x = 0 → ∂b∂x = -∂B̄∂x
           east = GradientBoundaryCondition(-∂B̄∂x)) # ∇B⋅x̂ = 0 → ∂B∂x = 0 → ∂b∂x = -∂B̄∂x
 
 B_bcs = FieldBoundaryConditions(
-          bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
-             top = GradientBoundaryCondition(0.), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
+          bottom = GradientBoundaryCondition(0), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
+             top = GradientBoundaryCondition(∂B̄∂z), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
         immersed = B_bcs_immersed);
 ## Notes:
 # (1) directions are defined relative to domain coordinates.
@@ -166,9 +166,9 @@ wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
 simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
 
 # Diagnostics
-b = model.tracers.b
-B̄ = model.background_fields.tracers.b
-B = B̄ + b # total buoyancy field
+B = model.tracers.b
+# B̄ = model.background_fields.tracers.b
+# B = B̄ + b # total buoyancy field
 u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
@@ -181,7 +181,7 @@ Bz = @at (Center, Center, Center) ∂z(B)
 
 checkpoint_interval = tᶠ
 # twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, v=v, B=B, b=b, c=c, Bz=Bz, wb=wb, ε=ε, χ=χ))
-twoD_diags = merge(Bbudget, (; uhat=û, what=ŵ, B=B, b=b, Bz=Bz))
+twoD_diags = (; uhat=û, what=ŵ, B=B, Bz=Bz)
 
 fname = string("internal_tide_theta=",string(θ),"_realtopo2D_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",round(tᶠ/(2*pi/1.4e-4)))
 dir = string("output/",simname, "/")
