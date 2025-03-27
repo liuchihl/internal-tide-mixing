@@ -256,7 +256,7 @@ elseif output_mode == "test"
 elseif output_mode == "certain-diagnostics"
         checkpoint_interval = 20*2π/ω₀
         # slice_diags = (; Bz=Bz, what=ŵ,)
-        threeD_diags = (; b=b, Bz=Bz, what=ŵ,)
+        threeD_diags = (; Bz=Bz, what=ŵ,)
         
         
 else output_mode == "analysis"
