@@ -97,7 +97,7 @@ ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vect
 
 # Create immersed boundary grid
 z_interp_data = architecture == CPU() ? z_interp : CuArray(z_interp)
-# grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp_data))
+grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_interp_data))
 
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
  z₀ = 0.1 # m (roughness length)
@@ -256,7 +256,7 @@ elseif output_mode == "test"
 elseif output_mode == "certain-diagnostics"
         checkpoint_interval = 20*2π/ω₀
         # slice_diags = (; Bz=Bz, what=ŵ,)
-        threeD_diags = (; Bz=Bz, what=ŵ,)
+        threeD_diags = (; b=b, Bz=Bz, what=ŵ,)
         
         
 else output_mode == "analysis"
