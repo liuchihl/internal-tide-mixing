@@ -347,7 +347,7 @@ elseif output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
         point_diags = (; uhat=û, wb)
         threeD_diags_avg = (uhat=û, v=v, what=ŵ)
-        threeD_diags = (uhat=û, v=v, what=ŵ)
+        threeD_diags = (uhat=û, v=v, what=ŵ, c=c)
         slice_diags = (; uhat=û, v=v, what=ŵ)    
         end
 elseif output_mode == "customized"
