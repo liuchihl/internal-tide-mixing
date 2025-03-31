@@ -159,18 +159,32 @@ bᵢ(x, y, z) = 1e-9 * rand() # seed infinitesimal random perturbations in the b
 # set tracer and particles
 if output_mode == "analysis"
     # tracer initial distribution
-    x_center = 0
-    y_center = Ny÷2
+    x_center_cart = 0
+    y_center_cart = Ny÷2
     if analysis_round == 1 || analysis_round == 2
-        z_center = 500
+        z_center_cart = 500
     elseif analysis_round == 3
-        z_center = 500
+        z_center_cart = 500
     end
     σ_x = 1000  # in meters
     σ_y = 1000  
     σ_z = 50    
     C = 1.0  # Amplitude of the tracer concentration at the center
-    cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
+    
+    # Create a function that takes tilted coordinates (x', y', z') and returns concentration
+    function cᵢ(x_tilted, y_tilted, z_tilted)
+        # Transform tilted coordinates back to Cartesian coordinates
+        x_cart = x_tilted * cos(θ) - z_tilted * sin(θ)
+        y_cart = y_tilted  # y coordinate doesn't change in the transform
+        z_cart = x_tilted * sin(θ) + z_tilted * cos(θ)
+        
+        # Calculate concentration using Cartesian coordinates
+        return C * exp(-((x_cart - x_center_cart)^2 / (2σ_x^2) + 
+                        (y_cart - y_center_cart)^2 / (2σ_y^2) + 
+                        (z_cart - z_center_cart)^2 / (2σ_z^2)))
+    end
+    
+    # cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
 
     # define particles
     Nparticles = 1e4
@@ -331,7 +345,10 @@ elseif output_mode == "analysis"
         elseif analysis_round == 3
         #3) third round output
         checkpoint_interval = 20*2π/ω₀
-
+        point_diags = (; uhat=û, wb)
+        threeD_diags_avg = (uhat=û, v=v, what=ŵ)
+        threeD_diags = (uhat=û, v=v, what=ŵ)
+        slice_diags = (; uhat=û, v=v, what=ŵ)    
         end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
@@ -375,13 +392,13 @@ if output_writer
     ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
     # xy
-        # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-        # simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-        #                                         schedule = TimeInterval(slice_interval),
-        #                                         indices = (:,:,ind),
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_slices_xy.nc"),
-        #                                         overwrite_existing = overwrite_output)
+        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+                                                schedule = TimeInterval(slice_interval),
+                                                indices = (:,:,ind),
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_xy.nc"),
+                                                overwrite_existing = overwrite_output)
     # # yz
     #     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
     #                                             schedule = TimeInterval(slice_interval),
@@ -396,12 +413,12 @@ if output_writer
                                                 overwrite_existing = overwrite_output,
                                                 schedule = TimeInterval(snapshot_interval))
     # 1D profile
-        # simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
-        #                                         schedule = TimeInterval(Δtᵒ÷30),
-        #                                         indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_point_center.nc"),
-        #                                         overwrite_existing = overwrite_output)
+        simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
+                                                schedule = TimeInterval(Δtᵒ÷30),
+                                                indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
+                                                verbose=true,
+                                                filename = string(dir, fname, "_point_center.nc"),
+                                                overwrite_existing = overwrite_output)
     # particles
         simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
                                                 verbose=true,
