@@ -191,7 +191,7 @@ if output_mode == "analysis"
     # particles are released at 700 m above the bottom, which is about z=967 m
     x₀, y₀, z₀ = gaussian_particle_generator(
                 Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H, θ;
-                x_center_ratio=0, y_center_ratio=0.5, z_center=z_center,
+                x_center_ratio=0, y_center_ratio=0.5, z_center=z_center_cart,
                 σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )          
     b = 1e-5*ones(Float64,Int(length(x₀)))
     b = architecture == GPU() ? CuArray(b) : b
@@ -285,8 +285,8 @@ simulation = Simulation(model, Δt = Δt, stop_time = tᶠ+50Δt)
 # # (CFL) number close to `0.5` while ensuring the time-step does not increase beyond the
 # # maximum allowable value for numerical stability.
 
-wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
-simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
+# wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
+# simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
 
 # set the ouput mode:
 if output_mode == "verification"     
@@ -349,11 +349,16 @@ elseif output_mode == "analysis"
         threeD_diags_avg = (uhat=û, v=v, what=ŵ)
         threeD_diags = (uhat=û, v=v, what=ŵ, c=c)
         slice_diags = (; uhat=û, v=v, what=ŵ)    
+        elseif analysis_round == 4
+        #4) fourth round output
+        checkpoint_interval = 20*2π/ω₀
+        threeD_diags_avg = Bbudget
         end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
-        threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
-        slice_interval = Δtᵒ
+        # threeD_diags = (; Bz=Bz, what=ŵ, u=u)        
+        # slice_interval = Δtᵒ
+        threeD_diags_avg = Bbudget
 end
 fname = string("internal_tide_theta=",θ,"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
 dir = string("output/",simname, "/")
@@ -392,13 +397,13 @@ if output_writer
     ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
     # xy
-        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                                schedule = TimeInterval(slice_interval),
-                                                indices = (:,:,ind),
-                                                verbose=true,
-                                                filename = string(dir, fname, "_slices_xy.nc"),
-                                                overwrite_existing = overwrite_output)
+        # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        # simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+        #                                         schedule = TimeInterval(slice_interval),
+        #                                         indices = (:,:,ind),
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_slices_xy.nc"),
+        #                                         overwrite_existing = overwrite_output)
     # # yz
     #     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
     #                                             schedule = TimeInterval(slice_interval),
@@ -407,24 +412,24 @@ if output_writer
     #                                             filename = string(dir, fname, "_slices_yz.nc"),
     #                                             overwrite_existing = overwrite_output)
     # output 3D field snapshots
-        simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
-                                                verbose=true,
-                                                filename = string(dir, fname, "_threeD.nc"),
-                                                overwrite_existing = overwrite_output,
-                                                schedule = TimeInterval(snapshot_interval))
+        # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_threeD.nc"),
+        #                                         overwrite_existing = overwrite_output,
+        #                                         schedule = TimeInterval(snapshot_interval))
     # 1D profile
-        simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
-                                                schedule = TimeInterval(Δtᵒ÷30),
-                                                indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
-                                                verbose=true,
-                                                filename = string(dir, fname, "_point_center.nc"),
-                                                overwrite_existing = overwrite_output)
+        # simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
+        #                                         schedule = TimeInterval(Δtᵒ÷30),
+        #                                         indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_point_center.nc"),
+        #                                         overwrite_existing = overwrite_output)
     # particles
-        simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
-                                                verbose=true,
-                                                filename = string(dir, fname, "_particles_z=",z_center,".nc"), 
-                                                schedule = TimeInterval(Δtᵒ/3),
-                                                overwrite_existing=true)
+        # simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
+        #                                         schedule = TimeInterval(Δtᵒ/3),
+        #                                         overwrite_existing=true)
     end
 end
 ### Progress messages
