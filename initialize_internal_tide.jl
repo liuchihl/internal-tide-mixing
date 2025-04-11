@@ -165,6 +165,8 @@ if output_mode == "analysis"
         z_center_cart = 500
     elseif analysis_round == 3
         z_center_cart = 500
+    elseif analysis_round == 4
+        z_center_cart = 500
     end
     σ_x = 1000  # in meters
     σ_y = 1000  
@@ -277,7 +279,8 @@ else    # during analysis period, set initial condition from the final checkpoin
     set!(model, c=cᵢ)
 end
 ## Configure simulation
-Δt = (1/N)*0.03
+Δt = 20
+# Δt = (1/N)*0.03
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ+50Δt)
 # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
 
@@ -323,7 +326,9 @@ elseif output_mode == "analysis"
         ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
         Bz = @at (Center, Center, Center) ∂z(B)
         # Oceanostics
-        wb = BuoyancyProductionTerm(model)
+        # wb = BuoyancyProductionTerm(model)
+        w_cen = @at (Center, Center, Center) w
+        wb = w_cen .* b
         ε = KineticEnergyDissipationRate(model)
         χ = TracerVarianceDissipationRate(model, :b)
         Bbudget=get_budget_outputs_tuple(model;)
@@ -352,7 +357,8 @@ elseif output_mode == "analysis"
         elseif analysis_round == 4
         #4) fourth round output
         checkpoint_interval = 20*2π/ω₀
-        threeD_diags_avg = Bbudget
+        slice_diags = (; ε=ε, χ=χ)    
+        threeD_diags_avg = merge(Bbudget, (; wb=wb, ε=ε, χ=χ))
         end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
@@ -387,23 +393,23 @@ if output_writer
 
     ## output 2D slices
     # xz
-    # simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
-    #                                         schedule = TimeInterval(slice_interval),
-    #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-    #                                         verbose=true,
-    #                                         filename = string(dir, fname, "_slices_xz.nc"),
-    #                                         overwrite_existing = overwrite_output)
+    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
+                                            schedule = TimeInterval(slice_interval),
+                                            indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+                                            verbose=true,
+                                            filename = string(dir, fname, "_slices_xz.nc"),
+                                            overwrite_existing = overwrite_output)
 
     ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
     # xy
-        # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-        # simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-        #                                         schedule = TimeInterval(slice_interval),
-        #                                         indices = (:,:,ind),
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_slices_xy.nc"),
-        #                                         overwrite_existing = overwrite_output)
+        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+                                                schedule = TimeInterval(slice_interval),
+                                                indices = (:,:,ind),
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_xy.nc"),
+                                                overwrite_existing = overwrite_output)
     # # yz
     #     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
     #                                             schedule = TimeInterval(slice_interval),
