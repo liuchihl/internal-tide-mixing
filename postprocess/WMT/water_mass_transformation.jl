@@ -14,7 +14,7 @@ include("../../functions/mmderiv.jl")
 
     # load data
 tᶠ = 460
-θ = 3.6e-3
+θ = 0#3.6e-3
 if θ==3.6e-3
     simname = "tilt"
 else 
@@ -71,13 +71,13 @@ if simname == "tilt"
     bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
     global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
     global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
-    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
-    div_uB_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
+    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
+    div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
 end
     
 if simname == "tilt"
 ## 1) whole domain
-    for n in 1:1#:2:length(t)
+    for n in 1:2:length(t)
         global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,:,:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
         global div_uB = ds_3D_Bbudget["div_uB"][:,:,:,n:n];
         B = ds_3D_B["B"][:,:,:,n:n];
@@ -119,7 +119,7 @@ if simname == "tilt"
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
     defDim(ds_create,"buoyancy",length(bin_center2))
-    defDim(ds_create,"buoyancy_diff",length(bin_center2)-1)
+    defDim(ds_create,"buoyancy_diff",length(bin_center2))
     defDim(ds_create,"time",length(t[:]))
     
     # Define a global attribute
@@ -178,8 +178,8 @@ if simname == "tilt"
     bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
     global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
     global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
-    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
-    div_uB_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
+    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
+    div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
     b = ds_b["b"][:,south:north,:,1:1]
 
     for n in 1:2:length(t)
@@ -223,7 +223,7 @@ if simname == "tilt"
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
     defDim(ds_create,"buoyancy",length(bin_center2))
-    defDim(ds_create,"buoyancy_diff",length(bin_center2)-1)
+    defDim(ds_create,"buoyancy_diff",length(bin_center2))
     defDim(ds_create,"time",length(t[:]))
     
     # Define a global attribute
@@ -281,11 +281,11 @@ if simname == "tilt"
     bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
     global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
     global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
-    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
-    div_uB_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
+    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
+    div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
     b = ds_b["b"][:,vcat(1:south,north:end),:,1:1]
 
-    for n in 1:length(t)
+    for n in 1:2:length(t)
         global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,vcat(1:south,north:end),:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
         global div_uB = ds_3D_Bbudget["div_uB"][:,vcat(1:south,north:end),:,n:n];
         B = ds_3D_B["B"][:,vcat(1:south,north:end),:,n:n];
@@ -326,7 +326,7 @@ if simname == "tilt"
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
     defDim(ds_create,"buoyancy",length(bin_center2))
-    defDim(ds_create,"buoyancy_diff",length(bin_center2)-1)
+    defDim(ds_create,"buoyancy_diff",length(bin_center2))
     defDim(ds_create,"time",length(t[:]))
     
     # Define a global attribute
@@ -354,26 +354,24 @@ if simname == "tilt"
         
 # flat case is a different problem, the buoyancy bins cannot be the same as tilted case, and the WMT result is not directly comparable
 elseif simname == "flat"
-    x = xC * cos(θ) .- zC' * sin(θ)
-    z = xC * sin(θ) .+ zC' * cos(θ)
-    z_face = xF * sin(θ) .+ zF' * cos(θ)
+    z_face = zF
+    bin_edge1 = 0:7:1500#0
+    bin_center1 = (bin_edge1[1:end-1] .+ bin_edge1[2:end]) ./ 2
+    bin_mask1 = hab   
+    bin_edge2 = collect(range(0.0005353, 0.0016, length=41))  # Define the edges of the bins
+    bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
+    ∇κ∇B_t = zeros(length(bin_center1), length(bin_center2), length(t))
+    div_uB_t = zeros(length(bin_center1), length(bin_center2), length(t))
+    global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
+    global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
+    b = ds_b["b"][:,:,:,1:1]
 
     ## 1) whole domain
     for n in 1:2:length(t)
         global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,:,:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
         global div_uB = ds_3D_Bbudget["div_uB"][:,:,:,n:n];
         B = ds_3D_B["B"][:,:,:,n:n];
-        b = ds_b["b"][:,:,:,1:1]
-        B[b.==0].=0
-        bin_edge1 = 0:7:1500#0
-        bin_center1 = (bin_edge1[1:end-1] .+ bin_edge1[2:end]) ./ 2
-        bin_mask1 = hab    
-        bin_edge2 = collect(range(0.0005353, 0.0016, length=41))  # Define the edges of the bins
-        bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
-        global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
-        global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
-        ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
-        div_uB_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
+        B[b.==0].=0 
     
         # Reset accumulator arrays for each timestep
         fill!(int_∇κ∇B, 0)
@@ -402,7 +400,7 @@ elseif simname == "flat"
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
     defDim(ds_create,"buoyancy",length(bin_center2))
-    defDim(ds_create,"buoyancy_diff",length(bin_center2)-1)
+    defDim(ds_create,"buoyancy_diff",length(bin_center2))
     defDim(ds_create,"time",length(t[:]))
 
     # Define a global attribute
@@ -443,10 +441,11 @@ elseif simname == "flat"
     filename_hab = "output/hab.nc"
     ds_hab = Dataset(filename_hab,"r")
     hab = ds_hab["hab"][:,south:north,:];
-
-    x = xC * cos(θ) .- zC' * sin(θ)
-    z = xC * sin(θ) .+ zC' * cos(θ)
-    z_face = xF * sin(θ) .+ zF' * cos(θ)
+    z_face = zF
+    global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
+    global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
+    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
+    div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
 
     for n in 1:2:length(t)
         global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,south:north,:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
@@ -461,10 +460,6 @@ elseif simname == "flat"
         bin_edge2 = collect(range(0.0005353, 0.0016, length=41))
         bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
         
-        global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
-        global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
-        ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
-        div_uB_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
     
         # Reset accumulator arrays for each timestep
         fill!(int_∇κ∇B, 0)
@@ -492,7 +487,7 @@ elseif simname == "flat"
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
     defDim(ds_create,"buoyancy",length(bin_center2))
-    defDim(ds_create,"buoyancy_diff",length(bin_center2)-1)
+    defDim(ds_create,"buoyancy_diff",length(bin_center2))
     defDim(ds_create,"time",length(t[:]))
 
     # Define a global attribute
@@ -533,10 +528,11 @@ elseif simname == "flat"
     filename_hab = "output/hab.nc"
     ds_hab = Dataset(filename_hab,"r")
     hab = ds_hab["hab"][:,vcat(1:south,north:end),:];
-
-    x = xC * cos(θ) .- zC' * sin(θ)
-    z = xC * sin(θ) .+ zC' * cos(θ)
-    z_face = xF * sin(θ) .+ zF' * cos(θ)
+    z_face = zF
+    global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
+    global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
+    ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
+    div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
 
     for n in 1:2:length(t)
         global ∇κ∇B = ds_3D_Bbudget["∇κ∇B"][:,vcat(1:south,north:end),:,n:n];   # ∇⋅κ∇B: buoyancy flux divergence
@@ -551,11 +547,6 @@ elseif simname == "flat"
         bin_edge2 = collect(range(0.0005353, 0.0016, length=41))
         bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
         
-        global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
-        global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
-        ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
-        div_uB_t = zeros(length(bin_center1),length(bin_center2)-1,length(t[:]))
-    
         # Reset accumulator arrays for each timestep
         fill!(int_∇κ∇B, 0)
         fill!(int_div_uB, 0)
@@ -582,7 +573,7 @@ elseif simname == "flat"
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center1))
     defDim(ds_create,"buoyancy",length(bin_center2))
-    defDim(ds_create,"buoyancy_diff",length(bin_center2)-1)
+    defDim(ds_create,"buoyancy_diff",length(bin_center2))
     defDim(ds_create,"time",length(t[:]))
 
     # Define a global attribute
