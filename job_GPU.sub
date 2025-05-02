@@ -1,8 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name="tilt" 
-#SBATCH --output="output_message/tilt.out.%j.%N.out"
-#SBATCH --partition=gpuA100x4
-#SBATCH --mem=16G
+#SBATCH --output="output_message/tilt_analysisround6.out.%j.%N.out"
+# # SBATCH --partition=gpuA100x4
+#SBATCH --partition=gpuH200x8
+#SBATCH --mem=30G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1 # could be 1 for py-torch
 #SBATCH --cpus-per-task=4   # spread out to use 1 core per numa, set to 64 if tasks is 1
@@ -17,11 +18,15 @@
 #SBATCH -t 48:00:00
 
 module restore internal-tide
+# for a specific version of julia 1.10.8, since Oceananigans is not stable to run on Julia 1.11
 export PATH=$HOME/software/julia/current/bin:$PATH
 date
 rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_tilt.jl
 # rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_notilt.jl
-
+# Run fix_cuda.jl first
+echo "Running CUDA fix script..."
+julia --project fix_cuda.jl
+echo "CUDA fix completed, starting main script..."
 srun julia --project $rundir
 
 

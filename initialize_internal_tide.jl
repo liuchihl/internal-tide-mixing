@@ -165,7 +165,7 @@ if output_mode == "analysis"
         z_center_cart = 500
     elseif analysis_round == 3
         z_center_cart = 500
-    elseif analysis_round == 4
+    elseif analysis_round >= 4
         z_center_cart = 500
     end
     σ_x = 1000  # in meters
@@ -324,15 +324,17 @@ elseif output_mode == "analysis"
         u, v, w = model.velocities
         û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
         ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
+        νₑ = simulation.model.diffusivity_fields.νₑ    # eddy viscosity
         Bz = @at (Center, Center, Center) ∂z(B)
         # Oceanostics
         # wb = BuoyancyProductionTerm(model)
-        w_cen = @at (Center, Center, Center) w
-        wb = w_cen .* b
+        wb = (@at (Center, Center, Center) w) * b
         ε = KineticEnergyDissipationRate(model)
         χ = TracerVarianceDissipationRate(model, :b)
+        Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
         Bbudget=get_budget_outputs_tuple(model;)
         
+
         if analysis_round == 1
         #1)first round output 
         checkpoint_interval = 5*2π/ω₀
@@ -359,6 +361,18 @@ elseif output_mode == "analysis"
         checkpoint_interval = 20*2π/ω₀
         slice_diags = (; ε=ε, χ=χ)    
         threeD_diags_avg = merge(Bbudget, (; wb=wb, ε=ε, χ=χ))
+        elseif analysis_round == 5
+        #5) fifth round output
+        checkpoint_interval = 20*2π/ω₀
+        threeD_diags = (; Rig=Rig)
+        threeD_diags_avg = (; uhat=û, v=v, what=ŵ, Rig=Rig)
+        elseif analysis_round == 6
+        #6) sixth round output
+        checkpoint_interval = 20*2π/ω₀
+        threeD_diags = (; νₑ=νₑ)
+        threeD_diags_avg = (; νₑ=νₑ, b=b, B=B)
+        slice_diags_xz = (; b=b, νₑ=νₑ)    
+        slice_diags_yz = (; b=b, νₑ=νₑ, ε=ε, χ=χ, B=B)    
         end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
@@ -393,7 +407,7 @@ if output_writer
 
     ## output 2D slices
     # xz
-    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
+    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags_xz,
                                             schedule = TimeInterval(slice_interval),
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
@@ -403,26 +417,26 @@ if output_writer
     ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
     # xy
-        ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-        simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
-                                                schedule = TimeInterval(slice_interval),
-                                                indices = (:,:,ind),
-                                                verbose=true,
-                                                filename = string(dir, fname, "_slices_xy.nc"),
-                                                overwrite_existing = overwrite_output)
-    # # yz
-    #     simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags,
-    #                                             schedule = TimeInterval(slice_interval),
-    #                                             indices = (Nx÷2,:,:), # center of the domain (along the sill)
-    #                                             verbose=true,
-    #                                             filename = string(dir, fname, "_slices_yz.nc"),
-    #                                             overwrite_existing = overwrite_output)
-    # output 3D field snapshots
-        # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+        # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+        # simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+        #                                         schedule = TimeInterval(slice_interval),
+        #                                         indices = (:,:,ind),
         #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_threeD.nc"),
-        #                                         overwrite_existing = overwrite_output,
-        #                                         schedule = TimeInterval(snapshot_interval))
+        #                                         filename = string(dir, fname, "_slices_xy.nc"),
+        #                                         overwrite_existing = overwrite_output)
+    # # yz
+        simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags_yz,
+                                                schedule = TimeInterval(slice_interval),
+                                                indices = (Nx÷2,:,:), # center of the domain (along the sill)
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_yz.nc"),
+                                                overwrite_existing = overwrite_output)
+    # output 3D field snapshots
+        simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+                                                verbose=true,
+                                                filename = string(dir, fname, "_threeD.nc"),
+                                                overwrite_existing = overwrite_output,
+                                                schedule = TimeInterval(snapshot_interval))
     # 1D profile
         # simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
         #                                         schedule = TimeInterval(Δtᵒ÷30),
