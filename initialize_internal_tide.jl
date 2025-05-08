@@ -238,9 +238,9 @@ else solver == "Conjugate Gradient"
     # add particles
     model = NonhydrostaticModel(;
         grid=grid,
-        # pressure_solver = ConjugateGradientPoissonSolver(
-        #         grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
-        #         reltol=tol),
+        pressure_solver = ConjugateGradientPoissonSolver(
+                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
         coriolis = coriolis,
@@ -324,7 +324,7 @@ elseif output_mode == "analysis"
         u, v, w = model.velocities
         û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
         ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
-        νₑ = simulation.model.diffusivity_fields.νₑ    # eddy viscosity
+        νₑ = simulation.model.diffusivity_fields[1].νₑ    # eddy viscosity
         Bz = @at (Center, Center, Center) ∂z(B)
         # Oceanostics
         # wb = BuoyancyProductionTerm(model)
@@ -370,9 +370,9 @@ elseif output_mode == "analysis"
         #6) sixth round output
         checkpoint_interval = 20*2π/ω₀
         threeD_diags = (; νₑ=νₑ)
-        threeD_diags_avg = (; νₑ=νₑ, b=b, B=B)
+        threeD_diags_avg = (; b=b, B=B, νₑ=νₑ)
         slice_diags_xz = (; b=b, νₑ=νₑ)    
-        slice_diags_yz = (; b=b, νₑ=νₑ, ε=ε, χ=χ, B=B)    
+        slice_diags_yz = (; b=b, ε=ε, χ=χ, B=B, νₑ=νₑ)    
         end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
@@ -425,12 +425,12 @@ if output_writer
         #                                         filename = string(dir, fname, "_slices_xy.nc"),
         #                                         overwrite_existing = overwrite_output)
     # # yz
-        simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags_yz,
-                                                schedule = TimeInterval(slice_interval),
-                                                indices = (Nx÷2,:,:), # center of the domain (along the sill)
-                                                verbose=true,
-                                                filename = string(dir, fname, "_slices_yz.nc"),
-                                                overwrite_existing = overwrite_output)
+        # simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags_yz,
+        #                                         schedule = TimeInterval(slice_interval),
+        #                                         indices = (Nx÷2,:,:), # center of the domain (along the sill)
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_slices_yz.nc"),
+        #                                         overwrite_existing = overwrite_output)
     # output 3D field snapshots
         simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
                                                 verbose=true,
