@@ -162,11 +162,11 @@ if output_mode == "analysis"
     x_center_cart = 0
     y_center_cart = Ny÷2
     if analysis_round == 1 || analysis_round == 2
-        z_center_cart = 500
+        z_center_cart = 1000
     elseif analysis_round == 3
-        z_center_cart = 500
+        z_center_cart = 1000
     elseif analysis_round >= 4
-        z_center_cart = 500
+        z_center_cart = 1000
     end
     σ_x = 1000  # in meters
     σ_y = 1000  
@@ -234,12 +234,12 @@ if solver == "FFT"
     )
 else solver == "Conjugate Gradient"
     # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-    tol = 1e-9
+    tol = 1e-10
     # add particles
     model = NonhydrostaticModel(;
         grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(
-                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
@@ -279,7 +279,7 @@ else    # during analysis period, set initial condition from the final checkpoin
     set!(model, c=cᵢ)
 end
 ## Configure simulation
-Δt = 20
+Δt = 10
 # Δt = (1/N)*0.03
 simulation = Simulation(model, Δt = Δt, stop_time = tᶠ+50Δt)
 # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
@@ -287,6 +287,8 @@ simulation = Simulation(model, Δt = Δt, stop_time = tᶠ+50Δt)
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
 # # (CFL) number close to `0.5` while ensuring the time-step does not increase beyond the
 # # maximum allowable value for numerical stability.
+# CAVEAT: using time step wizard would mess up the window time average values, therefore a constant 
+# Δt is used for the simulation
 
 # wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
 # simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
@@ -336,43 +338,41 @@ elseif output_mode == "analysis"
         
 
         if analysis_round == 1
-        #1)first round output 
-        checkpoint_interval = 5*2π/ω₀
-        slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
-        point_diags = (; uhat=û, v=v, what=ŵ, B=B)
-        threeD_diags_avg = (; B=B, c=c)#(; uhat=û, what=ŵ, v=v, B=B)
-        threeD_diags = (; B=B, c=c)
+            #1)first round output: this round is a spinup for transitioning from FFT to CG solver
+            checkpoint_interval = 1*2π/ω₀
+            slice_diags = (; uhat=û, what=ŵ, B=B)
+            threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
         elseif analysis_round == 2
-        #2) second round output
-        checkpoint_interval = 20*2π/ω₀  # I do not want a new checkpoint so I set it to a large number
-        # slice_diags = (; ε, χ)
-        point_diags = (; uhat=û, wb)
-        threeD_diags_avg = merge(Bbudget,(; wb=wb))
-        threeD_diags = Bbudget
+            #2) second round output: after spinning up, save all fields
+            checkpoint_interval = 20*2π/ω₀  # I do not want a new checkpoint so I set it to a large number
+            # slice_diags = (; ε, χ)
+            point_diags = (; uhat=û, wb)
+            threeD_diags_avg = merge(Bbudget,(; wb=wb))
+            threeD_diags = Bbudget
         elseif analysis_round == 3
-        #3) third round output
-        checkpoint_interval = 20*2π/ω₀
-        point_diags = (; uhat=û, wb)
-        threeD_diags_avg = (uhat=û, v=v, what=ŵ)
-        threeD_diags = (uhat=û, v=v, what=ŵ, c=c)
-        slice_diags = (; uhat=û, v=v, what=ŵ)    
+            #3) third round output
+            checkpoint_interval = 20*2π/ω₀
+            point_diags = (; uhat=û, wb)
+            threeD_diags_avg = (uhat=û, v=v, what=ŵ)
+            threeD_diags = (uhat=û, v=v, what=ŵ, c=c)
+            slice_diags = (; uhat=û, v=v, what=ŵ)    
         elseif analysis_round == 4
-        #4) fourth round output
-        checkpoint_interval = 20*2π/ω₀
-        slice_diags = (; ε=ε, χ=χ)    
-        threeD_diags_avg = merge(Bbudget, (; wb=wb, ε=ε, χ=χ))
+            #4) fourth round output
+            checkpoint_interval = 20*2π/ω₀
+            slice_diags = (; ε=ε, χ=χ)    
+            threeD_diags_avg = merge(Bbudget, (; wb=wb, ε=ε, χ=χ))
         elseif analysis_round == 5
-        #5) fifth round output
-        checkpoint_interval = 20*2π/ω₀
-        threeD_diags = (; Rig=Rig)
-        threeD_diags_avg = (; uhat=û, v=v, what=ŵ, Rig=Rig)
+            #5) fifth round output
+            checkpoint_interval = 20*2π/ω₀
+            threeD_diags = (; Rig=Rig)
+            threeD_diags_avg = (; uhat=û, v=v, what=ŵ, Rig=Rig)
         elseif analysis_round == 6
-        #6) sixth round output
-        checkpoint_interval = 20*2π/ω₀
-        threeD_diags = (; νₑ=νₑ)
-        threeD_diags_avg = (; b=b, B=B, νₑ=νₑ)
-        slice_diags_xz = (; b=b, νₑ=νₑ)    
-        slice_diags_yz = (; b=b, ε=ε, χ=χ, B=B, νₑ=νₑ)    
+            #6) sixth round output
+            checkpoint_interval = 20*2π/ω₀
+            threeD_diags = (; νₑ=νₑ)
+            threeD_diags_avg = (; b=b, B=B, νₑ=νₑ)
+            slice_diags_xz = (; b=b, νₑ=νₑ)    
+            slice_diags_yz = (; b=b, ε=ε, χ=χ, B=B, νₑ=νₑ)    
         end
 elseif output_mode == "customized"
         checkpoint_interval = 20*2π/ω₀
@@ -380,7 +380,11 @@ elseif output_mode == "customized"
         # slice_interval = Δtᵒ
         threeD_diags_avg = Bbudget
 end
-fname = string("internal_tide_theta=",θ,"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
+if output_mode!=="analysis"
+    fname = string("internal_tide_theta=",θ,"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))))
+else 
+    fname = string("internal_tide_theta=",θ,"_Nx=",Nx,"_Nz=",Nz,"_tᶠ=",Int(round(tᶠ/(2π/ω₀))),"_CG")
+end
 dir = string("output/",simname, "/")
 # create output path if the folder does not exist
 if !isdir(dir)
@@ -407,7 +411,7 @@ if output_writer
 
     ## output 2D slices
     # xz
-    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags_xz,
+    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags,
                                             schedule = TimeInterval(slice_interval),
                                             indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                             verbose=true,
@@ -432,11 +436,11 @@ if output_writer
         #                                         filename = string(dir, fname, "_slices_yz.nc"),
         #                                         overwrite_existing = overwrite_output)
     # output 3D field snapshots
-        simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
-                                                verbose=true,
-                                                filename = string(dir, fname, "_threeD.nc"),
-                                                overwrite_existing = overwrite_output,
-                                                schedule = TimeInterval(snapshot_interval))
+        # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_threeD.nc"),
+        #                                         overwrite_existing = overwrite_output,
+        #                                         schedule = TimeInterval(snapshot_interval))
     # 1D profile
         # simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
         #                                         schedule = TimeInterval(Δtᵒ÷30),
