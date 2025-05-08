@@ -11,15 +11,15 @@ function deriv(z,y)
 end
 
 # load data
-    slope = "tilt"
-    timerange = "80-120"
+    simname = "tilt"
+    tᶠ = 460
     θ=3.6e-3
 
-    filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_timeavg_u-v-w-B-c.nc")
     ds_field = Dataset(filename_field,"r")
-    filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
+    filename_field_budget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_timeavg_Bbudget-wb.nc")
     ds_budget = Dataset(filename_field_budget,"r")
-    filename_3D = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD.nc")
+    filename_3D = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_threeD_B-c.nc")
     ds_3D = Dataset(filename_3D,"r")
   
     # grids
@@ -33,21 +33,18 @@ end
 
     t = ds_3D["time"][:];
 
-
-    θ = 3.6e-3
 # for n in 
-    n = 30
-    b = ds_field["b"][:,1,:,n:n];          # buoyancy perturbation
-    B = nanmean(ds_field["B"][:,1,:,n:n+10],dims=3);          # total buoyancy
-    # B = ds_field["B"][:,500,:,n:n];          # total buoyancy
-    # ∇κ∇B = ds_budget["∇κ∇B"][:,500,:,n:n];    # ∇⋅κ∇B: buoyancy flux divergence
-    ∇κ∇B = nanmean(ds_budget["∇κ∇B"][:,1,:,n:n+10],dims=3);    # ∇⋅κ∇B: buoyancy flux divergence
+    n = 1
+    c = ds_3D["c"][:,1,:,n:n];          # buoyancy perturbation
+    # take the 10 TP average
+    B = nanmean(ds_field["B"][:,1,:,n:n+9],dims=3);          # total buoyancy
+    ∇κ∇B = nanmean(ds_budget["∇κ∇B"][:,1,:,n:n+9],dims=3);    # ∇⋅κ∇B: buoyancy flux divergence
     # div_uB = nanmean(ds_budget["div_uB"][:,500,:,30:40],dims=3);   
-    ∇κ∇B[b.==0] .= NaN;
+    ∇κ∇B[c.==0] .= NaN;
     # div_uB[b.==0] .= NaN;
-    B[b.==0] .= NaN;
+    B[c.==0] .= NaN;
 
-## coordinate transformation from slope-coordinate to Cartesian coordinate
+## coordinate transformation from simname-coordinate to Cartesian coordinate
     Lx = (xF[end]+dx) * cos(θ)
     Lz = (xF[end]+dx) * sin(θ)
     x = xC * cos(θ) .- zC' * sin(θ)
@@ -103,13 +100,13 @@ end
     minorticks_on()
     tight_layout()
 
-    savefig(string("output/",slope,"/xz_buoyancy_extend_",timerange,"_y=0_extend40_t=120.png"),dpi=100)
+    savefig(string("output/",simname,"/xz_buoyancy_extend","_y=0_extend_40_tᶠ=",tᶠ,".png"),dpi=100)
 
     # fig, axes = subplots(1,1, figsize=(10, 8))
     # close(gcf())
     # PyPlot.pcolor(xC[:],zC[:],B[:,1,:,1]')
     # gcf()
-    # savefig(string("output/",slope,"/xz_buoyancy_extend_",timerange,".png"))
+    # savefig(string("output/",simname,"/xz_buoyancy_extend_",timerange,".png"))
 
 
 
@@ -117,13 +114,13 @@ end
 ## MWT
 
 
-    slope = "tilt"
+    simname = "tilt"
     timerange = "40-80"
     θ=3.6e-3
 
-    filename_field = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
+    filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg.nc")
     ds_field = Dataset(filename_field,"r")
-    filename_field_budget = string("output/", slope, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
+    filename_field_budget = string("output/", simname, "/internal_tide_theta=",θ,"_realtopo3D_Nx=500_Nz=250_", timerange, "_threeD_timeavg_Bbudget.nc")
     ds_budget = Dataset(filename_field_budget,"r")
 
     # grids

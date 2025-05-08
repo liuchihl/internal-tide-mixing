@@ -362,8 +362,6 @@ elseif simname == "flat"
     bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
     ∇κ∇B_t = zeros(length(bin_center1), length(bin_center2), length(t))
     div_uB_t = zeros(length(bin_center1), length(bin_center2), length(t))
-    global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
-    global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
     b = ds_b["b"][:,:,:,1:1]
 
     ## 1) whole domain
@@ -373,10 +371,6 @@ elseif simname == "flat"
         B = ds_3D_B["B"][:,:,:,n:n];
         B[b.==0].=0 
     
-        # Reset accumulator arrays for each timestep
-        fill!(int_∇κ∇B, 0)
-        fill!(int_div_uB, 0)
-
         bin_mask2 = B
         @time int_∇κ∇B, _, _= bins_2d(∇κ∇B,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z_face,normalize=false)
         @time int_div_uB, _, _= bins_2d(div_uB,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z_face,normalize=false)
@@ -442,8 +436,6 @@ elseif simname == "flat"
     ds_hab = Dataset(filename_hab,"r")
     hab = ds_hab["hab"][:,south:north,:];
     z_face = zF
-    global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
-    global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
     ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
     div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
 
@@ -459,11 +451,6 @@ elseif simname == "flat"
         bin_mask1 = hab
         bin_edge2 = collect(range(0.0005353, 0.0016, length=41))
         bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
-        
-    
-        # Reset accumulator arrays for each timestep
-        fill!(int_∇κ∇B, 0)
-        fill!(int_div_uB, 0)
 
         bin_mask2 = B
         @time int_∇κ∇B, _, _= bins_2d(∇κ∇B,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z_face,normalize=false)
@@ -529,8 +516,6 @@ elseif simname == "flat"
     ds_hab = Dataset(filename_hab,"r")
     hab = ds_hab["hab"][:,vcat(1:south,north:end),:];
     z_face = zF
-    global int_∇κ∇B = zeros(length(bin_center1),length(bin_center2),1)
-    global int_div_uB = zeros(length(bin_center1),length(bin_center2),1)
     ∇κ∇B_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
     div_uB_t = zeros(length(bin_center1),length(bin_center2),length(t[:]))
 
@@ -546,10 +531,6 @@ elseif simname == "flat"
         bin_mask1 = hab
         bin_edge2 = collect(range(0.0005353, 0.0016, length=41))
         bin_center2 = (bin_edge2[1:end-1] .+ bin_edge2[2:end]) ./ 2
-        
-        # Reset accumulator arrays for each timestep
-        fill!(int_∇κ∇B, 0)
-        fill!(int_div_uB, 0)
 
         bin_mask2 = B
         @time int_∇κ∇B, _, _= bins_2d(∇κ∇B,bin_edge1,bin_edge2,bin_mask1,bin_mask2,dx=dx,dy=dy,z_face=z_face,normalize=false)

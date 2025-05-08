@@ -47,6 +47,12 @@ using StatsBase
         bin_valid = bin_var_flat[valid_points]
         ΔV_valid = ΔV_flat[valid_points]
         
+        # Further filter out NaN values in var_valid or ΔV_valid
+        not_nan = .!(isnan.(var_valid) .| isnan.(ΔV_valid))
+        var_valid = var_valid[not_nan]
+        bin_valid = bin_valid[not_nan]
+        ΔV_valid = ΔV_valid[not_nan]
+        
         # Calculate histogram with weights, only using valid points
         weights = Weights(var_valid .* ΔV_valid)
         h = StatsBase.fit(Histogram, bin_valid, weights, bin_edge)

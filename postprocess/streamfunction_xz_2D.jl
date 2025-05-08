@@ -1,5 +1,7 @@
 using NCDatasets
 using NaNStatistics
+using MAT
+using Interpolations
 tᶠ=126
 θ=0#3.6e-3
 simname = "2D_notilt"
@@ -16,7 +18,7 @@ yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
 Ny=length(yC[:]);       dy=30#dy = yF[end]-yF[end-1]; 
 # Ly = yF[end]+dy
 t = ds_field["time"][:];
-n=26 #30
+n=24 #30
     uhat = nansum(nanmean(ds_field["uhat"][:,:,:,n:n+100],dim=(4))*dy,dim=2);    # true u (integral)
     what = nansum(nanmean(ds_field["what"][:,:,:,n:n+100],dim=(4))*dy,dim=2);    # true w (integral)
     what_cen = (what[:,1:end-1] .+ what[:,2:end])./2 # what at center

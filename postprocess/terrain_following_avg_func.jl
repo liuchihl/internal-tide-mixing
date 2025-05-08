@@ -21,7 +21,7 @@ function deriv(z, y)
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/bins.jl")
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/mmderiv.jl")
 
-tᶠ = 450
+tᶠ = 460
 θ = 3.6e-3
 if θ==3.6e-3
     simname = "tilt"
@@ -39,17 +39,15 @@ elseif tᶠ ≤ 450
     if tᶠ == 450
         endtime = ["$i" for i in 50:40:450]
         # endtime = tᶠ   # if you want to run only one case
-    else
-        # endtime = tᶠ
     end
 else
     output_mode = "analysis"
-    Nt = 20
+    Nt = 10
     endtime = tᶠ
 end
 
 
-bin_edge = 0:8:1500
+bin_edge = 0:7:1500
 bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
 # load hab
 filename_hab = "output/hab.nc"
@@ -66,13 +64,15 @@ what_avg = zeros(length(bin_edge)-1,Nt)
 τ_avg = zeros(length(bin_edge)-1,Nt)
 
 if output_mode == "analysis"
-epsilon_avg = zeros(length(bin_edge)-1,Nt)
-chi_avg = zeros(length(bin_edge)-1,Nt)
+# epsilon_avg = zeros(length(bin_edge)-1,Nt)
+# chi_avg = zeros(length(bin_edge)-1,Nt)
 ∇κ∇B_avg = zeros(length(bin_edge)-1,Nt)
 div_uB_avg = zeros(length(bin_edge)-1,Nt)
 u_bar_∇B_bar_avg = zeros(length(bin_edge)-1,Nt)
 u_prime∇B_prime_avg = zeros(length(bin_edge)-1,Nt)
-dBdt_avg = zeros(length(bin_edge)-1,Nt-1)
+dBdt_avg = zeros(length(bin_edge)-1,Nt)
+χ_avg = zeros(length(bin_edge)-1,Nt)
+ε_avg = zeros(length(bin_edge)-1,Nt)
 end
 
 if output_mode == "verification" 
@@ -159,6 +159,27 @@ if output_mode == "verification"
     close(ds_create)
     
 elseif output_mode == "analysis"
+    filename_3D = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",endtime, "_threeD_B-c.nc")
+    filename_verification = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",10, "_threeD_timeavg.nc")   
+
+    if simname == "tilt"
+        filename_B = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_B-c.nc")
+        ds_B = Dataset(filename_B,"r")
+        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_const_dt_u-v-w-Rig.nc")
+        ds_field = Dataset(filename_field,"r")
+        filename_budget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_const_dt_Bbudget-wb-eps-chi.nc")
+        ds_budget = Dataset(filename_budget,"r")
+        t = ds_field["time"][:];
+    else
+        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_u-v-w-B-c.nc")
+        ds_field = Dataset(filename_field,"r")
+        filename_budget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget-wb.nc")
+        ds_budget = Dataset(filename_budget,"r")
+        t = ds_field["time"][:];
+    end    
+    ds_3D = Dataset(filename_3D,"r")
+    ds_verification = Dataset(filename_verification,"r")
+
     t = ds_field["time"][:];
     # grids
     zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
@@ -173,12 +194,15 @@ elseif output_mode == "analysis"
     dB̄dx = zeros(Nx,Ny,Nz,1)
     dB̄dz = zeros(Nx,Ny,Nz,1)
     for n in 1:Nt
-        b = ds_field["b"][:,:,:,n:n];          # buoyancy perturbation
-        B = ds_field["B"][:,:,:,n:n];          # total buoyancy
+        b = ds_verification["b"][:,:,:,n:n];          # buoyancy perturbation
+        B = simname=="tilt" ? ds_B["B"][:,:,:,n:n] : ds_field["B"][:,:,:,n:n]          # total buoyancy
         uhat = ds_field["uhat"][:,:,:,n:n];    # true u
         what = ds_field["what"][:,:,:,n:n];    # true w
         ∇κ∇B = ds_budget["∇κ∇B"][:,:,:,n:n];    # ∇⋅κ∇B: buoyancy flux divergence
         div_uB = ds_budget["div_uB"][:,:,:,n:n];# ∇⋅uB: buoyancy flux divergence
+        wb = ds_budget["wb"][:,:,:,n:n];        # buoyancy flux divergence
+        ε = ds_budget["ε"][:,:,:,n:n];       
+        χ = ds_budget["χ"][:,:,:,n:n];       
         what_cen = (what[:,:,1:end-1,1] .+ what[:,:,2:end,1])./2 # what at center
         # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
         wtemp = (vcat(what_cen[end:end,:,:],what_cen[1:end-1,:,:]) .+ what_cen[:,:,:])./2
@@ -211,7 +235,7 @@ elseif output_mode == "analysis"
         end
         # terrain following quantities:
     
-        @time b_avg[:,n], _ = bins(b,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+        # @time b_avg[:,n], _ = bins(b,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
         @time Bz_avg[:,n], _ = bins(Bz_center,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
         @time what_avg[:,n], _ = bins(what_cen,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
         @time u_avg[:,n], _ = bins(u,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
@@ -219,11 +243,17 @@ elseif output_mode == "analysis"
         @time div_uB_avg[:,n], _ = bins(div_uB,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
         @time u_bar_∇B_bar_avg[:,n], _ = bins(u_bar_∇B_bar,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
         @time u_prime∇B_prime_avg[:,n], _ = bins(u_prime∇B_prime,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
-        if n < Nt
-            B2 = ds_field["B"][:,:,:,n:n+1];          # total buoyancy with two timesteps
-            dBdt = (B2[:, :, :, 2] .- B2[:, :, :, 1]) ./ t_diff[n]
-            @time dBdt_avg[:,n], _ = bins(dBdt,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+        @time ε_avg[:,n], _ = bins(ε,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+        @time χ_avg[:,n], _ = bins(χ,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+
+        if n==1
+            B2 = ds_3D["B"][:,:,:,[1, 12n]];          # total buoyancy with two timesteps
+            dBdt = (B2[:, :, :, 2] .- B2[:, :, :, 1]) ./ (ds_3D["time"][12n].-ds_3D["time"][1])
+        elseif n > 1
+            B2 = ds_3D["B"][:,:,:,[12(n-1), 12n]];          # total buoyancy with two timesteps
+            dBdt = (B2[:, :, :, 2] .- B2[:, :, :, 1]) ./ (ds_3D["time"][12n].-ds_3D["time"][12(n-1)])
         end 
+        @time dBdt_avg[:,n], _ = bins(dBdt,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
 
     end
 
@@ -233,24 +263,24 @@ elseif output_mode == "analysis"
     # This creates a new NetCDF file 
     # The mode "c" stands for creating a new file
 
-    ds_create = Dataset(string("output/",simname,"/TF_avg_tᶠ=",tᶠ,"_bin.nc"),"c")
+    ds_create = Dataset(string("output/",simname,"/TF_avg_tᶠ=",tᶠ,"_analysis.nc"),"c")
     # Define the dimension
     defDim(ds_create,"z_TF",length(bin_center))
     defDim(ds_create,"t",Nt)
-    defDim(ds_create, "t_diff", Nt - 1)  # Define a separate dimension for the derivative
+    # defDim(ds_create, "t_diff", Nt - 1)  # Define a separate dimension for the derivative
 
     # Define a global attribute
     ds_create.attrib["title"] = "Terrain-following averages"
     # Define the variables
-    v1 = defVar(ds_create,"b_avg",Float64,("z_TF","t"))
-    v1[:,:] = b_avg
+    # v1 = defVar(ds_create,"b_avg",Float64,("z_TF","t"))
+    # v1[:,:] = b_avg
     v2 = defVar(ds_create,"Bz_avg",Float64,("z_TF","t"))
     v2[:,:] = Bz_avg
     v3 = defVar(ds_create,"u_avg",Float64,("z_TF","t"))
     v3[:,:] = u_avg
     v4 = defVar(ds_create,"what_avg",Float64,("z_TF","t"))
     v4[:,:] = what_avg
-    v6 = defVar(ds_create,"dBdt_avg",Float64,("z_TF","t_diff"))
+    v6 = defVar(ds_create,"dBdt_avg",Float64,("z_TF","t"))
     v6[:,:] = dBdt_avg
     v7 = defVar(ds_create,"∇κ∇B_avg",Float64,("z_TF","t"))
     v7[:,:] = ∇κ∇B_avg
@@ -260,13 +290,17 @@ elseif output_mode == "analysis"
     v9[:,:] = u_bar_∇B_bar_avg
     v10 = defVar(ds_create,"u_prime∇B_prime_avg",Float64,("z_TF","t"))
     v10[:,:] = u_prime∇B_prime_avg
-    v11 = defVar(ds_create,"bin_center",Float64,("z_TF",))
-    v11[:,1] = bin_center
-    v12 = defVar(ds_create,"t",Float64,("t",))
-    v12[:,1] = t   
+    v11 = defVar(ds_create,"ε_avg",Float64,("z_TF","t"))
+    v11[:,:] = ε_avg
+    v12 = defVar(ds_create,"χ_avg",Float64,("z_TF","t"))
+    v12[:,:] = χ_avg
+    v13 = defVar(ds_create,"bin_center",Float64,("z_TF",))
+    v13[:,1] = bin_center
+    v14 = defVar(ds_create,"t",Float64,("t",))
+    v14[:,1] = t   
 
     # write attributes
-    v1.attrib["units"] = "m/s²"
+    # v1.attrib["units"] = "m/s²"
     v2.attrib["units"] = "1/s²"
     v3.attrib["units"] = "m/s"
     v4.attrib["units"] = "m/s"
@@ -276,8 +310,10 @@ elseif output_mode == "analysis"
     v8.attrib["units"] = "m/s³"
     v9.attrib["units"] = "m/s³"
     v10.attrib["units"] = "m/s³"
-    v11.attrib["units"] = "m"
-    v12.attrib["units"] = "s"
+    v11.attrib["units"] = "m²/s³"
+    v12.attrib["units"] = "m²/s³"
+    v13.attrib["units"] = "m"
+    v14.attrib["units"] = "s"
 
     close(ds_create)
 
@@ -394,4 +430,3 @@ else     # spinup mode: including multiple cases, i.e., 50:40:1010 TP
 end
 
 # include("plot_terrain_following.jl")
-

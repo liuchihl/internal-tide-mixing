@@ -12,11 +12,11 @@ using LinearAlgebra
 using Interpolations
 using MAT
 
-simname = "2D_tilt"
-timerange = "0-500"
-θ = 0.0036
+simname = "2D_notilt"
+tᶠ = 5.0
+θ = 0
 ## load data
-filename_slice = string("output/",simname,"/internal_tide_theta=",θ,"_realtopo2D_Nx=500_Nz=250_",timerange, "_1TP_timeavg.nc")
+filename_slice = string("output/",simname,"/internal_tide_theta=",θ,"_realtopo2D_Nx=500_Nz=250_tᶠ=",tᶠ, "_1TP_timeavg.nc")
 ds = Dataset(filename_slice,"r")
 
 # grids
@@ -33,7 +33,7 @@ Bz = ds["Bz"][:,:,:,:];
 b = ds["b"][:,:,:,:];
 uhat = ds["uhat"][:,:,:,:];
 what = ds["what"][:,:,:,:];
-v = ds["v"][:,:,:,:];
+# v = ds["v"][:,:,:,:];
 
 
 # set topography to NaN
