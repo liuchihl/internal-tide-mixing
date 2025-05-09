@@ -234,12 +234,12 @@ if solver == "FFT"
     )
 else solver == "Conjugate Gradient"
     # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-    tol = 1e-10
+    tol = 1e-9
     # add particles
     model = NonhydrostaticModel(;
         grid=grid,
         pressure_solver = ConjugateGradientPoissonSolver(
-                grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol),
         advection = WENO(),
         buoyancy = buoyancy,
