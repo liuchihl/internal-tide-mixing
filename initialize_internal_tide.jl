@@ -341,8 +341,8 @@ elseif output_mode == "analysis"
         if analysis_round == 1
             #1)first round output: this round is a spinup for transitioning from FFT to CG solver
             checkpoint_interval = 1*2π/ω₀
-            slice_diags = (; uhat=û, what=ŵ, B=B)
-            threeD_diags_avg = (; uhat=û, what=ŵ, B=B)
+            slice_diags = (; B=B)
+            threeD_diags_avg = (; B=B)
         elseif analysis_round == 2
             #2) second round output: after spinning up, save all fields
             checkpoint_interval = 20*2π/ω₀  # I do not want a new checkpoint so I set it to a large number
