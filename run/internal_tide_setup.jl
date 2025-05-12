@@ -57,6 +57,7 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
     println("Mode: $output_mode, Solver: $solver")
   
     if pickup == false && tᶠ ≤ 450*T₀
+        # verification period
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                         Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
                                         output_mode=output_mode, output_writer=output_writer,
