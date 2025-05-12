@@ -1,3 +1,5 @@
+include("fix_h200_gpu.jl")
+
 using Printf
 using Oceananigans
 using Oceananigans.Units
@@ -17,6 +19,7 @@ using CUDA
 using Suppressor
 using StructArrays: StructArray
 using NCDatasets
+
 
 struct CustomParticle
     x::Float64  # x-coordinate
