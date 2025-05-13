@@ -329,7 +329,9 @@ function initialize_internal_tide(
         b = model.tracers.b
         B̄ = model.background_fields.tracers.b
         B = B̄ + b # total buoyancy field
-        c = model.tracers.c
+        if analysis_round > 2 
+            c = model.tracers.c
+        end
         u, v, w = model.velocities
         û = @at (Face, Center, Center) u * ĝ[3] - w * ĝ[1] # true zonal velocity
         ŵ = @at (Center, Center, Face) w * ĝ[3] + u * ĝ[1] # true vertical velocity
