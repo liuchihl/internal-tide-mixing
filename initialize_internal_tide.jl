@@ -192,9 +192,9 @@ if output_mode == "analysis"
     Nparticles = 1e4
     # particles are released at 700 m above the bottom, which is about z=967 m
     x₀, y₀, z₀ = gaussian_particle_generator(
-                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H, θ;
+                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
                 x_center_ratio=0, y_center_ratio=0.5, z_center=z_center_cart,
-                σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )          
+                σ_x=σ_x, σ_y=σ_y, σ_z=σ_z )       
     b = 1e-5*ones(Float64,Int(length(x₀)))
     b = architecture == GPU() ? CuArray(b) : b
 
