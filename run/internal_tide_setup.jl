@@ -80,13 +80,9 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
             # the rest of the time during spinup period
             checkpointed_actuations = actuation
         else 
-            # the time during analysis period: we don't pickup checkpointer, 
+            # the time during analysis period (first two rounds): we don't pickup checkpointer, 
             # we set initial condition, set!(model,checkpoint_path.jld2), from the end of the spinup period
             pickup = false
-            checkpointed_actuations = 0
-            # the second half of the analysis period, we need to recalculate actuation and pickup (do this manually)
-            # pickup = ""
-            # checkpointed_actuations = 10
         end
         simulation = initialize_internal_tide(simname, Nx, Ny, Nz; 
                                         Δtᵒ=Δtᵒ, tᶠ=tᶠ, θ=θ, U₀=U₀, N=N, f₀=f₀,
@@ -102,10 +98,9 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
             checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
             checkpointed_actuations = checkpointed_wta.schedule.actuations
             open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
-        else 
-            # in analysis period, change whatever output you have to set the actuation if B is not available
-            # simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
+        else     # during the analysis period, we don't pickup checkpointer       
             run!(simulation; pickup=pickup)
+
         end
         
     end
