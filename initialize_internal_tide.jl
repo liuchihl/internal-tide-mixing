@@ -398,11 +398,11 @@ if output_writer
                                         cleanup=clean_checkpoint)
 
     ## output 3D field window time average
-    simulation.output_writers[:nc_threeD_timeavg] = NetCDFOutputWriter(model, threeD_diags_avg,
-                                        verbose=true,
+    simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
                                         filename = string(dir, fname, "_threeD_timeavg.nc"),
-                                        overwrite_existing = overwrite_output,
-                                        schedule = AveragedTimeInterval(avg_interval, window=avg_interval, stride=1)
+                                        schedule = AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+                                        verbose=true,
+                                        overwrite_existing = overwrite_output
                                         )
 
     ## output 2D slices
