@@ -16,6 +16,7 @@ using Interpolations: LinearInterpolation
 using CUDA
 using Suppressor
 using StructArrays: StructArray
+using NCDatasets
 
 struct CustomParticle
     x::Float64  # x-coordinate
