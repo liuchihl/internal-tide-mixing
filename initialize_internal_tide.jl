@@ -368,9 +368,9 @@ elseif output_mode == "analysis"
         threeD_diags_avg = (; uhat=û, v=v, what=ŵ, Rig=Rig)
         elseif analysis_round == 6
         #6) sixth round output
-        checkpoint_interval = 20*2π/ω₀
+        checkpoint_interval = 1*2π/ω₀
         threeD_diags = (; νₑ=νₑ)
-        threeD_diags_avg = (; b=b, B=B, νₑ=νₑ)
+        threeD_diags_avg = (; b=b)
         slice_diags_xz = (; b=b, νₑ=νₑ)    
         slice_diags_yz = (; b=b, ε=ε, χ=χ, B=B, νₑ=νₑ)    
         end
@@ -407,12 +407,12 @@ if output_writer
 
     ## output 2D slices
     # xz
-    simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags_xz,
-                                            schedule = TimeInterval(slice_interval),
-                                            indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-                                            verbose=true,
-                                            filename = string(dir, fname, "_slices_xz.nc"),
-                                            overwrite_existing = overwrite_output)
+    # simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags_xz,
+    #                                         schedule = TimeInterval(slice_interval),
+    #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+    #                                         verbose=true,
+    #                                         filename = string(dir, fname, "_slices_xz.nc"),
+    #                                         overwrite_existing = overwrite_output)
 
     ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
     if output_mode=="analysis"
@@ -432,11 +432,11 @@ if output_writer
         #                                         filename = string(dir, fname, "_slices_yz.nc"),
         #                                         overwrite_existing = overwrite_output)
     # output 3D field snapshots
-        simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
-                                                verbose=true,
-                                                filename = string(dir, fname, "_threeD.nc"),
-                                                overwrite_existing = overwrite_output,
-                                                schedule = TimeInterval(snapshot_interval))
+        # simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_threeD.nc"),
+        #                                         overwrite_existing = overwrite_output,
+        #                                         schedule = TimeInterval(snapshot_interval))
     # 1D profile
         # simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
         #                                         schedule = TimeInterval(Δtᵒ÷30),

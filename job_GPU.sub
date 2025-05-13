@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name="tilt" 
-#SBATCH --output="output_message/tilt_analysisround6.out.%j.%N.out"
-# # SBATCH --partition=gpuA100x4
-#SBATCH --partition=gpuH200x8
+#SBATCH --output="output_message/tilt_analysisround6-CG.out.%j.%N.out"
+# SBATCH --partition=gpuA100x4
+## SBATCH --partition=gpuH200x8
 #SBATCH --mem=30G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1 # could be 1 for py-torch
