@@ -10,5 +10,4 @@ The plan:
 3. if 2. works, then try different diags, including velocities
 4. if 3. also works miraculously, switch this to H200 and see what happens
 
-https://github.com/user-attachments/assets/658eb080-3dfd-4244-bf62-ee2b36022d22
 
