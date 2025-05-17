@@ -406,7 +406,7 @@ function initialize_internal_tide(
 
         ## output 2D slices
         # xz
-        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags_xz,
+        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
                                                 schedule = TimeInterval(slice_interval),
                                                 indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                                 verbose=true,
@@ -424,7 +424,7 @@ function initialize_internal_tide(
                                                     filename = string(dir, fname, "_slices_xy.nc"),
                                                     overwrite_existing = overwrite_output)
             # # yz
-            simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags_yz,
+            simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
                                                     schedule = TimeInterval(slice_interval),
                                                     indices = (Nx÷2,:,:), # center of the domain (along the sill)
                                                     verbose=true,
@@ -449,7 +449,7 @@ function initialize_internal_tide(
                                                     filename = string(dir, fname, "_point_center.nc"),
                                                     overwrite_existing = overwrite_output)
             # particles
-            simulation.output_writers[:particles] = NetCDFWriter(model, model.particles, 
+            simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
                                                     verbose=true,
                                                     filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
                                                     schedule = TimeInterval(Δtᵒ/3),
