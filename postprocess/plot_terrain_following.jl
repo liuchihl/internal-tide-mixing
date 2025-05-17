@@ -256,6 +256,108 @@ save(string("output/",simname,"/hab_combined_tᶠ=","200-210",".png"), fig)
 
 
 
+#### this part plots only Bz
+using Oceananigans
+using Oceananigans.Units
+using NCDatasets
+include("functions/bins.jl")
+function deriv(z,y)
+    dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(z)-1)
+    return dydz
+ end
+function calculate_background_buoyancy(θ)
+    θ = θ
+    ĝ = (sin(θ), 0, cos(θ)) # the vertical unit vector in rotated coordinates
+    N = 1e-3
+    @inline ẑ(x, z, ĝ) = x * ĝ[1] + z * ĝ[3]
+    @inline constant_stratification(x, y, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
+
+    # Create a background field
+    B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N²=N^2))
+
+    # Setup grid
+    H = 2.25kilometers # vertical extent
+    Lx = 15kilometers # along-canyon extent
+    Ly = 30kilometers # cross-canyon extent
+    Nx = 500
+    Ny = 1000
+    Nz = 250
+
+    # Bottom-intensified stretching for vertical grid
+    z_faces(k) = -H * ((1 + ((Nz + 1 - k) / Nz - 1) / 1.2) *
+                       (1 - exp(-15 * (Nz + 1 - k) / Nz)) / (1 - exp(-15)) - 1)
+
+    grid = RectilinearGrid(size=(Nx, Ny, Nz),
+        x=(0, Lx),
+        y=(0, Ly),
+        z=z_faces,
+        halo=(4, 4, 4),
+        topology=(Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded))
+
+    model = NonhydrostaticModel(
+        grid=grid,
+        background_fields=(; b=B̄_field),
+        tracers=:b
+    )
+
+    return interior(compute!(Field(model.background_fields.tracers.b)))[:, :, :]
+end
+
+simname = "tilt"
+θ=0.0036
+filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",452, "_threeD_timeavg.nc")
+filename_verification = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",10, "_threeD_timeavg.nc")
+
+ds_field = Dataset(filename_field,"r")
+ds_verification = Dataset(filename_verification,"r")
+t = ds_field["time"][:];
+# grids
+zC = ds_verification["zC"][:]; zF = ds_verification["zF"][:];
+Nz=length(zC[:]); 
+xC = ds_verification["xC"][:]; xF = ds_verification["xF"][:]; 
+Nx=length(xC[:]);       dx = xF[end]-xF[end-1];
+yC = ds_verification["yC"][:]; yF = ds_verification["yF"][:]
+Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
+z_face = zF
+B̄ = calculate_background_buoyancy(θ)
+n=1;
+b = ds_field["b"][:,:,:,n:n];# buoyancy perturbation
+B = b .+ B̄
+if haskey(ds_field,"Bz")
+    Bz = ds_field["Bz"][:,:,:,n:n];   
+else
+    N = 1.e-3
+    Bz =  deriv(zC,B);
+    Bz[b[:,:,1:end-1,:].==0] .= 0      # the grids are staggered, but this will effectively set the points inside and right above the immersed boudary to 0
+end
+# interpolate Bz from faces to center cell
+using Interpolations
+# Interpolate each row
+Bz_center = zeros(size(Bz,1),size(Bz,2),length(zC),1)
+for i in 1:size(Bz,1)
+    for j in 1:size(Bz,2)
+        itp = linear_interpolation(zF[2:end-1], Bz[i,j,:,1], extrapolation_bc=Line())
+        Bz_center[i,j,:,:] = itp(zC)
+    end
+end
+
+
+bin_edge = 0:8:1500
+bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
+# load hab
+filename_hab = "output/hab.nc"
+ds_hab = Dataset(filename_hab,"r")
+hab = ds_hab["hab"][:,:,:];
+bin_mask = hab
+
+# terrain following quantities:    
+Bz_avg, _ = bins(Bz_center,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+            
+using PyPlot
+plot(Bz_avg,bin_center[:], linewidth=3, color=:black)    
+savefig("output/tilt/Bz_avg_452.png")
+
+####
 
 
 ########### compare the incorrect plot at 200-210 TP with the correct one at 210 TP
