@@ -66,7 +66,7 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
                                         slice_interval=slice_interval, avg_interval=avg_interval, analysis_round = analysis_round
                                         )
         run!(simulation)
-        checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
+        checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg_tracer].outputs["B"]
         checkpointed_actuations = checkpointed_wta.schedule.actuations
         # Saving actuation to a text file
         open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
@@ -92,10 +92,10 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
                                         closure=closure, solver=solver, snapshot_interval=snapshot_interval, 
                                         slice_interval=slice_interval, avg_interval=avg_interval, analysis_round=analysis_round)
         if output_mode !== "analysis" 
-            simulation.output_writers[:nc_threeD_timeavg].outputs["B"].schedule.actuations = checkpointed_actuations
+            simulation.output_writers[:nc_threeD_timeavg_tracer].outputs["B"].schedule.actuations = checkpointed_actuations
             run!(simulation; pickup=pickup)
             # Overwrite and save new actuation to actuation.txt
-            checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg].outputs["B"]
+            checkpointed_wta = simulation.output_writers[:nc_threeD_timeavg_tracer].outputs["B"]
             checkpointed_actuations = checkpointed_wta.schedule.actuations
             open(string("output/",simname,"/actuation.txt"), "w") do file write(file, string(checkpointed_actuations)) end
         else     # during the analysis period, we don't pickup checkpointer       

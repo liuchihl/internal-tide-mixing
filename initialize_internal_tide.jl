@@ -361,8 +361,10 @@ function initialize_internal_tide(
             #3) third round output
             checkpoint_interval = 3 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, b=b)
-            threeD_diags_avg = (uhat=û, v=v, what=ŵ, B=B, Bbudget, χ, ε)
-            threeD_diags = (uhat=û, v=v, what=ŵ, c=c, B=B, Rig=Rig, Bbudget, χ, ε)
+            threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ, ε=ε)
+            threeD_diags_tracer_avg = (; B=B, Bbudget, χ=χ)
+            threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
+            threeD_tracer_diags = (; c=c, B=B, Rig=Rig, Bbudget, χ=χ)
             slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
         end
     elseif output_mode == "customized"
@@ -389,8 +391,14 @@ function initialize_internal_tide(
             cleanup=clean_checkpoint)
 
         ## output 3D field window time average
-        simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
-            filename=string(dir, fname, "_threeD_timeavg.nc"),
+        simulation.output_writers[:nc_threeD_timeavg_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
+            filename=string(dir, fname, "_velocity_threeD_timeavg.nc"),
+            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+            verbose=true,
+            overwrite_existing=overwrite_output
+        )
+        simulation.output_writers[:nc_threeD_timeavg_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
+            filename=string(dir, fname, "_tracer_threeD_timeavg.nc"),
             schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
             verbose=true,
             overwrite_existing=overwrite_output
@@ -423,9 +431,14 @@ function initialize_internal_tide(
                                                     filename = string(dir, fname, "_slices_yz.nc"),
                                                     overwrite_existing = overwrite_output)
             # output 3D field snapshots
-            simulation.output_writers[:nc_threeD] = NetCDFOutputWriter(model, threeD_diags,
+            simulation.output_writers[:nc_threeD_velocity] = NetCDFOutputWriter(model, threeD_diags_velocity_avg,
                                                     verbose=true,
-                                                    filename = string(dir, fname, "_threeD.nc"),
+                                                    filename = string(dir, fname, "_velocity_threeD.nc"),
+                                                    overwrite_existing = overwrite_output,
+                                                    schedule = TimeInterval(snapshot_interval))
+            simulation.output_writers[:nc_threeD_tracer] = NetCDFOutputWriter(model, threeD_diags_tracer_avg,
+                                                    verbose=true,
+                                                    filename = string(dir, fname, "_tracer_threeD.nc"),
                                                     overwrite_existing = overwrite_output,
                                                     schedule = TimeInterval(snapshot_interval))
             # 1D profile
