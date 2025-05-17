@@ -362,9 +362,9 @@ function initialize_internal_tide(
             checkpoint_interval = 3 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, b=b)
             threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ, ε=ε)
-            threeD_diags_tracer_avg = (; B=B, Bbudget, χ=χ)
+            threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
             threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
-            threeD_tracer_diags = (; c=c, B=B, Rig=Rig, Bbudget, χ=χ)
+            threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
             slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
         end
     elseif output_mode == "customized"
