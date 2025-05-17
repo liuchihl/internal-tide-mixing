@@ -406,7 +406,7 @@ function initialize_internal_tide(
 
         ## output 2D slices
         # xz
-        simulation.output_writers[:nc_slice_xz] = NetCDFOutputWriter(model, slice_diags_xz,
+        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags_xz,
                                                 schedule = TimeInterval(slice_interval),
                                                 indices = (:,Ny÷2,:), # center of the domain (along thalweg)
                                                 verbose=true,
@@ -417,39 +417,39 @@ function initialize_internal_tide(
         if output_mode == "analysis"
             # xy
             ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-            simulation.output_writers[:nc_slice_xy] = NetCDFOutputWriter(model, slice_diags,
+            simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
                                                     schedule = TimeInterval(slice_interval),
                                                     indices = (:,:,ind),
                                                     verbose=true,
                                                     filename = string(dir, fname, "_slices_xy.nc"),
                                                     overwrite_existing = overwrite_output)
             # # yz
-            simulation.output_writers[:nc_slice_yz] = NetCDFOutputWriter(model, slice_diags_yz,
+            simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags_yz,
                                                     schedule = TimeInterval(slice_interval),
                                                     indices = (Nx÷2,:,:), # center of the domain (along the sill)
                                                     verbose=true,
                                                     filename = string(dir, fname, "_slices_yz.nc"),
                                                     overwrite_existing = overwrite_output)
             # output 3D field snapshots
-            simulation.output_writers[:nc_threeD_velocity] = NetCDFOutputWriter(model, threeD_diags_velocity_avg,
+            simulation.output_writers[:nc_threeD_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
                                                     verbose=true,
                                                     filename = string(dir, fname, "_velocity_threeD.nc"),
                                                     overwrite_existing = overwrite_output,
                                                     schedule = TimeInterval(snapshot_interval))
-            simulation.output_writers[:nc_threeD_tracer] = NetCDFOutputWriter(model, threeD_diags_tracer_avg,
+            simulation.output_writers[:nc_threeD_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
                                                     verbose=true,
                                                     filename = string(dir, fname, "_tracer_threeD.nc"),
                                                     overwrite_existing = overwrite_output,
                                                     schedule = TimeInterval(snapshot_interval))
             # 1D profile
-            simulation.output_writers[:nc_point] = NetCDFOutputWriter(model, point_diags,
+            simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
                                                     schedule = TimeInterval(Δtᵒ÷30),
                                                     indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
                                                     verbose=true,
                                                     filename = string(dir, fname, "_point_center.nc"),
                                                     overwrite_existing = overwrite_output)
             # particles
-            simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, 
+            simulation.output_writers[:particles] = NetCDFWriter(model, model.particles, 
                                                     verbose=true,
                                                     filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
                                                     schedule = TimeInterval(Δtᵒ/3),
