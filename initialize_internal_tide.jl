@@ -289,7 +289,7 @@ function initialize_internal_tide(
         end
     end
     ## Configure simulation
-    Δt = 5
+    Δt = 10
     # Δt = (1/N)*0.03
     simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt)
     # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
@@ -406,12 +406,12 @@ function initialize_internal_tide(
 
         ## output 2D slices
         # xz
-        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
-                                                schedule = TimeInterval(slice_interval),
-                                                indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-                                                verbose=true,
-                                                filename = string(dir, fname, "_slices_xz.nc"),
-                                                overwrite_existing = overwrite_output)
+        # simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
+        #                                         schedule = TimeInterval(slice_interval),
+        #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+        #                                         verbose=true,
+        #                                         filename = string(dir, fname, "_slices_xz.nc"),
+        #                                         overwrite_existing = overwrite_output)
 
         ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
         if output_mode == "analysis"
@@ -424,36 +424,36 @@ function initialize_internal_tide(
                                                     filename = string(dir, fname, "_slices_xy.nc"),
                                                     overwrite_existing = overwrite_output)
             # # yz
-            simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
-                                                    schedule = TimeInterval(slice_interval),
-                                                    indices = (Nx÷2,:,:), # center of the domain (along the sill)
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_slices_yz.nc"),
-                                                    overwrite_existing = overwrite_output)
+            # simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
+            #                                         schedule = TimeInterval(slice_interval),
+            #                                         indices = (Nx÷2,:,:), # center of the domain (along the sill)
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_slices_yz.nc"),
+            #                                         overwrite_existing = overwrite_output)
             # output 3D field snapshots
-            simulation.output_writers[:nc_threeD_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_velocity_threeD.nc"),
-                                                    overwrite_existing = overwrite_output,
-                                                    schedule = TimeInterval(snapshot_interval))
-            simulation.output_writers[:nc_threeD_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_tracer_threeD.nc"),
-                                                    overwrite_existing = overwrite_output,
-                                                    schedule = TimeInterval(snapshot_interval))
+            # simulation.output_writers[:nc_threeD_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_velocity_threeD.nc"),
+            #                                         overwrite_existing = overwrite_output,
+            #                                         schedule = TimeInterval(snapshot_interval))
+            # simulation.output_writers[:nc_threeD_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_tracer_threeD.nc"),
+            #                                         overwrite_existing = overwrite_output,
+            #                                         schedule = TimeInterval(snapshot_interval))
             # 1D profile
-            simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-                                                    schedule = TimeInterval(Δtᵒ÷30),
-                                                    indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_point_center.nc"),
-                                                    overwrite_existing = overwrite_output)
+            # simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
+            #                                         schedule = TimeInterval(Δtᵒ÷30),
+            #                                         indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_point_center.nc"),
+            #                                         overwrite_existing = overwrite_output)
             # particles
-            simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
-                                                    schedule = TimeInterval(Δtᵒ/3),
-                                                    overwrite_existing=true)
+            # simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
+            #                                         schedule = TimeInterval(Δtᵒ/3),
+            #                                         overwrite_existing=true)
         end
     end
     ### Progress messages
@@ -469,7 +469,6 @@ function initialize_internal_tide(
     
         # Get CG solver parameters
         cg = model.pressure_solver.conjugate_gradient_solver
-        cg_residual = cg.residual
         cg_iter = cg.iteration
         cg_maxiter = cg.maxiter
     
@@ -477,11 +476,13 @@ function initialize_internal_tide(
             maximum_w = maximum(abs, w)
             adv_cfl = AdvectiveCFL(s.Δt)(model)
             diff_cfl = DiffusiveCFL(s.Δt)(model)
+            cg_residual = maximum(abs, cg.residual)
             memory_usage = "CPU"
         else
             CUDA.synchronize()
             CUDA.@allowscalar begin
                 maximum_w = maximum(abs, w)
+                cg_residual = maximum(abs, cg.residual)
                 adv_cfl = AdvectiveCFL(s.Δt)(model)
                 diff_cfl = DiffusiveCFL(s.Δt)(model)
             end
@@ -494,7 +495,7 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ/20))
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ/30))
 
     return simulation
 end
