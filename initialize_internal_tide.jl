@@ -3,8 +3,7 @@ using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
-using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, 
-    FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner, sparse_inverse_preconditioner, asymptotic_diagonal_inverse_preconditioner
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner
 using Oceananigans.DistributedComputations
 using Oceananigans.DistributedComputations: all_reduce
 using LinearAlgebra
@@ -242,12 +241,12 @@ function initialize_internal_tide(
     else
         solver == "Conjugate Gradient"
         # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-        tol = 1e-9
+        tol = 1e-8
         # add particles
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=1000, preconditioner = :AsymptoticInverse,
+                grid; maxiter=500, preconditioner = AsymptoticPoissonPreconditioner(),
                 reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
@@ -290,7 +289,7 @@ function initialize_internal_tide(
         end
     end
     ## Configure simulation
-    Δt = 10
+    Δt = 15
     # Δt = (1/N)*0.03
     simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt)
     # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data

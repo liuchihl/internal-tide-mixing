@@ -14,7 +14,6 @@ The plan:
    (1) how many iteration is needed to converge, if it always reaches maxiter, then maxiter is too small. (the result shows iteration always meets the max and residual increases in time, indicating maxiter is too small) 
 7. change maxiter from 100 to 1000, see what difference it makes (monitor whether residual decreases, and check if iteration is smaller than 1000)
     The result shows that iteration still always = maxiter but the residual has dropped to 1e-8 which is great! Only problem is that this is too slow, i.e., 1TP needs about 66hours wall clock time. So tolerance should be less strict and maxiter should be less in order to make progress.
-8. next step is to test other types of preconditioners (SparseInverse) (failed when using it on CUDA)
-    (1) see how many iteration needed for each CG solve, and the residual; 
-    (2) plot the x-z slice to see the result
+8. next step is to test other types of preconditioners (SparseInverse and AsymptoticInverse) (these preconditioners are not implemented yet for immersed boundary on GPU, only CPU would work). So the best thing to do is to use the previous preconditioner AsymptoticPoissonPreconditioner(), with a smaller maxiter (500) and slightly less tolerance (1e-8) and dt=15. 
+
 9. Find the best way, rerun the spinup period from t=450 to 452TP because maxiter=100 is too small.
