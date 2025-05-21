@@ -246,7 +246,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=100, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=1000, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
@@ -365,7 +365,8 @@ function initialize_internal_tide(
             threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
             threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
             threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
-            slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
+            # slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
+            slice_diags = (; uhat=û, B=B)
         end
     elseif output_mode == "customized"
         checkpoint_interval = 20 * 2π / ω₀
@@ -391,18 +392,18 @@ function initialize_internal_tide(
             cleanup=clean_checkpoint)
 
         ## output 3D field window time average
-        simulation.output_writers[:nc_threeD_timeavg_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
-            filename=string(dir, fname, "_velocity_threeD_timeavg.nc"),
-            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-            verbose=true,
-            overwrite_existing=overwrite_output
-        )
-        simulation.output_writers[:nc_threeD_timeavg_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
-            filename=string(dir, fname, "_tracer_threeD_timeavg.nc"),
-            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-            verbose=true,
-            overwrite_existing=overwrite_output
-        )
+        # simulation.output_writers[:nc_threeD_timeavg_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
+        #     filename=string(dir, fname, "_velocity_threeD_timeavg.nc"),
+        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+        #     verbose=true,
+        #     overwrite_existing=overwrite_output
+        # )
+        # simulation.output_writers[:nc_threeD_timeavg_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
+        #     filename=string(dir, fname, "_tracer_threeD_timeavg.nc"),
+        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+        #     verbose=true,
+        #     overwrite_existing=overwrite_output
+        # )
 
         ## output 2D slices
         # xz

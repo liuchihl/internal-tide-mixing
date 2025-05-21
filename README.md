@@ -11,5 +11,5 @@ The plan:
 4. run with dt=10, still encounters CFL issue
 5. try dt=5, run a bit further but encounters: CUDA error: an illegal memory access was encountered
 6. so dt=5 is too small. Let's try dt = 10 and print out the progress message, check:
-   (1) how many iteration is needed to converge, if it always reaches maxiter, then maxiter is too small. 
-   (2) check if the residual drops
+   (1) how many iteration is needed to converge, if it always reaches maxiter, then maxiter is too small. (the result shows iteration always meets the max and residual increases in time, indicating the CG solver is not set correctly) 
+7. set maxiter from 100 to 1000, see what difference it makes (monitor whether residual decreases, and check if iteration is smaller than 1000)
