@@ -246,7 +246,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=1000, preconditioner = :SpareInverse,
+                grid; maxiter=1000, preconditioner = :SparseInverse,
                 reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
