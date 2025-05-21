@@ -3,7 +3,8 @@ using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
-using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner, sparse_inverse_preconditioner
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, 
+    FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner, sparse_inverse_preconditioner, asymptotic_diagonal_inverse_preconditioner
 using Oceananigans.DistributedComputations
 using Oceananigans.DistributedComputations: all_reduce
 using LinearAlgebra
@@ -246,7 +247,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=1000, preconditioner = :SparseInverse,
+                grid; maxiter=1000, preconditioner = :AsymptoticInverse,
                 reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
@@ -359,7 +360,7 @@ function initialize_internal_tide(
             threeD_diags_avg = (; b=b)
         elseif analysis_round == 3
             #3) third round output
-            checkpoint_interval = 3 * 2π / ω₀
+            checkpoint_interval = 1 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, b=b)
             threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ, ε=ε)
             threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
