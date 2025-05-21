@@ -3,7 +3,7 @@ using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
-using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner, sparse_inverse_preconditioner
 using Oceananigans.DistributedComputations
 using Oceananigans.DistributedComputations: all_reduce
 using LinearAlgebra
@@ -246,7 +246,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=1000, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=1000, preconditioner = :SpareInverse,
                 reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,

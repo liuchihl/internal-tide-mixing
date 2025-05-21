@@ -13,3 +13,6 @@ The plan:
 6. so dt=5 is too small. Let's try dt = 10 and print out the progress message, check:
    (1) how many iteration is needed to converge, if it always reaches maxiter, then maxiter is too small. (the result shows iteration always meets the max and residual increases in time, indicating the CG solver is not set correctly) 
 7. set maxiter from 100 to 1000, see what difference it makes (monitor whether residual decreases, and check if iteration is smaller than 1000)
+    The result shows that iteration always meets maxiter but the residual has dropped to 1e-8 which is great! Only problem is that this is too slow...
+8. next step is to test other types of preconditioners (SpareInverse)
+9. If I found the best way, rerun the spinup period from t=450 to 452TP.
