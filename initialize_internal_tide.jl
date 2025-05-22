@@ -246,7 +246,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=300, preconditioner = AsymptoticPoissonPreconditioner(),
+                grid; maxiter=500, preconditioner = AsymptoticPoissonPreconditioner(),
                 reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
@@ -365,8 +365,8 @@ function initialize_internal_tide(
             threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
             threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
             threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
-            # slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
-            slice_diags = (; uhat=û, B=B)
+            slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
+            # slice_diags = (; uhat=û, B=B)
         end
     elseif output_mode == "customized"
         checkpoint_interval = 20 * 2π / ω₀
@@ -392,27 +392,27 @@ function initialize_internal_tide(
             cleanup=clean_checkpoint)
 
         ## output 3D field window time average
-        # simulation.output_writers[:nc_threeD_timeavg_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
-        #     filename=string(dir, fname, "_velocity_threeD_timeavg.nc"),
-        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-        #     verbose=true,
-        #     overwrite_existing=overwrite_output
-        # )
-        # simulation.output_writers[:nc_threeD_timeavg_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
-        #     filename=string(dir, fname, "_tracer_threeD_timeavg.nc"),
-        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-        #     verbose=true,
-        #     overwrite_existing=overwrite_output
-        # )
+        simulation.output_writers[:nc_threeD_timeavg_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
+            filename=string(dir, fname, "_velocity_threeD_timeavg.nc"),
+            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+            verbose=true,
+            overwrite_existing=overwrite_output
+        )
+        simulation.output_writers[:nc_threeD_timeavg_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
+            filename=string(dir, fname, "_tracer_threeD_timeavg.nc"),
+            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+            verbose=true,
+            overwrite_existing=overwrite_output
+        )
 
         ## output 2D slices
         # xz
-        # simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
-        #                                         schedule = TimeInterval(slice_interval),
-        #                                         indices = (:,Ny÷2,:), # center of the domain (along thalweg)
-        #                                         verbose=true,
-        #                                         filename = string(dir, fname, "_slices_xz.nc"),
-        #                                         overwrite_existing = overwrite_output)
+        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
+                                                schedule = TimeInterval(slice_interval),
+                                                indices = (:,Ny÷2,:), # center of the domain (along thalweg)
+                                                verbose=true,
+                                                filename = string(dir, fname, "_slices_xz.nc"),
+                                                overwrite_existing = overwrite_output)
 
         ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
         if output_mode == "analysis"
@@ -425,36 +425,36 @@ function initialize_internal_tide(
                                                     filename = string(dir, fname, "_slices_xy.nc"),
                                                     overwrite_existing = overwrite_output)
             # # yz
-            # simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
-            #                                         schedule = TimeInterval(slice_interval),
-            #                                         indices = (Nx÷2,:,:), # center of the domain (along the sill)
-            #                                         verbose=true,
-            #                                         filename = string(dir, fname, "_slices_yz.nc"),
-            #                                         overwrite_existing = overwrite_output)
+            simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
+                                                    schedule = TimeInterval(slice_interval),
+                                                    indices = (Nx÷2,:,:), # center of the domain (along the sill)
+                                                    verbose=true,
+                                                    filename = string(dir, fname, "_slices_yz.nc"),
+                                                    overwrite_existing = overwrite_output)
             # output 3D field snapshots
-            # simulation.output_writers[:nc_threeD_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
-            #                                         verbose=true,
-            #                                         filename = string(dir, fname, "_velocity_threeD.nc"),
-            #                                         overwrite_existing = overwrite_output,
-            #                                         schedule = TimeInterval(snapshot_interval))
-            # simulation.output_writers[:nc_threeD_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
-            #                                         verbose=true,
-            #                                         filename = string(dir, fname, "_tracer_threeD.nc"),
-            #                                         overwrite_existing = overwrite_output,
-            #                                         schedule = TimeInterval(snapshot_interval))
+            simulation.output_writers[:nc_threeD_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
+                                                    verbose=true,
+                                                    filename = string(dir, fname, "_velocity_threeD.nc"),
+                                                    overwrite_existing = overwrite_output,
+                                                    schedule = TimeInterval(snapshot_interval))
+            simulation.output_writers[:nc_threeD_tracer] = NetCDFWriter(model, threeD_diags_tracer_avg,
+                                                    verbose=true,
+                                                    filename = string(dir, fname, "_tracer_threeD.nc"),
+                                                    overwrite_existing = overwrite_output,
+                                                    schedule = TimeInterval(snapshot_interval))
             # 1D profile
-            # simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-            #                                         schedule = TimeInterval(Δtᵒ÷30),
-            #                                         indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
-            #                                         verbose=true,
-            #                                         filename = string(dir, fname, "_point_center.nc"),
-            #                                         overwrite_existing = overwrite_output)
+            simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
+                                                    schedule = TimeInterval(Δtᵒ÷30),
+                                                    indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
+                                                    verbose=true,
+                                                    filename = string(dir, fname, "_point_center.nc"),
+                                                    overwrite_existing = overwrite_output)
             # particles
-            # simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
-            #                                         verbose=true,
-            #                                         filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
-            #                                         schedule = TimeInterval(Δtᵒ/3),
-            #                                         overwrite_existing=true)
+            simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
+                                                    verbose=true,
+                                                    filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
+                                                    schedule = TimeInterval(Δtᵒ/3),
+                                                    overwrite_existing=true)
         end
     end
     ### Progress messages
