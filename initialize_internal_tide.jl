@@ -241,12 +241,12 @@ function initialize_internal_tide(
     else
         solver == "Conjugate Gradient"
         # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-        tol = 1e-8
+        tol = 5e-8
         # add particles
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=500, preconditioner = AsymptoticPoissonPreconditioner(),
+                grid; maxiter=300, preconditioner = AsymptoticPoissonPreconditioner(),
                 reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
