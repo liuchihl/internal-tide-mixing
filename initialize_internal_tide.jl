@@ -452,11 +452,11 @@ function initialize_internal_tide(
             #                                         filename = string(dir, fname, "_point_center.nc"),
             #                                         overwrite_existing = overwrite_output)
             # particles
-            simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
-                                                    schedule = TimeInterval(Δtᵒ/3),
-                                                    overwrite_existing=true)
+            # simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_particles_z=",z_center_cart,".nc"), 
+            #                                         schedule = TimeInterval(Δtᵒ/3),
+            #                                         overwrite_existing=true)
         end
     end
     ### Progress messages
