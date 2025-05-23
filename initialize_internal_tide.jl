@@ -241,7 +241,7 @@ function initialize_internal_tide(
     else
         solver == "Conjugate Gradient"
         # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-        tol = 5e-8
+        tol = 1e-8
         # add particles
         model = NonhydrostaticModel(;
             grid=grid,
@@ -362,9 +362,11 @@ function initialize_internal_tide(
             checkpoint_interval = 1 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, b=b)
             threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ, ε=ε)
-            threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
+            threeD_diags_tracer_avg = (; B=B, χ=χ)
+            # threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
             threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
-            threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
+            threeD_tracer_diags = (; c=c, B=B, Rig=Rig, χ=χ)
+            # threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
             slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
             # slice_diags = (; uhat=û, B=B)
         end
@@ -443,12 +445,12 @@ function initialize_internal_tide(
                                                     overwrite_existing = overwrite_output,
                                                     schedule = TimeInterval(snapshot_interval))
             # 1D profile
-            simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-                                                    schedule = TimeInterval(Δtᵒ÷30),
-                                                    indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_point_center.nc"),
-                                                    overwrite_existing = overwrite_output)
+            # simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
+            #                                         schedule = TimeInterval(Δtᵒ÷30),
+            #                                         indices = (Nx÷2,Ny÷2,:), # center of the domain (at the sill)
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_point_center.nc"),
+            #                                         overwrite_existing = overwrite_output)
             # particles
             simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,), 
                                                     verbose=true,
@@ -496,7 +498,7 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ/30))
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷30))
 
     return simulation
 end
