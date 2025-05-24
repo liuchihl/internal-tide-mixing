@@ -471,21 +471,21 @@ function initialize_internal_tide(
         current_dt = s.Δt
     
         # Get CG solver parameters
-        cg = model.pressure_solver.conjugate_gradient_solver
-        cg_iter = cg.iteration
-        cg_maxiter = cg.maxiter
+        # cg = model.pressure_solver.conjugate_gradient_solver
+        # cg_iter = cg.iteration
+        # cg_maxiter = cg.maxiter
     
         if arch isa CPU
             maximum_w = maximum(abs, w)
             adv_cfl = AdvectiveCFL(s.Δt)(model)
             diff_cfl = DiffusiveCFL(s.Δt)(model)
-            cg_residual = maximum(abs, cg.residual)
+            # cg_residual = maximum(abs, cg.residual)
             memory_usage = "CPU"
         else
             CUDA.synchronize()
             CUDA.@allowscalar begin
                 maximum_w = maximum(abs, w)
-                cg_residual = maximum(abs, cg.residual)
+                # cg_residual = maximum(abs, cg.residual)
                 adv_cfl = AdvectiveCFL(s.Δt)(model)
                 diff_cfl = DiffusiveCFL(s.Δt)(model)
             end
@@ -493,10 +493,14 @@ function initialize_internal_tide(
         end
     
         @info @sprintf(
-            "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
-            progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
-            cg_residual, cg_iter, cg_maxiter
+            "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
+            progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
         )
+        # @info @sprintf(
+        #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
+        #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
+        #     cg_residual, cg_iter, cg_maxiter
+        # )
     end
     simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷30))
 
