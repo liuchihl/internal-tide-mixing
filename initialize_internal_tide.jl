@@ -245,9 +245,9 @@ function initialize_internal_tide(
         # add particles
         model = NonhydrostaticModel(;
             grid=grid,
-            pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=500, preconditioner = AsymptoticPoissonPreconditioner(),
-                reltol=tol),
+            # pressure_solver=ConjugateGradientPoissonSolver(
+            #     grid; maxiter=500, preconditioner = AsymptoticPoissonPreconditioner(),
+            #     reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
             coriolis=coriolis,
