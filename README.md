@@ -26,10 +26,12 @@ The plan:
     (3) same as (2) but with FFT (no issue is found, so the issue is indeed from CG)
     (4) same as (2) but without Oceanostics (same CUDA error, same failing time)
     (5) same as (4) but without viscosity (same CUDA error, same failing time)
-    (6) same as (5) but without x-y, y-z slices
+    (6) same as (5) but without x-y, y-z slices (if this still doesn't help, try return to the one that works)
 
+14. after some tests in 13, I realize different diagnostics don't affect the convergence of CG solver (residual always blows up). I thought 9 works fine, but I didn't allow that case to run long enough, similar to 13, so it is highly likely that 9 will face the same issue.
+    Therefore, a different direction has to be done: I would try starting from 450 (because previous use of maxiter=100 might cause problems in converging the solution, thus the error of the velocity would accumulate to a point where it becomes impossible to converge, and this issue occurs in t=452-453TP), with maxiter=500, tol=1e-8. Only save x-z slice, B and uhat.  
 
-
+    These runs might take a much longer time to finish, but at least it allows us to make progress
 
 
 Conclusion:

@@ -347,12 +347,11 @@ function initialize_internal_tide(
         Bbudget = get_budget_outputs_tuple(model;)
 
 
-        if analysis_round == 1
+        if analysis_round == 1 # t=450-451 TP
             #1)first round output 
             checkpoint_interval = 1 * 2π / ω₀
-            threeD_diags = (; νₑ=νₑ)
-            threeD_diags_avg = (; b=b)
-        elseif analysis_round == 2
+            slice_diags = (; uhat=û, B=B)
+        elseif analysis_round == 2 # t=451-452 TP
             #2) second round output
             checkpoint_interval = 1 * 2π / ω₀
             threeD_diags = (; νₑ=νₑ)
@@ -500,10 +499,6 @@ function initialize_internal_tide(
             memory_usage = log_gpu_memory_usage()
         end
     
-        # @info @sprintf(
-        #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
-        #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
-        # )
         @info @sprintf(
             "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
             progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
