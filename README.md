@@ -1,13 +1,10 @@
 # internal-tide-mixing
 
-This branch works on the supercomputer Delta
+This branch goes back to this commit: https://github.com/liuchihl/internal-tide-mixing/commit/c5940477a9fe3bbc015ff8032b18c3b84a31ab5a
+That usees maxiter=100, rtol=1e-9, H200. This has been shown that this branch works fine at least from t=451-452TP.
 
-Purpose of this branch:
-CG solver could be implemented on A100 GPU with Oceananigans@v0.95.5, but cannot be run in either later version, different diags (velocities), or dt reduced from 20 to 10, etc..
-The plan: 
-1. Run this branch with latest Oceananigans (because we know the old version works fine)
-2. if 1. works, then try run dt=10
-3. if 2. works, then try different diags, including velocities
-4. if 3. also works miraculously, switch this to H200 and see what happens
+This new branch starts from there.
 
+Changes:
+1. tp_end=451; save x-z slices; tol = 1e-8; maxiter=500
 
