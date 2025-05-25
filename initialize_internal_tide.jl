@@ -245,9 +245,9 @@ function initialize_internal_tide(
         # add particles
         model = NonhydrostaticModel(;
             grid=grid,
-            # pressure_solver=ConjugateGradientPoissonSolver(
-            #     grid; maxiter=500, preconditioner = AsymptoticPoissonPreconditioner(),
-            #     reltol=tol),
+            pressure_solver=ConjugateGradientPoissonSolver(
+                grid; maxiter=500, preconditioner = AsymptoticPoissonPreconditioner(),
+                reltol=tol),
             advection=WENO(),
             buoyancy=buoyancy,
             coriolis=coriolis,
@@ -360,15 +360,23 @@ function initialize_internal_tide(
         elseif analysis_round == 3
             #3) third round output
             checkpoint_interval = 1 * 2π / ω₀
+            # point_diags = (; uhat=û, what=ŵ, b=b)
+            # threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ, ε=ε)
+            # threeD_diags_tracer_avg = (; B=B, χ=χ)
+            # # threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
+            # threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
+            # threeD_tracer_diags = (; c=c, B=B, Rig=Rig, χ=χ)
+            # # threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
+            # slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
             point_diags = (; uhat=û, what=ŵ, b=b)
-            threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ, ε=ε)
-            threeD_diags_tracer_avg = (; B=B, χ=χ)
+            threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ)
+            threeD_diags_tracer_avg = (; B=B)
             # threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
-            threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
-            threeD_tracer_diags = (; c=c, B=B, Rig=Rig, χ=χ)
+            threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, νₑ=νₑ)
+            threeD_tracer_diags = (; c=c, B=B, Rig=Rig)
             # threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
-            slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
-            # slice_diags = (; uhat=û, B=B)
+            # slice_diags = (; uhat=û, v=v, what=ŵ, B=B, νₑ=νₑ)
+            slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
         end
     elseif output_mode == "customized"
         checkpoint_interval = 20 * 2π / ω₀
@@ -471,36 +479,36 @@ function initialize_internal_tide(
         current_dt = s.Δt
     
         # Get CG solver parameters
-        # cg = model.pressure_solver.conjugate_gradient_solver
-        # cg_iter = cg.iteration
-        # cg_maxiter = cg.maxiter
+        cg = model.pressure_solver.conjugate_gradient_solver
+        cg_iter = cg.iteration
+        cg_maxiter = cg.maxiter
     
         if arch isa CPU
             maximum_w = maximum(abs, w)
             adv_cfl = AdvectiveCFL(s.Δt)(model)
             diff_cfl = DiffusiveCFL(s.Δt)(model)
-            # cg_residual = maximum(abs, cg.residual)
+            cg_residual = maximum(abs, cg.residual)
             memory_usage = "CPU"
         else
             CUDA.synchronize()
             CUDA.@allowscalar begin
                 maximum_w = maximum(abs, w)
-                # cg_residual = maximum(abs, cg.residual)
+                cg_residual = maximum(abs, cg.residual)
                 adv_cfl = AdvectiveCFL(s.Δt)(model)
                 diff_cfl = DiffusiveCFL(s.Δt)(model)
             end
             memory_usage = log_gpu_memory_usage()
         end
     
-        @info @sprintf(
-            "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
-            progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
-        )
         # @info @sprintf(
-        #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
-        #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
-        #     cg_residual, cg_iter, cg_maxiter
+        #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
+        #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
         # )
+        @info @sprintf(
+            "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
+            progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
+            cg_residual, cg_iter, cg_maxiter
+        )
     end
     simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷30))
 

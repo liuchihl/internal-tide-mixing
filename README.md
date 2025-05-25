@@ -13,7 +13,7 @@ The plan:
 7. change maxiter from 100 to 1000 (only 2 diags; no 3D save), see what difference it makes (monitor whether residual decreases, and check if iteration is smaller than 1000)
     The result shows that iteration still always = maxiter but the residual has dropped to 1e-8 which is great! Only problem is that this is too slow, i.e., 1TP needs about 66hours wall clock time. So tolerance should be less strict and maxiter should be less in order to make progress.
 8. next step is to test other types of preconditioners if they give faster convergence (SparseInverse and AsymptoticInverse) (these preconditioners are not implemented yet for immersed boundary on GPU, only CPU would work). So use previous preconditioner AsymptoticPoissonPreconditioner().
-9. The test using maxiter=500, tol=1e-8, dt=15: 1TP takes 25 hours of run with only 2 diagnostics using H200 (this is too slow, but the residual stays around 1e-8 to 1e-7 without increasing, which is great)
+9. The test using maxiter=500, tol=1e-8, dt=15: 1TP takes 25 hours of run with only 2 diagnostics (xy-slice) using H200 (this is too slow, but the residual stays around 1e-8 to 1e-7 without increasing, which is great)
 10. try maxiter=300 and slightly higher tolerance (5e-8) and dt=15 (I tried this and save all diags, I met the CUDA error) 
 11. increasing maxiter=500, tol=5e-8, and save all diags meet CUDA error (the residual increases to 70 and CUDA error appears)
     From 9-11, seems like saving certain diags might cause CUDA error... 
@@ -22,8 +22,9 @@ The plan:
 13. from 9 and 12, it is sure that some diags introduce the CUDA error. So figuring out which diagnostics is the culprit is important.
     (1) all diags but without particles: CUDA error: an illegal memory access was encountered; CG residual: 1.67e+02 (particles are not the main culprit)
         The residual increases greatly after saving the 3D data (not sure if saving 3D data is related) (results shows 3D data is not related)
-    (2) same as (1) but without the 3D saves (I suspect 3D save is the culprit, because in 7., there was no 3D saves) (if this still failed, then try get rid of Oceanostics)
-    (3) same as (2) but with FFT
+    (2) same as (1) but without the 3D saves (I suspect 3D save is the culprit, because in 7., there was no 3D saves) (this still failed, try get rid of Oceanostics)
+    (3) same as (2) but with FFT (no issue is found, so the issue is indeed from CG)
+    (4) same as (2) but without Oceanostics (same CUDA error, same failing time)
 
 
 
