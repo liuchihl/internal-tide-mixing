@@ -427,20 +427,20 @@ function initialize_internal_tide(
         ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
         if output_mode == "analysis"
             # xy
-            ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-            simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
-                                                    schedule = TimeInterval(slice_interval),
-                                                    indices = (:,:,ind),
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_slices_xy.nc"),
-                                                    overwrite_existing = overwrite_output)
+            # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+            # simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
+            #                                         schedule = TimeInterval(slice_interval),
+            #                                         indices = (:,:,ind),
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_slices_xy.nc"),
+            #                                         overwrite_existing = overwrite_output)
             # # yz
-            simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
-                                                    schedule = TimeInterval(slice_interval),
-                                                    indices = (Nx÷2,:,:), # center of the domain (along the sill)
-                                                    verbose=true,
-                                                    filename = string(dir, fname, "_slices_yz.nc"),
-                                                    overwrite_existing = overwrite_output)
+            # simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
+            #                                         schedule = TimeInterval(slice_interval),
+            #                                         indices = (Nx÷2,:,:), # center of the domain (along the sill)
+            #                                         verbose=true,
+            #                                         filename = string(dir, fname, "_slices_yz.nc"),
+            #                                         overwrite_existing = overwrite_output)
             # output 3D field snapshots
             # simulation.output_writers[:nc_threeD_velocity] = NetCDFWriter(model, threeD_diags_velocity_avg,
             #                                         verbose=true,

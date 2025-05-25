@@ -25,6 +25,8 @@ The plan:
     (2) same as (1) but without the 3D saves (I suspect 3D save is the culprit, because in 7., there was no 3D saves) (this still failed, try get rid of Oceanostics)
     (3) same as (2) but with FFT (no issue is found, so the issue is indeed from CG)
     (4) same as (2) but without Oceanostics (same CUDA error, same failing time)
+    (5) same as (4) but without viscosity (same CUDA error, same failing time)
+    (6) same as (5) but without x-y, y-z slices
 
 
 
