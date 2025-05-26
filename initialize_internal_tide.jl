@@ -459,32 +459,40 @@ function progress_message(s)
     model = s.model
     w = model.velocities.w
     arch = Oceananigans.architecture(model.grid)
+    progress = 100 * model.clock.time / s.stop_time
+    iteration = model.clock.iteration
+    current_time = model.clock.time
+    current_dt = s.Δt
+
+    # Get CG solver parameters
+    cg = model.pressure_solver.conjugate_gradient_solver
+    cg_iter = cg.iteration
+    cg_maxiter = cg.maxiter
 
     if arch isa CPU
-        progress = 100 * model.clock.time / s.stop_time
-        iteration = model.clock.iteration
-        current_time = model.clock.time
         maximum_w = maximum(abs, w)
-        current_dt = s.Δt
         adv_cfl = AdvectiveCFL(s.Δt)(model)
         diff_cfl = DiffusiveCFL(s.Δt)(model)
+        cg_residual = maximum(abs, cg.residual)
         memory_usage = "CPU"
     else
+        CUDA.synchronize()
         CUDA.@allowscalar begin
-            progress = 100 * model.clock.time / s.stop_time
-            iteration = model.clock.iteration
-            current_time = model.clock.time
             maximum_w = maximum(abs, w)
-            current_dt = s.Δt
+            cg_residual = maximum(abs, cg.residual)
             adv_cfl = AdvectiveCFL(s.Δt)(model)
             diff_cfl = DiffusiveCFL(s.Δt)(model)
         end
         memory_usage = log_gpu_memory_usage()
     end
 
-    @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
-                    progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage)
+    @info @sprintf(
+        "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
+        progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
+        cg_residual, cg_iter, cg_maxiter
+    )
 end
+
 
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
 
