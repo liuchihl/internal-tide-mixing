@@ -7,5 +7,5 @@ This new branch starts from there.
 
 Changes:
 1. tp_end=451; save x-z slices; tol = 1e-8; maxiter=500; Δt = 15
-2. tp_end=452; save all diags; tol = 1e-8; maxiter=500; Δt = 15
+2. tp_end=452; save smae diags as 1.; tol = 1e-8; maxiter=500; Δt = 15
 
