@@ -201,7 +201,7 @@ function initialize_internal_tide(
 
         lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
         # all tracers and particles
-        if analysis_round < 2
+        if analysis_round < 3
             tracers = (; b=CenterField(grid))
             particles = nothing
         else
@@ -284,7 +284,7 @@ function initialize_internal_tide(
         checkpoint_file = find_last_checkpoint(string("output/", simname))
         set!(model, checkpoint_file)
         # we don't need to set initial condition for tracers in the first two rounds of analysis period
-        if analysis_round > 1
+        if analysis_round > 2
             set!(model, c=cᵢ)
         end
     end
@@ -344,12 +344,12 @@ function initialize_internal_tide(
         Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
         Bbudget = get_budget_outputs_tuple(model;)
 
-        if analysis_round == 1
+        if analysis_round < 3
             #1)first round output 
             checkpoint_interval = 1 * 2π / ω₀
             threeD_diags_avg = (; b=b)
             slice_diags_xz = (; B=B, uhat=û)
-        elseif analysis_round == 2
+        elseif analysis_round == 3
             #2)second round output
             checkpoint_interval = 1 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, b=b)
