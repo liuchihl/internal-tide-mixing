@@ -199,7 +199,7 @@ function initialize_internal_tide(
         b = 1e-5 * ones(Float64, Int(length(x₀)))
         b = architecture == GPU() ? CuArray(b) : b
 
-        lagrangian_particles = StructArray{Particles_analysis_period}((x₀, y₀, z₀, b))
+        lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
         # all tracers and particles
         if analysis_round < 2
             tracers = (; b=CenterField(grid))
