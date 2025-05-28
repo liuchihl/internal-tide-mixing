@@ -478,7 +478,7 @@ function initialize_internal_tide(
     end
 
 
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷20))
 
     return simulation
 end
