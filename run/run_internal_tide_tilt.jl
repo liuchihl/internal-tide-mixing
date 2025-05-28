@@ -1,7 +1,7 @@
 include("internal_tide_setup.jl")
 # Parameters modified at run time
 const tp_end = 453
-analysis_round = 3  # during analysis period, save diagnostics sepearately with different rounds because there is not enough GPU memory to save all at once
+analysis_round = 2  # during analysis period, save diagnostics sepearately with different rounds because there is not enough GPU memory to save all at once
 # If the simulation is not yet run to the analysis period, set analysis_round to nothing
 analysis_round = tp_end >= 450 ? analysis_round : nothing
 # Derived parameters

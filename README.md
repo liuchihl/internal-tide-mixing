@@ -8,4 +8,6 @@ This new branch starts from there.
 Changes:
 1. tp_end=451; save x-z slices; tol = 1e-8; maxiter=500; Δt = 15
 2. tp_end=452; save same diags as 1.; tol = 1e-8; maxiter=500; Δt = 15
-3. tp_end=453; save all diags, including particles and Bbudgets; tol = 1e-8; maxiter=500; Δt = 15
+3. tp_end=453; save all diags, including particles and Bbudgets; tol = 1e-8; maxiter=500; Δt = 15 (failed at t=452.04166667096825 with CUDA error)
+4. try tp_end=453; try analysis round 2 (without saving everything), including particles and Bbudgets; tol = 1e-8; maxiter=500; Δt = 15, increase progress message frequency
+ 
