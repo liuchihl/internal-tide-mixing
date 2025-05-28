@@ -353,10 +353,8 @@ function initialize_internal_tide(
             #2)second round output
             checkpoint_interval = 1 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, b=b)
-            threeD_diags_velocity_avg = (; uhat=û, v=v, what=ŵ, ε=ε)
-            threeD_diags_tracer_avg = merge(Bbudget, (; B=B, χ=χ))
-            threeD_velocity_diags = (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ)
-            threeD_tracer_diags = merge(Bbudget, (; c=c, B=B, Rig=Rig, χ=χ))
+            threeD_diags_avg = merge(Bbudget, (; uhat=û, v=v, what=ŵ, ε=ε, B=B, χ=χ))
+            threeD_diags = merge(Bbudget, (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ, c=c, B=B, Rig=Rig, χ=χ))
             slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
         end
     elseif output_mode == "customized"
@@ -431,7 +429,7 @@ function initialize_internal_tide(
                     filename=string(dir, fname, "_point_center.nc"),
                     overwrite_existing=overwrite_output)
                 # particles
-                simulation.output_writers[:particles] = NetCDFWriter(model, model.particles,
+                simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
                     verbose=true,
                     filename=string(dir, fname, "_particles_z=", z_center_cart, ".nc"),
                     schedule=TimeInterval(Δtᵒ / 3),
