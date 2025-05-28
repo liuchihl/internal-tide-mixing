@@ -19,7 +19,7 @@ function deriv(z,y)
 
 # include("functions/mmderiv.jl")
 simname = "tilt"
-tᶠ = 10
+tᶠ = 452
 
 ## load data
 # filename_field = "output/internal_tide_3days-theta=0.0036_realtopo3D_Nx500_Nz250_slices_xz.nc"
@@ -31,10 +31,8 @@ filename_slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz
 # filename_slice = "output/no_tilt/internal_tide_5days-theta=0_realtopo3D_Nx500_Nz250_slices_30_50_xz.nc"
 ds_slice = Dataset(filename_slice,"r")
 
-# filename_mask = "output/higher_top_resolution/internal_tide_theta=0.0036_realtopo3D_Nx=500_Nz=250_0-13_slices_xz.nc"
-# ds_mask = Dataset(filename_mask,"r")
-
-
+filename_mask = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
+ds_mask = Dataset(filename_mask,"r")
 # grids
 zC = ds_slice["zC"]; Nz=length(zC)
 zF = ds_slice["zF"]; 
@@ -43,27 +41,28 @@ yC = ds_slice["yC"]; Ny=length(yC)
 t = ds_slice["time"];
 
 # load all data
-B = ds_slice["B"].var;        B = B[:,:,:,:];
+B = ds_slice["B"][:,:,:,:];
 # Bz = ds_slice["Bz"].var;        Bz = Bz[:,:,:,:];
-b = ds_slice["b"].var;        b = b[:,:,:,:];
+# b = ds_slice["b"].var;        b = b[:,:,:,:];
 # b = ds_mask["b"].var;        b = b[:,:,:,1];
 # b = b.*ones(1,1,1,length(t));
-uhat = ds_slice["uhat"].var; uhat = uhat[:,:,:,:];
+uhat = ds_slice["uhat"][:,:,:,:]; 
 # what = ds_slice["what"].var; #what = what[:,:,:,:];
 # wb = ds_slice["wb"].var;     #wb = wb[:,:,:,:];
-ε = ds_slice["ε"].var;       ε = ε[:,:,:,:];
-χ = ds_slice["χ"].var;       χ = χ[:,:,:,:];
+# ε = ds_slice["ε"].var;       ε = ε[:,:,:,:];
+# χ = ds_slice["χ"].var;       χ = χ[:,:,:,:];
+b = ds_mask["b"][:,:,:,1:size(uhat,4)]; # b is the immersed boundary mask, 1 for the immersed boundary, 0 for the fluid
 
 
 # set topography to NaN
 uhat[uhat.==0] .= NaN
 # what[what.==0] .= NaN
 # wb[isnan.(uhat)] .= NaN
-ε[isnan.(uhat)] .= NaN
+# ε[isnan.(uhat)] .= NaN
 B[b.==0] .= NaN
 # Bz[b.==0] .= NaN
 # B[isnan.(uhat)] .= NaN
-χ[b.==0] .= NaN
+# χ[b.==0] .= NaN
 # χ[isnan.(uhat)] .= NaN
 
 # dBdz[isnan.(dBdz)] .= NaN
