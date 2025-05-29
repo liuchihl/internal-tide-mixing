@@ -343,6 +343,13 @@ function initialize_internal_tide(
         χ = TracerVarianceDissipationRate(model, :b)
         Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
         Bbudget = get_budget_outputs_tuple(model;)
+        # force garbage collection, free some memory
+        if architecture == GPU()
+            CUDA.@sync begin
+                GC.gc()
+                CUDA.reclaim()
+            end
+        end
 
         if analysis_round < 3
             #1)first round output 
@@ -461,6 +468,9 @@ function initialize_internal_tide(
             memory_usage = "CPU"
         else
             CUDA.synchronize()
+            # Force cleanup before checking memory usage
+            GC.gc()
+            CUDA.reclaim()
             CUDA.@allowscalar begin
                 maximum_w = maximum(abs, w)
                 cg_residual = maximum(abs, cg.residual)
