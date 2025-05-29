@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="tilt" 
-#SBATCH --output="output_message/tilt_analysisround2-CG.out-452-453.%j.%N.out"
+#SBATCH --output="output_message/tilt_analysisround2-CG.out-452-453-add-regularizer.%j.%N.out"
 # # SBATCH --partition=gpuA100x4
 #SBATCH --partition=gpuH200x8
 #SBATCH --mem=30G
