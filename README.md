@@ -10,4 +10,6 @@ Changes:
 2. tp_end=452; save same diags as 1.; tol = 1e-8; maxiter=500; Δt = 15
 3. tp_end=453; save all diags, including particles and Bbudgets; tol = 1e-8; maxiter=500; Δt = 15 (failed at t=452.04166667096825 with CUDA error)
 4. try tp_end=453; try analysis round 2 (without saving everything, no particles and Bbudgets); tol = 1e-8; maxiter=500; Δt = 15, increase progress message frequency (get NaNs at 452.126404034896)
-5. try tp_end=453 again, and try analysis round 2, increase progress message period to Δtᵒ÷60; cleanup GPU/CPU memory usage
+5. try tp_end=453 again, and try analysis round 2, increase progress message period to Δtᵒ÷60; cleanup GPU/CPU memory usage (no preconditioner would cause a quick increase of CG residual)
+5. try tp_end=453 again, and try analysis round 2; but this time try maxiter=2500 and tol=1e-8, the goal is to test how many iteration is needed for the solution to converge. 
+
