@@ -147,7 +147,8 @@ function initialize_internal_tide(
 
     # Tidal forcing
     U₀ = U₀
-    ω₀ = 1.4e-4
+
+    ω₀ = 2π/44880 # tidal frequency (period is a multiple of 10 s)
     u_tidal_forcing(x, y, z, t) = U₀ * ω₀ * sin(ω₀ * t)
 
     # IC such that flow is in phase with predicted linear response, but otherwise quiescent
@@ -289,7 +290,7 @@ function initialize_internal_tide(
         end
     end
     ## Configure simulation
-    Δt = 15
+    Δt = 10
     # Δt = (1/N)*0.03
     simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt)
     # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
