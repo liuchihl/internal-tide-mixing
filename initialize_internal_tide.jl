@@ -247,7 +247,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=1000, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol), 
             advection=WENO(),
             buoyancy=buoyancy,
@@ -431,7 +431,7 @@ function initialize_internal_tide(
                     schedule=TimeInterval(snapshot_interval))
                 # 1D profile
                 simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-                    schedule=TimeInterval(Δtᵒ ÷ 30),
+                    schedule=TimeInterval(Δtᵒ ÷ 34),
                     indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
                     verbose=true,
                     filename=string(dir, fname, "_point_center.nc"),
@@ -487,9 +487,6 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-
-
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷55))
-
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷51))    # interval is 880s
     return simulation
 end
