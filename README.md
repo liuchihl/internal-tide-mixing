@@ -12,6 +12,7 @@ Changes:
 4. try tp_end=453; try analysis round 2 (without saving everything, no particles and Bbudgets); tol = 1e-8; maxiter=500; Δt = 15, increase progress message frequency (get NaNs at 452.126404034896)
 5. try tp_end=453 again, and try analysis round 2, increase progress message period to Δtᵒ÷60; cleanup GPU/CPU memory usage (no preconditioner would cause a quick increase of CG residual)
 5. try tp_end=453 again, and try analysis round 2; but this time try maxiter=2500 and tol=1e-8, the goal is to test how many iteration is needed for the solution to converge. (get NaNs)
-5. try tp_end=453 again, and try analysis round 2; use maxiter=2500 and tol=1e-8, use tidal period=44880 and dt=10, so the saving periods (snapshot, avg) are all multiple of dt
+5. try tp_end=453 again, and try analysis round 2; use maxiter=2500 and tol=1e-8, use tidal period=44880 and dt=10, so the saving periods (snapshot, avg) are all multiple of dt (still receiving NaNs)
+6. the problem for 5. is that the callback period of progress message should also be a multiple integer of dt. So try callback period: Δtᵒ/55=44880/24/55=34; maxiter=1000 (becaue 2500 gets impractically slow); tidal period remains the same = 4480. 
 
 

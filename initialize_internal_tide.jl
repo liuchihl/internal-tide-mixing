@@ -247,7 +247,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=2500, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=1000, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol), 
             advection=WENO(),
             buoyancy=buoyancy,
@@ -489,7 +489,7 @@ function initialize_internal_tide(
     end
 
 
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷60))
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷55))
 
     return simulation
 end
