@@ -20,5 +20,5 @@ Changes:
 10. run "simple" diags, but only save uhat (this is just a test, CUDA error appears)
 11. try getting rid of particles (NaN still appears)
 12. don't save any outputs, just leave the progress message period = timestep (fails with NaN)
-13. try progress message interval = 30
-
+13. try progress message interval = 30 (NaN immediately)
+14. try progress message interval = 34 (it worked in 6.)
