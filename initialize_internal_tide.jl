@@ -375,9 +375,9 @@ function initialize_internal_tide(
         elseif analysis_round == "simple"
             checkpoint_interval = 1 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, B=B)
-            threeD_diags_avg = (; uhat=û, v=v, what=ŵ, B=B)
-            threeD_diags = (; uhat=û, v=v, what=ŵ, B=B, c=c)
-            slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
+            threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ, uhat=û, v=v, what=ŵ, B=B))
+            threeD_diags = merge(Bbudget, (; ε=ε, νₑ=νₑ, Rig=Rig, χ=χ, uhat=û, v=v, what=ŵ, B=B, c=c))
+            slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
             # point_diags = (; uhat=û)
             # threeD_diags_avg = (; uhat=û)
             # threeD_diags = (; uhat=û)
@@ -514,6 +514,6 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷55))    # interval is 880s
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷17))    # interval is 880s
     return simulation
 end
