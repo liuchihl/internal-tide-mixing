@@ -307,7 +307,7 @@ function initialize_internal_tide(
     ## Configure simulation
     Δt = 10
     # Δt = (1/N)*0.03
-    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt)
+    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt, align_time_step=false)
     # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
 
     # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
@@ -514,6 +514,6 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(34))    # interval is 110s
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δt))    # interval is 110s
     return simulation
 end
