@@ -18,5 +18,6 @@ Changes:
 8. run maxiter=5000 and save the simple diags. The goal is to use high maxiter initially, at later timesteps, iteration could be less to converge. (iteration is always 5000, which doesn't help converging fast).
 9. Split diags into "simple" and "complex", because saving at once would cause CUDA error. (simple causes CUDA error)
 10. run "simple" diags, but only save uhat (this is just a test, CUDA error appears)
-11. try getting rid of particles
+11. try getting rid of particles (NaN still appears)
+12. don't save any outputs, just leave the progress message period = timestep
 

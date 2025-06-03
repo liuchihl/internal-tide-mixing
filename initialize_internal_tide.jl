@@ -248,7 +248,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=1000, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol), 
             advection=WENO(),
             buoyancy=buoyancy,
@@ -412,55 +412,55 @@ function initialize_internal_tide(
             cleanup=clean_checkpoint)
 
         ## output 3D field window time average
-        simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
-            filename=string(dir, fname, "_threeD_timeavg.nc"),
-            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-            verbose=true,
-            overwrite_existing=overwrite_output
-        )
+        # simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
+        #     filename=string(dir, fname, "_threeD_timeavg.nc"),
+        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+        #     verbose=true,
+        #     overwrite_existing=overwrite_output
+        # )
 
         ## output 2D slices
         # xz
-        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
-            schedule=TimeInterval(slice_interval),
-            indices=(:, Ny ÷ 2, :), # center of the domain (along thalweg)
-            verbose=true,
-            filename=string(dir, fname, "_slices_xz.nc"),
-            overwrite_existing=overwrite_output)
+        # simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
+        #     schedule=TimeInterval(slice_interval),
+        #     indices=(:, Ny ÷ 2, :), # center of the domain (along thalweg)
+        #     verbose=true,
+        #     filename=string(dir, fname, "_slices_xz.nc"),
+        #     overwrite_existing=overwrite_output)
 
         ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
         if output_mode == "analysis"
             if analysis_round == "simple" || analysis_round == "complex"
                 # xy
-                ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-                simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
-                    schedule=TimeInterval(slice_interval),
-                    indices=(:, :, ind),
-                    verbose=true,
-                    filename=string(dir, fname, "_slices_xy.nc"),
-                    overwrite_existing=overwrite_output)
-                # yz
-                simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
-                    schedule=TimeInterval(slice_interval),
-                    indices=(Nx ÷ 2, :, :), # center of the domain (along the sill)
-                    verbose=true,
-                    filename=string(dir, fname, "_slices_yz.nc"),
-                    overwrite_existing=overwrite_output)
-                # output 3D field snapshots
-                simulation.output_writers[:nc_threeD] = NetCDFWriter(model, threeD_diags,
-                    verbose=true,
-                    filename=string(dir, fname, "_threeD.nc"),
-                    overwrite_existing=overwrite_output,
-                    schedule=TimeInterval(snapshot_interval))
+                # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+                # simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
+                #     schedule=TimeInterval(slice_interval),
+                #     indices=(:, :, ind),
+                #     verbose=true,
+                #     filename=string(dir, fname, "_slices_xy.nc"),
+                #     overwrite_existing=overwrite_output)
+                # # yz
+                # simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
+                #     schedule=TimeInterval(slice_interval),
+                #     indices=(Nx ÷ 2, :, :), # center of the domain (along the sill)
+                #     verbose=true,
+                #     filename=string(dir, fname, "_slices_yz.nc"),
+                #     overwrite_existing=overwrite_output)
+                # # output 3D field snapshots
+                # simulation.output_writers[:nc_threeD] = NetCDFWriter(model, threeD_diags,
+                #     verbose=true,
+                #     filename=string(dir, fname, "_threeD.nc"),
+                #     overwrite_existing=overwrite_output,
+                #     schedule=TimeInterval(snapshot_interval))
             end
             if analysis_round == "simple"
                 # 1D profile
-                simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-                    schedule=TimeInterval(4Δt),
-                    indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
-                    verbose=true,
-                    filename=string(dir, fname, "_point_center.nc"),
-                    overwrite_existing=overwrite_output)
+                # simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
+                #     schedule=TimeInterval(4Δt),
+                #     indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
+                #     verbose=true,
+                #     filename=string(dir, fname, "_point_center.nc"),
+                #     overwrite_existing=overwrite_output)
             elseif analysis_round == "complex"
                 # particles
                 # simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
@@ -514,6 +514,6 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ÷17))    # interval is 880s
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(10))    # interval is 110s
     return simulation
 end
