@@ -19,5 +19,6 @@ Changes:
 9. Split diags into "simple" and "complex", because saving at once would cause CUDA error. (simple causes CUDA error)
 10. run "simple" diags, but only save uhat (this is just a test, CUDA error appears)
 11. try getting rid of particles (NaN still appears)
-12. don't save any outputs, just leave the progress message period = timestep
+12. don't save any outputs, just leave the progress message period = timestep (fails with NaN)
+13. try progress message interval = 30
 

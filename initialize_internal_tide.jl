@@ -514,6 +514,6 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(10))    # interval is 110s
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(30))    # interval is 110s
     return simulation
 end
