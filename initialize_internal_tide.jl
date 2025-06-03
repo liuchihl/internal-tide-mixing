@@ -456,7 +456,7 @@ function initialize_internal_tide(
             if analysis_round == "simple"
                 # 1D profile
                 simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-                    schedule=TimeInterval(Δtᵒ ÷ 34),
+                    schedule=TimeInterval(4Δt),
                     indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
                     verbose=true,
                     filename=string(dir, fname, "_point_center.nc"),
