@@ -165,9 +165,9 @@ function initialize_internal_tide(
         y_center_cart = Ny ÷ 2
         if analysis_round == 1 || analysis_round == 2
             z_center_cart = 1000
-        elseif analysis_round == 3
+        elseif analysis_round == "simple"
             z_center_cart = 1000
-        elseif analysis_round >= 4
+        elseif analysis_round >= "compex"
             z_center_cart = 1000
         end
         σ_x = 1000  # in meters
@@ -202,14 +202,14 @@ function initialize_internal_tide(
 
         lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
         # all tracers and particles
-        if analysis_round < 3
+        if tᶠ < 453 # before 453, the model is still spinning up from the FFT solver, so we don't need c and paritcles
             tracers = (; b=CenterField(grid))
             particles = nothing
-        else
+        elseif tᶠ >= 453 # beyond 453 and included, we will always need c and particles    
             tracers = (; b=CenterField(grid), c=CenterField(grid))
             # Define tracked fields as a NamedTuple
             tracked_fields = (; b=tracers.b)
-            particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)
+            particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
         end
     end
     # s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
@@ -247,7 +247,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=5000, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol), 
             advection=WENO(),
             buoyancy=buoyancy,
@@ -267,7 +267,7 @@ function initialize_internal_tide(
     if output_mode !== "analysis"    # before analysis period, set initial condition as usual because we are picking up from a checkpoint
         set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
     else    # during analysis period, set initial condition from the final checkpoint of the spinup period
-        function find_last_checkpoint(dir)
+        function find_checkpoint_by_rank(dir, rank=1)
             # Get all jld2 files in the directory
             checkpoint_files = filter(f -> endswith(f, ".jld2"), readdir(dir))
             # Extract iteration numbers using regex
@@ -276,16 +276,30 @@ function initialize_internal_tide(
             if isempty(checkpoint_files)
                 error("No valid checkpoint files found")
             end
+            if length(checkpoint_files) < rank
+                error("Need at least $rank checkpoint files to find rank $rank")
+            end
+            
             iter_numbers = map(f -> parse(Int, match(r"iteration(\d+)", f)[1]), checkpoint_files)
-            # Find the file with maximum iteration number
-            max_idx = argmax(iter_numbers)
-            return joinpath(dir, checkpoint_files[max_idx])
+            
+            # Sort iteration numbers in descending order and get the specified rank
+            sorted_indices = sortperm(iter_numbers, rev=true)
+            target_idx = sorted_indices[rank]
+            
+            return joinpath(dir, checkpoint_files[target_idx])
         end
-
-        checkpoint_file = find_last_checkpoint(string("output/", simname))
-        set!(model, checkpoint_file)
-        # we don't need to set initial condition for tracers in the first two rounds of analysis period
-        if analysis_round > 2
+        if tᶠ < 453 # without c and particles 
+                checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
+                set!(model, checkpoint_file)
+        elseif tᶠ >= 453 # we need c and particles
+            if analysis_round == "simple"
+                # we start from the simple save: find the last checkpoint file (doesn't matter if there is no c and particles or not)
+                checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
+            elseif analysis_round == "complex"
+                # from the previous simple save, a new checkpoint file is created, but we want to find the second last checkpoint file
+                checkpoint_file = find_checkpoint_by_rank(string("output/", simname),2)
+            end
+            set!(model, checkpoint_file)
             set!(model, c=cᵢ)
         end
     end
@@ -331,7 +345,7 @@ function initialize_internal_tide(
         b = model.tracers.b
         B̄ = model.background_fields.tracers.b
         B = B̄ + b # total buoyancy field
-        if analysis_round > 2
+        if tᶠ >= 453
             c = model.tracers.c
         end
         u, v, w = model.velocities
@@ -352,18 +366,22 @@ function initialize_internal_tide(
             end
         end
 
-        if analysis_round < 3
+        if analysis_round !== "simple" && analysis_round !== "complex"
             #1)first round output 
             checkpoint_interval = 1 * 2π / ω₀
             threeD_diags_avg = (; b=b)
             slice_diags = (; B=B, uhat=û)
-        elseif analysis_round == 3
-            #2)second round output
+        elseif analysis_round == "simple"
             checkpoint_interval = 1 * 2π / ω₀
-            point_diags = (; uhat=û, what=ŵ, b=b)
-            threeD_diags_avg = merge(Bbudget, (; uhat=û, v=v, what=ŵ, ε=ε, B=B, χ=χ))
-            threeD_diags = merge(Bbudget, (; uhat=û, v=v, what=ŵ, ε=ε, νₑ=νₑ, c=c, B=B, Rig=Rig, χ=χ))
-            slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
+            point_diags = (; uhat=û, what=ŵ, B=B)
+            threeD_diags_avg = (; uhat=û, v=v, what=ŵ, B=B)
+            threeD_diags = (; uhat=û, v=v, what=ŵ, B=B, c=c)
+            slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
+        elseif analysis_round == "complex"
+            checkpoint_interval = 1 * 2π / ω₀
+            threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ))
+            threeD_diags = merge(Bbudget, (; ε=ε, νₑ=νₑ, Rig=Rig, χ=χ))
+            slice_diags = (; ε=ε, χ=χ, νₑ=νₑ)
         end
     elseif output_mode == "customized"
         checkpoint_interval = 20 * 2π / ω₀
@@ -371,14 +389,14 @@ function initialize_internal_tide(
         # slice_interval = Δtᵒ
         threeD_diags_avg = Bbudget
     end
-    fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", Int(round(tᶠ / (2π / ω₀))))
+    fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", Int(round(tᶠ / (2π / ω₀))),
+             "_analysis_round=", analysis_round)
     dir = string("output/", simname, "/")
     # create output path if the folder does not exist
     if !isdir(dir)
         mkdir(dir)
     end
     if output_writer
-
         # checkpoint  
         checkpoint_prefix = "checkpoint"
         simulation.output_writers[:checkpointer] = Checkpointer(
@@ -407,7 +425,7 @@ function initialize_internal_tide(
 
         ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
         if output_mode == "analysis"
-            if analysis_round > 2
+            if analysis_round == "simple" || analysis_round == "complex"
                 # xy
                 ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
                 simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
@@ -429,6 +447,8 @@ function initialize_internal_tide(
                     filename=string(dir, fname, "_threeD.nc"),
                     overwrite_existing=overwrite_output,
                     schedule=TimeInterval(snapshot_interval))
+            end
+            if analysis_round == "simple"
                 # 1D profile
                 simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
                     schedule=TimeInterval(Δtᵒ ÷ 34),
@@ -436,6 +456,7 @@ function initialize_internal_tide(
                     verbose=true,
                     filename=string(dir, fname, "_point_center.nc"),
                     overwrite_existing=overwrite_output)
+            elseif analysis_round == "complex"
                 # particles
                 simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
                     verbose=true,
@@ -443,6 +464,7 @@ function initialize_internal_tide(
                     schedule=TimeInterval(Δtᵒ / 3),
                     overwrite_existing=true)
             end
+            
         end
     end
     ### Progress messages
