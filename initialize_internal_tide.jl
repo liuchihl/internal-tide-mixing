@@ -208,8 +208,9 @@ function initialize_internal_tide(
         elseif tᶠ >= 453 # beyond 453 and included, we will always need c and particles    
             tracers = (; b=CenterField(grid), c=CenterField(grid))
             # Define tracked fields as a NamedTuple
-            tracked_fields = (; b=tracers.b)
-            particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
+            # tracked_fields = (; b=tracers.b)
+            # particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
+            particles = nothing
         end
     end
     # s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
@@ -377,6 +378,10 @@ function initialize_internal_tide(
             threeD_diags_avg = (; uhat=û, v=v, what=ŵ, B=B)
             threeD_diags = (; uhat=û, v=v, what=ŵ, B=B, c=c)
             slice_diags = (; uhat=û, v=v, what=ŵ, B=B)
+            # point_diags = (; uhat=û)
+            # threeD_diags_avg = (; uhat=û)
+            # threeD_diags = (; uhat=û)
+            # slice_diags = (; uhat=û)
         elseif analysis_round == "complex"
             checkpoint_interval = 1 * 2π / ω₀
             threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ))
@@ -458,11 +463,11 @@ function initialize_internal_tide(
                     overwrite_existing=overwrite_output)
             elseif analysis_round == "complex"
                 # particles
-                simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
-                    verbose=true,
-                    filename=string(dir, fname, "_particles_z=", z_center_cart, ".nc"),
-                    schedule=TimeInterval(Δtᵒ / 3),
-                    overwrite_existing=true)
+                # simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
+                #     verbose=true,
+                #     filename=string(dir, fname, "_particles_z=", z_center_cart, ".nc"),
+                #     schedule=TimeInterval(Δtᵒ / 3),
+                #     overwrite_existing=true)
             end
             
         end
