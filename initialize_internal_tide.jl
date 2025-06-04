@@ -3,7 +3,7 @@ using Oceananigans
 using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
-using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, FFTBasedPoissonSolver
+using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, FFTBasedPoissonSolver, AsymptoticPoissonPreconditioner
 using Oceananigans.DistributedComputations
 using Oceananigans.DistributedComputations: all_reduce
 using LinearAlgebra
@@ -249,7 +249,7 @@ function initialize_internal_tide(
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
                 grid; maxiter=1000, preconditioner=AsymptoticPoissonPreconditioner(),
-                reltol=tol), 
+                reltol=tol, abstol=tol), 
             advection=WENO(),
             buoyancy=buoyancy,
             coriolis=coriolis,
@@ -307,7 +307,7 @@ function initialize_internal_tide(
     ## Configure simulation
     Δt = 10
     # Δt = (1/N)*0.03
-    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt)
+    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt, minimum_relative_step=0.1)
     # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
 
     # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
