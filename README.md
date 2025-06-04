@@ -24,6 +24,7 @@ Changes:
 14. try progress message interval = 34 (since it worked in 6.)
 15. try progress message interval = 10, but set align_time_step=false in the Simulation. I want to make sure that timesteps wouldn't change due to the scheduler.
 16. update Oceananigans to include new PR to fix the small time interval issue (solve NaNs and non-converging iterations will be fixed)
-17. try minimum_relative_step=0.1 (to avoid small timesteps; it works)
-18. try Asymptotic preconditioner
+17. try minimum_relative_step=0.1; FFT based preconditioner (to avoid small timesteps; it works but residual remains high)
+18. try Asymptotic preconditioner (works fine; converges much better)
+19. minimum_relative_step solves blow-up issue. I want to test if this can solve the CUDA error when having particles included. 
 

@@ -148,7 +148,7 @@ function initialize_internal_tide(
     # Tidal forcing
     U₀ = U₀
 
-    ω₀ = 2π/44880 # tidal frequency (period is a multiple of 10 s)
+    ω₀ = 1.4e-4  # tidal frequency
     u_tidal_forcing(x, y, z, t) = U₀ * ω₀ * sin(ω₀ * t)
 
     # IC such that flow is in phase with predicted linear response, but otherwise quiescent
@@ -163,11 +163,11 @@ function initialize_internal_tide(
         # tracer initial distribution
         x_center_cart = 0
         y_center_cart = Ny ÷ 2
-        if analysis_round == 1 || analysis_round == 2
+        if analysis_round == 1
             z_center_cart = 1000
         elseif analysis_round == "simple"
             z_center_cart = 1000
-        elseif analysis_round >= "compex"
+        elseif analysis_round == "compex"
             z_center_cart = 1000
         end
         σ_x = 1000  # in meters
@@ -202,15 +202,14 @@ function initialize_internal_tide(
 
         lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
         # all tracers and particles
-        if tᶠ < 453 # before 453, the model is still spinning up from the FFT solver, so we don't need c and paritcles
+        if tᶠ <= 451 # before 451, the model is still spinning up from the FFT solver, so we don't need c and paritcles
             tracers = (; b=CenterField(grid))
             particles = nothing
-        elseif tᶠ >= 453 # beyond 453 and included, we will always need c and particles    
+        elseif tᶠ > 451 # beyond 451 and included, we will always need c and particles    
             tracers = (; b=CenterField(grid), c=CenterField(grid))
             # Define tracked fields as a NamedTuple
-            # tracked_fields = (; b=tracers.b)
-            # particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
-            particles = nothing
+            tracked_fields = (; b=tracers.b)
+            particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
         end
     end
     # s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
@@ -243,7 +242,7 @@ function initialize_internal_tide(
     else
         solver == "Conjugate Gradient"
         # this is for analysis period because CG solver is much slower than FFT solver but more accurate near the boundaries
-        tol = 1e-8
+        tol = 1e-9
         # add particles
         model = NonhydrostaticModel(;
             grid=grid,
@@ -289,15 +288,15 @@ function initialize_internal_tide(
             
             return joinpath(dir, checkpoint_files[target_idx])
         end
-        if tᶠ < 453 # without c and particles 
+        if tᶠ <= 451 # without c and particles 
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
-        elseif tᶠ >= 453 # we need c and particles
+        elseif tᶠ > 451 # we need c and particles
             if analysis_round == "simple"
                 # we start from the simple save: find the last checkpoint file (doesn't matter if there is no c and particles or not)
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
             elseif analysis_round == "complex"
-                # from the previous simple save, a new checkpoint file is created, but we want to find the second last checkpoint file
+                # from the previous simple save, a new checkpoint file is created, but we want to find the previous checkpoint file
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),2)
             end
             set!(model, checkpoint_file)
@@ -305,14 +304,15 @@ function initialize_internal_tide(
         end
     end
     ## Configure simulation
-    Δt = 10
+    Δt = 12
     # Δt = (1/N)*0.03
-    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 50Δt, minimum_relative_step=0.1)
+    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.1)
     # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
-
+    # minimum_relative_step=0.1: eliminates the possibility of the time-step being too small.
+    
     # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
     # # (CFL) number close to `0.5` while ensuring the time-step does not increase beyond the
-    # # maximum allowable value for numerical stability.
+    # # maximum allowable value for numerical stability. However, window time average would not work properly if wizard is used.
 
     # wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
     # simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
@@ -346,7 +346,7 @@ function initialize_internal_tide(
         b = model.tracers.b
         B̄ = model.background_fields.tracers.b
         B = B̄ + b # total buoyancy field
-        if tᶠ >= 453
+        if tᶠ > 451
             c = model.tracers.c
         end
         u, v, w = model.velocities
@@ -412,62 +412,62 @@ function initialize_internal_tide(
             cleanup=clean_checkpoint)
 
         ## output 3D field window time average
-        # simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
-        #     filename=string(dir, fname, "_threeD_timeavg.nc"),
-        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-        #     verbose=true,
-        #     overwrite_existing=overwrite_output
-        # )
+        simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
+            filename=string(dir, fname, "_threeD_timeavg.nc"),
+            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+            verbose=true,
+            overwrite_existing=overwrite_output
+        )
 
         ## output 2D slices
         # xz
-        # simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
-        #     schedule=TimeInterval(slice_interval),
-        #     indices=(:, Ny ÷ 2, :), # center of the domain (along thalweg)
-        #     verbose=true,
-        #     filename=string(dir, fname, "_slices_xz.nc"),
-        #     overwrite_existing=overwrite_output)
+        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
+            schedule=TimeInterval(slice_interval),
+            indices=(:, Ny ÷ 2, :), # center of the domain (along thalweg)
+            verbose=true,
+            filename=string(dir, fname, "_slices_xz.nc"),
+            overwrite_existing=overwrite_output)
 
         ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
         if output_mode == "analysis"
             if analysis_round == "simple" || analysis_round == "complex"
                 # xy
-                # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-                # simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
-                #     schedule=TimeInterval(slice_interval),
-                #     indices=(:, :, ind),
-                #     verbose=true,
-                #     filename=string(dir, fname, "_slices_xy.nc"),
-                #     overwrite_existing=overwrite_output)
-                # # yz
-                # simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
-                #     schedule=TimeInterval(slice_interval),
-                #     indices=(Nx ÷ 2, :, :), # center of the domain (along the sill)
-                #     verbose=true,
-                #     filename=string(dir, fname, "_slices_yz.nc"),
-                #     overwrite_existing=overwrite_output)
-                # # output 3D field snapshots
-                # simulation.output_writers[:nc_threeD] = NetCDFWriter(model, threeD_diags,
-                #     verbose=true,
-                #     filename=string(dir, fname, "_threeD.nc"),
-                #     overwrite_existing=overwrite_output,
-                #     schedule=TimeInterval(snapshot_interval))
+                ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+                simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
+                    schedule=TimeInterval(slice_interval),
+                    indices=(:, :, ind),
+                    verbose=true,
+                    filename=string(dir, fname, "_slices_xy.nc"),
+                    overwrite_existing=overwrite_output)
+                # yz
+                simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
+                    schedule=TimeInterval(slice_interval),
+                    indices=(Nx ÷ 2, :, :), # center of the domain (along the sill)
+                    verbose=true,
+                    filename=string(dir, fname, "_slices_yz.nc"),
+                    overwrite_existing=overwrite_output)
+                # output 3D field snapshots
+                simulation.output_writers[:nc_threeD] = NetCDFWriter(model, threeD_diags,
+                    verbose=true,
+                    filename=string(dir, fname, "_threeD.nc"),
+                    overwrite_existing=overwrite_output,
+                    schedule=TimeInterval(snapshot_interval))
             end
             if analysis_round == "simple"
                 # 1D profile
-                # simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-                #     schedule=TimeInterval(4Δt),
-                #     indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
-                #     verbose=true,
-                #     filename=string(dir, fname, "_point_center.nc"),
-                #     overwrite_existing=overwrite_output)
+                simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
+                    schedule=TimeInterval(4Δt),
+                    indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
+                    verbose=true,
+                    filename=string(dir, fname, "_point_center.nc"),
+                    overwrite_existing=overwrite_output)
             elseif analysis_round == "complex"
                 # particles
-                # simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
-                #     verbose=true,
-                #     filename=string(dir, fname, "_particles_z=", z_center_cart, ".nc"),
-                #     schedule=TimeInterval(Δtᵒ / 3),
-                #     overwrite_existing=true)
+                simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
+                    verbose=true,
+                    filename=string(dir, fname, "_particles_z=", z_center_cart, ".nc"),
+                    schedule=TimeInterval(Δtᵒ / 3),
+                    overwrite_existing=true)
             end
             
         end
@@ -514,6 +514,6 @@ function initialize_internal_tide(
             cg_residual, cg_iter, cg_maxiter
         )
     end
-    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δt))    # interval is 110s
+    simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(10Δt))    # interval is 110s
     return simulation
 end
