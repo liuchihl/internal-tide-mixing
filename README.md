@@ -23,4 +23,5 @@ Changes:
 13. try progress message interval = 30 (NaN immediately)
 14. try progress message interval = 34 (since it worked in 6.)
 15. try progress message interval = 10, but set align_time_step=false in the Simulation. I want to make sure that timesteps wouldn't change due to the scheduler.
+16. update Oceananigans to include new PR to fix the small time interval issue (solve NaNs and non-converging iterations will be fixed)
 
