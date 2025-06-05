@@ -26,5 +26,6 @@ Changes:
 16. update Oceananigans to include new PR to fix the small time interval issue (solve NaNs and non-converging iterations will be fixed)
 17. try minimum_relative_step=0.1; FFT based preconditioner (to avoid small timesteps; it works but residual remains high)
 18. try Asymptotic preconditioner (works fine; converges much better)
-19. minimum_relative_step solves blow-up issue. I want to test if this can solve the CUDA error when having particles included. 
+19. minimum_relative_step solves blow-up issue. I want to test if this can solve the CUDA error when having particles included (seems to work, I haven't saved the particles but it has been written in the model).
+20. Try all over again, start from t=450 to 450.4, and the goal is to run all towards 451 as the spinup. I don't need to save anything, just let it finish.  
 

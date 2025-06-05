@@ -165,9 +165,7 @@ function initialize_internal_tide(
         y_center_cart = Ny ÷ 2
         if analysis_round == 1
             z_center_cart = 1000
-        elseif analysis_round == "simple"
-            z_center_cart = 1000
-        elseif analysis_round == "compex"
+        elseif analysis_round == "all"
             z_center_cart = 1000
         end
         σ_x = 1000  # in meters
@@ -202,10 +200,10 @@ function initialize_internal_tide(
 
         lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
         # all tracers and particles
-        if tᶠ <= 451 # before 451, the model is still spinning up from the FFT solver, so we don't need c and paritcles
+        if tᶠ <= 451*2π/ω₀ # before 451, the model is still spinning up from the FFT solver, so we don't need c and paritcles
             tracers = (; b=CenterField(grid))
             particles = nothing
-        elseif tᶠ > 451 # beyond 451 and included, we will always need c and particles    
+        elseif tᶠ > 451*2π/ω₀ # beyond 451 and included, we will always need c and particles    
             tracers = (; b=CenterField(grid), c=CenterField(grid))
             # Define tracked fields as a NamedTuple
             tracked_fields = (; b=tracers.b)
@@ -288,16 +286,13 @@ function initialize_internal_tide(
             
             return joinpath(dir, checkpoint_files[target_idx])
         end
-        if tᶠ <= 451 # without c and particles 
+        if tᶠ <= 451*2π/ω₀ # without c and particles 
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
-        elseif tᶠ > 451 # we need c and particles
-            if analysis_round == "simple"
+        elseif tᶠ > 451*2π/ω₀ # we need c and particles
+            if analysis_round == "all"
                 # we start from the simple save: find the last checkpoint file (doesn't matter if there is no c and particles or not)
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
-            elseif analysis_round == "complex"
-                # from the previous simple save, a new checkpoint file is created, but we want to find the previous checkpoint file
-                checkpoint_file = find_checkpoint_by_rank(string("output/", simname),2)
             end
             set!(model, checkpoint_file)
             set!(model, c=cᵢ)
@@ -346,7 +341,7 @@ function initialize_internal_tide(
         b = model.tracers.b
         B̄ = model.background_fields.tracers.b
         B = B̄ + b # total buoyancy field
-        if tᶠ > 451
+        if tᶠ > 451*2π/ω₀
             c = model.tracers.c
         end
         u, v, w = model.velocities
@@ -367,26 +362,17 @@ function initialize_internal_tide(
             end
         end
 
-        if analysis_round !== "simple" && analysis_round !== "complex"
+        if analysis_round !== "all"
             #1)first round output 
-            checkpoint_interval = 1 * 2π / ω₀
+            checkpoint_interval = 0.4 * 2π / ω₀
             threeD_diags_avg = (; b=b)
             slice_diags = (; B=B, uhat=û)
-        elseif analysis_round == "simple"
+        elseif analysis_round == "all"
             checkpoint_interval = 1 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, B=B)
             threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ, uhat=û, v=v, what=ŵ, B=B))
             threeD_diags = merge(Bbudget, (; ε=ε, νₑ=νₑ, Rig=Rig, χ=χ, uhat=û, v=v, what=ŵ, B=B, c=c))
             slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
-            # point_diags = (; uhat=û)
-            # threeD_diags_avg = (; uhat=û)
-            # threeD_diags = (; uhat=û)
-            # slice_diags = (; uhat=û)
-        elseif analysis_round == "complex"
-            checkpoint_interval = 1 * 2π / ω₀
-            threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ))
-            threeD_diags = merge(Bbudget, (; ε=ε, νₑ=νₑ, Rig=Rig, χ=χ))
-            slice_diags = (; ε=ε, χ=χ, νₑ=νₑ)
         end
     elseif output_mode == "customized"
         checkpoint_interval = 20 * 2π / ω₀
@@ -412,62 +398,59 @@ function initialize_internal_tide(
             cleanup=clean_checkpoint)
 
         ## output 3D field window time average
-        simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
-            filename=string(dir, fname, "_threeD_timeavg.nc"),
-            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-            verbose=true,
-            overwrite_existing=overwrite_output
-        )
+        # simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
+        #     filename=string(dir, fname, "_threeD_timeavg.nc"),
+        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+        #     verbose=true,
+        #     overwrite_existing=overwrite_output
+        # )
 
-        ## output 2D slices
-        # xz
-        simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
-            schedule=TimeInterval(slice_interval),
-            indices=(:, Ny ÷ 2, :), # center of the domain (along thalweg)
-            verbose=true,
-            filename=string(dir, fname, "_slices_xz.nc"),
-            overwrite_existing=overwrite_output)
+        # ## output 2D slices
+        # # xz
+        # simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, slice_diags,
+        #     schedule=TimeInterval(slice_interval),
+        #     indices=(:, Ny ÷ 2, :), # center of the domain (along thalweg)
+        #     verbose=true,
+        #     filename=string(dir, fname, "_slices_xz.nc"),
+        #     overwrite_existing=overwrite_output)
 
         ## output that is saved only when reaching analysis period (quasi-equilibrium in terms of bottom buoyancy)
         if output_mode == "analysis"
-            if analysis_round == "simple" || analysis_round == "complex"
-                # xy
-                ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
-                simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
-                    schedule=TimeInterval(slice_interval),
-                    indices=(:, :, ind),
-                    verbose=true,
-                    filename=string(dir, fname, "_slices_xy.nc"),
-                    overwrite_existing=overwrite_output)
-                # yz
-                simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
-                    schedule=TimeInterval(slice_interval),
-                    indices=(Nx ÷ 2, :, :), # center of the domain (along the sill)
-                    verbose=true,
-                    filename=string(dir, fname, "_slices_yz.nc"),
-                    overwrite_existing=overwrite_output)
-                # output 3D field snapshots
-                simulation.output_writers[:nc_threeD] = NetCDFWriter(model, threeD_diags,
-                    verbose=true,
-                    filename=string(dir, fname, "_threeD.nc"),
-                    overwrite_existing=overwrite_output,
-                    schedule=TimeInterval(snapshot_interval))
-            end
-            if analysis_round == "simple"
-                # 1D profile
-                simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
-                    schedule=TimeInterval(4Δt),
-                    indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
-                    verbose=true,
-                    filename=string(dir, fname, "_point_center.nc"),
-                    overwrite_existing=overwrite_output)
-            elseif analysis_round == "complex"
-                # particles
-                simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
-                    verbose=true,
-                    filename=string(dir, fname, "_particles_z=", z_center_cart, ".nc"),
-                    schedule=TimeInterval(Δtᵒ / 3),
-                    overwrite_existing=true)
+            if analysis_round == "all"
+                # # xy
+                # ind = argmin(abs.(zC .- 1300))   # 1300 m height above bottom
+                # simulation.output_writers[:nc_slice_xy] = NetCDFWriter(model, slice_diags,
+                #     schedule=TimeInterval(slice_interval),
+                #     indices=(:, :, ind),
+                #     verbose=true,
+                #     filename=string(dir, fname, "_slices_xy.nc"),
+                #     overwrite_existing=overwrite_output)
+                # # yz
+                # simulation.output_writers[:nc_slice_yz] = NetCDFWriter(model, slice_diags,
+                #     schedule=TimeInterval(slice_interval),
+                #     indices=(Nx ÷ 2, :, :), # center of the domain (along the sill)
+                #     verbose=true,
+                #     filename=string(dir, fname, "_slices_yz.nc"),
+                #     overwrite_existing=overwrite_output)
+                # # output 3D field snapshots
+                # simulation.output_writers[:nc_threeD] = NetCDFWriter(model, threeD_diags,
+                #     verbose=true,
+                #     filename=string(dir, fname, "_threeD.nc"),
+                #     overwrite_existing=overwrite_output,
+                #     schedule=TimeInterval(snapshot_interval))
+                # # 1D profile
+                # simulation.output_writers[:nc_point] = NetCDFWriter(model, point_diags,
+                #     schedule=TimeInterval(4Δt),
+                #     indices=(Nx ÷ 2, Ny ÷ 2, :), # center of the domain (at the sill)
+                #     verbose=true,
+                #     filename=string(dir, fname, "_point_center.nc"),
+                #     overwrite_existing=overwrite_output)
+                # # particles
+                # simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
+                #     verbose=true,
+                #     filename=string(dir, fname, "_particles_z=", z_center_cart, ".nc"),
+                #     schedule=TimeInterval(Δtᵒ / 3),
+                #     overwrite_existing=true)
             end
             
         end
