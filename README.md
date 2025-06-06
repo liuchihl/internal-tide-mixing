@@ -28,4 +28,5 @@ Changes:
 18. try Asymptotic preconditioner (works fine; converges much better)
 19. minimum_relative_step solves blow-up issue. I want to test if this can solve the CUDA error when having particles included (seems to work, I haven't saved the particles but it has been written in the model).
 20. Try all over again, start from t=450 to 450.4, and the goal is to run all towards 451 as the spinup. I don't need to save anything, just let it finish.  
+21. run 450.4-450.8
 

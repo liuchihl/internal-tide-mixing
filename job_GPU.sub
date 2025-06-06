@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="tilt" 
-#SBATCH --output="output_message/tilt-CG.out-452-453-maxiter=1000.%j.%N.out"
+#SBATCH --output="output_message/tilt-CG.out-450.4-450.8-maxiter=1000.%j.%N.out"
 # # SBATCH --partition=gpuA100x4
 #SBATCH --partition=gpuH200x8
 #SBATCH --mem=30G
