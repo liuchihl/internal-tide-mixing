@@ -189,7 +189,7 @@ function initialize_internal_tide(
         # cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
 
         # define particles
-        Nparticles = 1e4
+        Nparticles = 5e5
         # particles are released at 700 m above the bottom, which is about z=967 m
         x₀, y₀, z₀ = gaussian_particle_generator(
             Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
