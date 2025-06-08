@@ -301,7 +301,7 @@ function initialize_internal_tide(
     ## Configure simulation
     Δt = 12
     # Δt = (1/N)*0.03
-    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.001)
+    simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
     # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
     # minimum_relative_step=0.1: eliminates the possibility of the time-step being too small.
     

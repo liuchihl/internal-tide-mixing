@@ -27,6 +27,7 @@ Changes:
 17. try minimum_relative_step=0.1; FFT based preconditioner (to avoid small timesteps; it works but residual remains high)
 18. try Asymptotic preconditioner (works fine; converges much better)
 19. minimum_relative_step solves blow-up issue. I want to test if this can solve the CUDA error when having particles included (seems to work, I haven't saved the particles but it has been written in the model).
-20. Try all over again, start from t=450 to 450.4, and the goal is to run all towards 451 as the spinup. I don't need to save anything, just let it finish.  
-21. run 450.4-450.8
+20. Try all over again, start from t=450 to 450.4, and the goal is to run all towards 451 as the spinup. I don't need to save anything, just let it finish with the checkpoint.  
+21. run 450.4-450.8 (success, residual~1e-8)
+22. run 450.8-451
 
