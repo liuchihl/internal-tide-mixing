@@ -364,7 +364,7 @@ function initialize_internal_tide(
 
         if analysis_round !== "all"
             #1)first round output 
-            checkpoint_interval = 0.4 * 2π / ω₀
+            checkpoint_interval = 0.2 * 2π / ω₀
             threeD_diags_avg = (; b=b)
             slice_diags = (; B=B, uhat=û)
         elseif analysis_round == "all"
