@@ -380,7 +380,7 @@ function initialize_internal_tide(
         # slice_interval = Δtᵒ
         threeD_diags_avg = Bbudget
     end
-    fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", Int(round(tᶠ / (2π / ω₀))),
+    fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2π / ω₀), digits=1),
              "_analysis_round=", analysis_round)
     dir = string("output/", simname, "/")
     # create output path if the folder does not exist
