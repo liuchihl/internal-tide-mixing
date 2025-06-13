@@ -44,7 +44,7 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
     else
         output_mode = "analysis"
         solver = "Conjugate Gradient"                
-        avg_interval = T₀
+        avg_interval = 0.5T₀
         snapshot_interval = 1/12*T₀
         slice_interval = Δtᵒ
         pickup = false  

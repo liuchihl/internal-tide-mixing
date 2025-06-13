@@ -245,7 +245,7 @@ function initialize_internal_tide(
         model = NonhydrostaticModel(;
             grid=grid,
             pressure_solver=ConjugateGradientPoissonSolver(
-                grid; maxiter=1000, preconditioner=AsymptoticPoissonPreconditioner(),
+                grid; maxiter=800, preconditioner=AsymptoticPoissonPreconditioner(),
                 reltol=tol, abstol=tol), 
             advection=WENO(),
             buoyancy=buoyancy,
@@ -368,7 +368,7 @@ function initialize_internal_tide(
             threeD_diags_avg = (; b=b)
             slice_diags = (; B=B, uhat=û)
         elseif analysis_round == "all"
-            checkpoint_interval = 0.4 * 2π / ω₀
+            checkpoint_interval = 0.5 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, B=B)
             threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ, uhat=û, v=v, what=ŵ, B=B))
             threeD_diags = merge(Bbudget, (; ε=ε, νₑ=νₑ, Rig=Rig, χ=χ, uhat=û, v=v, what=ŵ, B=B, c=c))

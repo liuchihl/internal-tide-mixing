@@ -31,4 +31,5 @@ Changes:
 21. run 450.4-450.8 (success, residual~1e-8)
 22. run 450.8-451
 23. run 451-451.4
+24. forgot to set proper window time average because the end time is smaller than the window time average. Delete the previous run, and set maxiter to 800 so that 0.5 TP can be run within 48 hour limitation on Delta. Also, set the window time average to 0.5 and set checkpointer to 0.5 TP
 
