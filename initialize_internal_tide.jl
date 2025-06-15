@@ -289,13 +289,14 @@ function initialize_internal_tide(
         if tᶠ <= 451*2π/ω₀ # without c and particles 
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
-        elseif tᶠ > 451*2π/ω₀ # we need c and particles
-            if analysis_round == "all"
+        elseif tᶠ < 452*2π/ω₀ # still without c and particles
                 # we start from the simple save: find the last checkpoint file (doesn't matter if there is no c and particles or not)
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
-            end
-            set!(model, checkpoint_file)
-            set!(model, c=cᵢ)
+                set!(model, checkpoint_file)
+                set!(model, c=cᵢ)
+        elseif tᶠ >= 452*2π/ω₀  # c and particles are present in the checkpoint file
+                checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
+                set!(model, checkpoint_file)
         end
     end
     ## Configure simulation
