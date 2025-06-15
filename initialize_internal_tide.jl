@@ -189,12 +189,17 @@ function initialize_internal_tide(
         # cᵢ(x, y, z) = C * exp(-((x - x_center)^2 / (2σ_x^2) + (y - y_center)^2 / (2σ_y^2) + (z - z_center)^2 / (2σ_z^2)))
 
         # define particles
+            # 451-451.5, invalid particles (e.g., below topography, outside domain) are removed,
+            # after 451.5, since we are picking up from a checkpoint file, there is no need to 
+            # exclude the out-of-bounds particles (may cause particles number inconsistency). 
+            # Applying periodic boundary conditions to particles is necessary
+        apply_periodic_bounds = tᶠ == 451.5 * 2π / ω₀ ? false : true 
         Nparticles = 5e5
         # particles are released at 1000 m above the bottom, which is about z=967 m
         x₀, y₀, z₀ = gaussian_particle_generator(
             Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
             x_center_ratio=0.25, y_center_ratio=0.5, z_center=z_center_cart,
-            σ_x=σ_x, σ_y=σ_y, σ_z=σ_z)
+            σ_x=σ_x, σ_y=σ_y, σ_z=σ_z, apply_periodic_bounds=apply_periodic_bounds)
         b = 1e-5 * ones(Float64, Int(length(x₀)))
         b = architecture == GPU() ? CuArray(b) : b
 

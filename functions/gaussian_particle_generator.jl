@@ -3,8 +3,11 @@ using Random
 
 function gaussian_particle_generator(
     Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
-    x_center_ratio=0.25, y_center_ratio=0.5, z_center=1000, σ_x=1000, σ_y=1000, σ_z=100
+    x_center_ratio=0.25, y_center_ratio=0.5, z_center=1000, σ_x=1000, σ_y=1000, σ_z=100,
+    apply_periodic_bounds=true
 )
+# apply_periodic_bounds: if true, particles can wrap around the domain in x and y directions
+# this happens when picking up from a checkpoint file, where particles may be outside the domain from previous run
     is_3D = !isnothing(Ly) && !isnothing(Ny)
 
     x_center = Lx * x_center_ratio
@@ -61,13 +64,23 @@ function gaussian_particle_generator(
             x = samples[1, i]
             z = is_3D ? samples[3, i] : samples[2, i]
             
-            x_in_bounds = 0 <= x <= Lx
+            # Apply periodic boundary conditions for horizontal coordinates
+            if apply_periodic_bounds
+                x = mod(x, Lx)
+                samples[1, i] = x  # Update with wrapped coordinate
+            end
+            
+            x_in_bounds = apply_periodic_bounds ? true : (0 <= x <= Lx)
             
             if x_in_bounds
                 x_idx = max(1, min(Nx, round(Int, x * x_scale)))
                 if is_3D
                     y = samples[2, i]
-                    y_in_bounds = 0 <= y <= Ly
+                    if apply_periodic_bounds
+                        y = mod(y, Ly)
+                        samples[2, i] = y  # Update with wrapped coordinate
+                    end
+                    y_in_bounds = apply_periodic_bounds ? true : (0 <= y <= Ly)
                     if y_in_bounds
                         y_idx = max(1, min(Ny, round(Int, y * y_scale)))
                         topo_z = z_interp[x_idx, y_idx]
@@ -79,6 +92,7 @@ function gaussian_particle_generator(
                     topo_z = z_interp[x_idx, 1]
                 end
                 
+                # Only validate vertical bounds - particles can be periodic in x,y
                 if !(z > topo_z && z < max_z)
                     valid_mask[i] = false
                 end
@@ -87,20 +101,30 @@ function gaussian_particle_generator(
             end
         end
     else
-        # For GPU
-        function validate_particle(sample, valid_mask, Lx, Nx, Ly, Ny, z_interp, max_z, is_3D, x_scale, y_scale)
+        # For GPU - similar modifications
+        function validate_particle(sample, valid_mask, Lx, Nx, Ly, Ny, z_interp, max_z, is_3D, x_scale, y_scale, apply_periodic_bounds)
             i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
             if i <= length(valid_mask)
                 x = sample[1, i]
                 z = is_3D ? sample[3, i] : sample[2, i]
                 
-                x_in_bounds = 0 <= x <= Lx
+                # Apply periodic boundary conditions
+                if apply_periodic_bounds
+                    x = mod(x, Lx)
+                    sample[1, i] = x
+                end
+                
+                x_in_bounds = apply_periodic_bounds ? true : (0 <= x <= Lx)
                 
                 if x_in_bounds
                     x_idx = max(1, min(Nx, round(Int32, x * x_scale)))
                     if is_3D
                         y = sample[2, i]
-                        y_in_bounds = 0 <= y <= Ly
+                        if apply_periodic_bounds
+                            y = mod(y, Ly)
+                            sample[2, i] = y
+                        end
+                        y_in_bounds = apply_periodic_bounds ? true : (0 <= y <= Ly)
                         if y_in_bounds
                             y_idx = max(1, min(Ny, round(Int32, y * y_scale)))
                             topo_z = z_interp[x_idx, y_idx]
@@ -112,6 +136,7 @@ function gaussian_particle_generator(
                         topo_z = z_interp[x_idx, 1]
                     end
                     
+                    # Only validate vertical bounds
                     if !(z > topo_z && z < max_z)
                         valid_mask[i] = false
                     end
@@ -127,7 +152,7 @@ function gaussian_particle_generator(
 
         threads = 256
         blocks = cld(Nparticles, threads)
-        @cuda blocks=blocks threads=threads validate_particle(samples, valid_mask, Lx, Nx, Ly, Ny, z_interp_gpu, max_z, is_3D, x_scale, y_scale)
+        @cuda blocks=blocks threads=threads validate_particle(samples, valid_mask, Lx, Nx, Ly, Ny, z_interp_gpu, max_z, is_3D, x_scale, y_scale, apply_periodic_bounds)
     end
 
     # Select valid particles
