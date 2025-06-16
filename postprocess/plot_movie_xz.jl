@@ -821,18 +821,30 @@ end
 using NCDatasets
 using Printf
 using CairoMakie
-fname = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=460_slices_xz-CG.nc"
-ds = Dataset(fname,"r")
-# B = ds["B"][:,:,:,:];
-b = ds["b"][:,:,:,:];
-B̄ = calculate_background_buoyancy(0.0036)
-B = B̄.+b
+simname = "tilt"
+solver = "FFT"
+if solver=="CG"
+    fname = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=452_slices_xz.nc"
+elseif solver=="FFT"
+    fname = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=460_slices_xz-u-v-w-B.nc"
+end
+ds_slice = Dataset(fname,"r")
+filename_mask = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
+ds_mask = Dataset(filename_mask,"r")
+# grids
+zC = ds_mask["zC"]; Nz=length(zC)
+zF = ds_mask["zF"]; 
+xC = ds_mask["xC"]; Nx=length(xC); xF = ds_mask["xF"];
+yC = ds_mask["yC"]; Ny=length(yC)
+t = ds_slice["time"];
+
+# load all data
+B = ds_slice["B"][:,:,:,:];
+uhat = ds_slice["uhat"][:,:,:,:]; 
+b = ds_mask["b"][:,:,:,1:size(uhat,4)]; # b is the immersed boundary mask, 1 for the immersed boundary, 0 for the fluid
+
 
 B[b.==0] .= NaN
-# Load the data
-zC = ds["zC"][:]; Nz=length(zC)
-xC = ds["xC"][:]; Nx=length(xC)
-t = ds["time"][:];
 # Set up the plot
 D = 130  # Depth limit for zoomed view
 n = Observable(1)
@@ -843,7 +855,7 @@ M₂_period = 2π/ω₀
 fig = CairoMakie.Figure(resolution = (1000, 600), size=(750,250))
 axis_kwargs = (xlabel = "Zonal distance x (m)",
               ylabel = "Elevation z (m)",
-              limits = ((0, ds["xF"][end]), (0, ds["zF"][D+1])),
+              limits = ((0, ds_mask["xF"][end]), (0, ds_mask["zF"][D+1])),
              )
 
 title = @lift @sprintf("t=%1.2f M₂ tidal periods", t[$n]/M₂_period)
@@ -859,12 +871,13 @@ ct_b = contour!(ax_b, xC, zC[1:D], Bₙ,
     levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
 Colorbar(fig[2,2], hm_b; label = "B [m/s²]")
 
-frames = 1:length(t)
+frames = 25:48
+
 filename = join(split(fname, ".")[1:end-1], ".")
 
-record(fig, string(filename, "_B_zoomin_CG.mp4"), frames, framerate=13) do i
+record(fig, string(filename, "_B_zoomin_FFT.mp4"), frames, framerate=13) do i
     @info "Plotting frame $i of $(frames[end])..."
     n[] = i
 end
 
-close(ds)
+close(ds_slice)
