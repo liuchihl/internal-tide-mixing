@@ -8,8 +8,8 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
     Nx = 500
     Ny = 1000
     Nz = 250      
-    ω₀ = 1.4e-4     # tidal freq.
-    T₀ = 2π/ω₀      # tidal period
+    ω₀ = 1.4e-4      # tidal frequency 
+    T₀ = 2π/ω₀      # tidal period (period is a multiple of Δt=10 s)
     Δtᵒ = 1/24*T₀   # interval for saving output: 1/24 of a tidal period (~31 minutes) 
     U₀ = 0.025      # tidal amplitude
     N = 1.e-3       # Buoyancy frequency
@@ -44,7 +44,7 @@ function run_internal_tide(;tᶠ,θ, analysis_round=nothing)
     else
         output_mode = "analysis"
         solver = "Conjugate Gradient"                
-        avg_interval = T₀
+        avg_interval = 0.5T₀
         snapshot_interval = 1/12*T₀
         slice_interval = Δtᵒ
         pickup = false  
