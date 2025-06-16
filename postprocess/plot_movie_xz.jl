@@ -821,10 +821,14 @@ end
 using NCDatasets
 using Printf
 using CairoMakie
-fname = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=452_slices_xz.nc"
+simname = "tilt"
+solver = "FFT"
+if solver=="CG"
+    fname = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=452_slices_xz.nc"
+elseif solver=="FFT"
+    fname = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=460_slices_xz-u-v-w-B.nc"
+end
 ds_slice = Dataset(fname,"r")
-B = ds_slice["B"][:,:,:,:];
-
 filename_mask = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
 ds_mask = Dataset(filename_mask,"r")
 # grids
@@ -867,10 +871,11 @@ ct_b = contour!(ax_b, xC, zC[1:D], Bₙ,
     levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
 Colorbar(fig[2,2], hm_b; label = "B [m/s²]")
 
-frames = 1:length(t)
+frames = 25:48
+
 filename = join(split(fname, ".")[1:end-1], ".")
 
-record(fig, string(filename, "_B_zoomin_CG.mp4"), frames, framerate=13) do i
+record(fig, string(filename, "_B_zoomin_FFT.mp4"), frames, framerate=13) do i
     @info "Plotting frame $i of $(frames[end])..."
     n[] = i
 end

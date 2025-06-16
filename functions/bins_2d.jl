@@ -6,7 +6,7 @@ using StatsBase
     bin_center2 = @. (bin_edge2[1:end-1] + bin_edge2[2:end]) / 2
     
     # Calculate volume elements
-    z_diff = diff(z_face, dims=2)
+    z_diff = ndims(z_face) > 1 ? diff(z_face, dims=2) : diff(z_face)
     ΔV = dx .* dy .* z_diff  # Shape: [nx, nz]
     
     # Initialize output arrays
@@ -31,7 +31,7 @@ using StatsBase
         mask2_flat = reshape(view(mask2_view, :, :, :, l), flat_length)
         
         # Create repeated ΔV array
-        ΔV_flat = repeat(vec(ΔV), inner=ny)
+        ΔV_flat = ndims(z_face) < 2 ? vec(repeat(ΔV, nx, ny, 1)) : vec(repeat(ΔV, ny, 1))
         
         # Create weights
         weights = Weights(var_flat .* ΔV_flat)

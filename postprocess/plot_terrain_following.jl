@@ -299,54 +299,131 @@ save("output/tilt/comparison_wrong_right.png", fig)
 
 
 ## plot mixing (epsilon, chi, Gamma)
-file = string("output/",slope,"/TF_avg_",timerange,"bin.nc")
+simname = "tilt"
+file = string("output/",simname,"/TF_avg_tᶠ=",tᶠ,"_analysis.nc")
 ds = Dataset(file,"r")
 
 t = ds["t"][:]/(2*pi/1.4e-4)
 z = ds["bin_center"][:]
-# epsilon_avg = ds["epsilon_avg"][:,:]
+ε_avg = ds["ε_avg"][:,:]
 Bz_avg = ds["Bz_avg"][:,:]
-chi_avg = ds["chi_avg"][:,:]./Bz_avg    # -κ|∇b|²/Bz
-# Gamma_avg = chi_avg./epsilon_avg
-# eta_avg = chi_avg./(epsilon_avg.+chi_avg)
-fig = Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,300))
-axis_kwargs_hm = (xlabel = "time (tidal cycle)",
-                  ylabel = "hab (m)",
-                  limits = ((t[1], t[end]), (0, z[end]))
-                  )
-axis_kwargs_ln = (ylabel = "hab (m)",limits = (nothing,(0, 500)) ) 
-axis_kwargs_ln_Gamma = (ylabel = "hab (m)",limits = ((0,3),(0, 500)) ) 
+χ_avg = ds["χ_avg"][:,:]./Bz_avg    # -κ|∇b|²/Bz
+Gamma_avg = nanmean(χ_avg,dim=2)./nanmean(ε_avg,dim=2)
+eta_avg = nanmean(χ_avg,dim=2)./(nanmean(ε_avg,dim=2).+nanmean(χ_avg,dim=2))
+# using CairoMakie
+# fig = CairoMakie.Figure(resolution = (1000, 1000), figure_padding=(10, 40, 10, 10), size=(600,300),
+#                        fontsize=22)
+# axis_kwargs_hm = (xlabel = "time (tidal cycle)",
+#                   ylabel = "hab (m)",
+#                   limits = ((t[1], t[end]), (0, z[end])),
+#                   xlabelsize = 22,
+#                   ylabelsize = 22,
+#                   xticklabelsize = 20,
+#                   yticklabelsize = 20,
+#                   yminorticksvisible = true,
+#                   xminorticksvisible = true
+#                   )
+# axis_kwargs_ln = (ylabel = "hab (m)",
+#                  limits = (nothing,(0, 500)),
+#                  xlabelsize = 22,
+#                  ylabelsize = 22,
+#                  xticklabelsize = 20,
+#                  yticklabelsize = 20,
+#                  yminorticksvisible = true,
+#                  xminorticksvisible = true
+#                  ) 
+# axis_kwargs_ln_Gamma = (ylabel = "hab (m)",
+#                        limits = ((0,1),(0, 500)),
+#                        xlabelsize = 22,
+#                        ylabelsize = 22,
+#                        xticklabelsize = 20,
+#                        yticklabelsize = 20,
+#                        yminorticksvisible = true,
+#                        xminorticksvisible = true
+#                        ) 
 
-ax_epsilon = Axis(fig[1, 1]; title = "log ε", axis_kwargs_hm...)
-ax_chi = Axis(fig[2, 1]; title = "log χ", axis_kwargs_hm...)
-ax_gamma = Axis(fig[3, 1]; title = "Γ mixing coefficient", axis_kwargs_hm...)
-ax_epsilon_ln = Axis(fig[1, 3]; title = "log ε", axis_kwargs_ln...)
-ax_chi_ln = Axis(fig[2, 3]; title = "log χ", axis_kwargs_ln...)
-ax_gamma_ln = Axis(fig[3, 3]; title = "Γ mixing coefficient", axis_kwargs_ln_Gamma...)
-χ_hm = chi_avg[:,:]
+# ax_epsilon = Axis(fig[1, 1]; title = "log ε", titlesize = 22, yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+# ax_chi = Axis(fig[2, 1]; title = "log χ", titlesize = 22, yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+# ax_gamma = Axis(fig[3, 1]; title = "η mixing efficiency", titlesize = 22, yminorticks = IntervalsBetween(5), axis_kwargs_hm...)
+# ax_epsilon_chi_ln = Axis(fig[1:2, 3]; titlesize = 22, yminorticks = IntervalsBetween(5), axis_kwargs_ln...)
+# ax_gamma_ln = Axis(fig[3, 3]; title = "η̄ mixing efficiency", titlesize = 22, yminorticks = IntervalsBetween(5), axis_kwargs_ln_Gamma...)
+
+# χ_hm = χ_avg[:,:]
+# χ_hm[χ_hm.<0] .= NaN
+# using ColorSchemes
+# U₀ = 0.025
+# hm_epsilon = heatmap!(ax_epsilon, t[:], z[:], log10.(ε_avg)',
+#     colorrange = (-10,-7), colormap = :diverging_bwr_20_95_c54_n256,
+#     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
+#     Colorbar(fig[1,2], hm_epsilon, labelsize = 20)
+# hm_chi = heatmap!(ax_chi, t[:], z[:], log10.(χ_hm)', colorrange=(-10,-7),
+#     colormap = :diverging_bwr_20_95_c54_n256,
+#     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
+#     nan_color=:blue )
+#     Colorbar(fig[2,2], hm_chi, labelsize = 20)
+# hm_gamma = heatmap!(ax_gamma, t[:], z[:], eta_avg',
+#     colorrange = (0,1), colormap = :diverging_bwr_20_95_c54_n256,
+#     lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
+#     Colorbar(fig[3,2], hm_gamma, labelsize = 20)
+
+# lines!(ax_epsilon_chi_ln, log10.(nanmean(ε_avg[:,:],dim=2)), z[:], linewidth=3.5, label="ε̄")
+# lines!(ax_epsilon_chi_ln, log10.(nanmean(χ_hm[:,:],dim=2)), z[:], linewidth=3.5, label="χ̄")
+# axislegend(ax_epsilon_chi_ln, position=:rt, labelsize = 22)
+
+# lines!(ax_gamma_ln, nanmean(eta_avg[:,:],dim=2), z[:], linewidth=3.5)
+# lines!(ax_gamma_ln, 1/6*ones(size(z)), z[:], linewidth=3, color=:black)
+
+# save(string("output/",simname,"/hab_mixing_tᶠ=",tᶠ,".png"),fig)
+# display(fig)
+# close(ds)
+
+
+
+## plot only the curves
+using CairoMakie
+using NaNStatistics
+
+fig = CairoMakie.Figure(resolution = (800, 400), figure_padding=(10, 20, 10, 10), size=(900, 500),
+            fontsize=22)
+
+# Common axis properties
+axis_kwargs = (
+    ylabel = "hab (m)",
+    limits = ((nothing, nothing), (0, 500)),
+    xlabelsize = 22,
+    ylabelsize = 22,
+    xticklabelsize = 20,
+    yticklabelsize = 20,
+    yminorticksvisible = true,
+    xminorticksvisible = true
+)
+
+# Create the two subplots
+ax_epsilon_chi = Axis(fig[1, 1]; 
+                     titlesize = 22, 
+                     yminorticks = IntervalsBetween(5), 
+                     axis_kwargs...)
+
+ax_gamma = Axis(fig[1, 2]; title = "η̄ mixing efficiency", 
+               titlesize = 22, 
+               yminorticks = IntervalsBetween(5),
+               limits = ((0, 1), (0, 500)),
+               axis_kwargs...)
+
+# Filter out negative values for χ
+χ_hm = χ_avg[:,:]
 χ_hm[χ_hm.<0] .= NaN
-using ColorSchemes
-U₀ = 0.025
-hm_epsilon = heatmap!(ax_epsilon, t[:], z[:], log10.(epsilon_avg)',
-    colorrange = (-10,-7), colormap = :diverging_bwr_20_95_c54_n256,
-    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
-    Colorbar(fig[1,2], hm_epsilon )
-hm_chi = heatmap!(ax_chi, t[:], z[:], log10.(χ_hm)', colorrange=(-10,-7),
-    colormap = :diverging_bwr_20_95_c54_n256,
-    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
-    nan_color=:blue )
-    Colorbar(fig[2,2], hm_chi )
-hm_gamma = heatmap!(ax_gamma, t[:], z[:], Gamma_avg',
-    colorrange = (0,2), colormap = :diverging_bwr_20_95_c54_n256,
-    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end] )
-    Colorbar(fig[3,2], hm_gamma )
 
-lines!(ax_epsilon_ln, log10.(epsilon_avg[:,end]), z[:], linewidth=3)
-lines!(ax_chi_ln, log10.(chi_avg[:,end]), z[:], linewidth=3)
-lines!(ax_gamma_ln, Gamma_avg[:,end], z[:], linewidth=3)
-lines!(ax_gamma_ln, 0.2*ones(size(z)), z[:], linewidth=3, color=:black)
+# Plot mean profiles
+eps_line = lines!(ax_epsilon_chi, log10.(nanmean(ε_avg[:,:], dim=2)), z[:], linewidth=3.5, color=:blue, label=L"log₁₀ε̄")
+chi_line = lines!(ax_epsilon_chi, log10.(nanmean(χ_hm[:,:], dim=2)), z[:], linewidth=3.5, color=:red, label=L"log₁₀χ̄")
+axislegend(ax_epsilon_chi, position=:rt, labelsize = 20)
 
-save(string("output/",slope,"/hab_mixing_",timerange,".png"),fig)
+eta_line = lines!(ax_gamma, nanmean(eta_avg[:,:], dim=2), z[:], linewidth=3.5)
+osborn_line = lines!(ax_gamma, 1/6*ones(size(z)), z[:], linewidth=3, color=:black, linestyle=:dash)
+# axislegend(ax_gamma, [osborn_line], ["Γ = 1/6"], position=:rt, labelsize = 20)
+
+save(string("output/", simname, "/hab_mixing_profiles_tᶠ=", tᶠ, ".png"), fig)
 display(fig)
 close(ds)
 

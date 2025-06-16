@@ -1,72 +1,128 @@
 ## this script plots water mass transformation results computed in water_mass_transformation.jl
-     using NCDatasets
-     # load data
-     simname = "tilt"
-     θ = simname == "tilt" ? 3.6e-3 : 0
-     tᶠ = 460 
-     
-     ds_total = Dataset(string("output/",simname,"/WMT_total_tᶠ=",tᶠ,".nc"),"r")
-     ∇κ∇B_t = ds_total["∇κ∇B_t"][:,:,1:2:end]
-     div_uB_t = ds_total["div_uB_t"][:,:,1:2:end]
-     
-    #  ds_canyon = Dataset(string("output/",simname,"/WMT_canyon_120",".nc"),"r")
-    #  ∇κ∇B_c = ds_canyon["∇κ∇B_t"][:,:,1]
-    #  div_uB_c = ds_canyon["div_uB_t"][:,:,1]
-     
-    #  ds_flank = Dataset(string("output/",simname,"/WMT_flanks_120",".nc"),"r")
-    #  ∇κ∇B_f = ds_flank["∇κ∇B_t"][:,:,1]
-    #  div_uB_f = ds_flank["div_uB_t"][:,:,1]
-     
-     hab = ds_total["bin_center1"][:]
-     b_bin = ds_total["bin_center2"][:]
-     Ly = 30e3
-     Lx = Ly/2
-     A = Lx*Ly
+using NCDatasets
+using NaNStatistics
+# load data
+simname = "flat"
+θ = simname == "tilt" ? 3.6e-3 : 0
+tᶠ = 460 
+
+ds_total = Dataset(string("output/",simname,"/WMT_total_tᶠ=",tᶠ,".nc"),"r")
+∇κ∇B_t = nanmean(ds_total["∇κ∇B_t"][:,:,1:2:end],dim=3)
+#  div_uB_t = ds_total["div_uB_t"][:,:,1:2:end]
+#1) finding the positive values of ∇κ∇B_t would be one way 
+# E_BBL_t = sum(ifelse.(∇κ∇B_t.>0.0, ∇κ∇B_t, 0.0))*1e-3
+# E_SML_t = sum(ifelse.(∇κ∇B_t.<0.0, ∇κ∇B_t, 0.0))*1e-3
+#2) 
+E_BBL_t = sum(nanmean(∇κ∇B_t[1:3,:],dim=2))*1e-3
+E_SML_t = sum(nanmean(ifelse.(∇κ∇B_t[4:29,:].<0.0, ∇κ∇B_t[4:29,:], 0.0),dim=2))*1e-3
+
+ds_canyon = Dataset(string("output/",simname,"/WMT_canyon_tᶠ=",tᶠ,".nc"),"r")
+∇κ∇B_c = nanmean(ds_canyon["∇κ∇B_t"][:,:,1:2:end],dim=3)
+#  div_uB_c = ds_canyon["div_uB_t"][:,:,1:2:end]
+# E_BBL_c = sum(ifelse.(∇κ∇B_c.>0.0, ∇κ∇B_c, 0.0))*1e-3
+# E_SML_c = sum(ifelse.(∇κ∇B_c.<0.0, ∇κ∇B_c, 0.0))*1e-3
+E_BBL_c = sum(nanmean(∇κ∇B_c[1:3,:],dim=2))*1e-3
+E_SML_c = sum(nanmean(ifelse.(∇κ∇B_c[4:29,:].<0.0, ∇κ∇B_c[4:29,:], 0.0),dim=2))*1e-3
+
+
+ds_flank = Dataset(string("output/",simname,"/WMT_flanks_tᶠ=",tᶠ,".nc"),"r")
+∇κ∇B_f = nanmean(ds_flank["∇κ∇B_t"][:,:,1:2:end],dim=3)
+# E_BBL_f = sum(ifelse.(∇κ∇B_f.>0.0, ∇κ∇B_f, 0.0))*1e-3
+# E_SML_f = sum(ifelse.(∇κ∇B_f.<0.0, ∇κ∇B_f, 0.0))*1e-3
+#  div_uB_f = ds_flank["div_uB_t"][:,:,1:2:end]
+E_BBL_f = sum(nanmean(∇κ∇B_f[1:3,:],dim=2))*1e-3
+E_SML_f = sum(nanmean(ifelse.(∇κ∇B_f[4:29,:].<0.0, ∇κ∇B_f[4:29,:], 0.0),dim=2))*1e-3
+
+hab = ds_total["bin_center1"][:]
+b_bin = ds_total["bin_center2"][:]
+Ly = 30e3
+Lx = Ly/2
+A = Lx*Ly
 ## plot diffusive and advective terms together with respect to HAB with three different regions
-    using PyPlot 
-    using Statistics
-    close(gcf())
-    # Create a figure and an array of subplots
-    fig, axs = subplots(1, 2, figsize=(6, 3.5))  # 1 row, 2 columns
+using PyPlot 
+using Statistics
+close(gcf())
+# Create a figure and an array of subplots
+fig, axs = subplots(1, 2, figsize=(7, 3.2))  # 1 row, 2 columns
 
-    colors = [150 148 255;136 194 115;255 41 41]./255
+colors = [150 148 255;136 194 115;255 41 41]./255
 
-    # line2,=axs.plot(-dropdims(mean(div_uB_t,dims=2),dims=(2))*1e-3, hab, label="", color="red", linestyle="-",marker="",markersize=3)
-    line1,=axs[1].plot(dropdims(mean(∇κ∇B_t,dims=2),dims=(2))*1e-3, hab, label="", color=colors[1,:], marker=".",markersize=2, alpha=0.5)
-    line1,=axs[1].plot(mean(dropdims(mean(∇κ∇B_t,dims=2),dims=(2)),dims=2)*1e-3, hab, label="", color=:black, marker=".",markersize=6)
-    
-    # # line4,=axs.plot(-dropdims(mean(div_uB_c,dims=2),dims=(2))*1e-3*1/3, hab, label="", color="red", linestyle="--", marker="",markersize=3)
-    # line3,=axs[1].plot(dropdims(mean(∇κ∇B_c,dims=2),dims=(2))*1e-3, hab, label="", color=colors[2,:], linestyle="--", marker=".",markersize=6)
-    
-    # # line6,=axs.plot(-dropdims(mean(div_uB_f,dims=2),dims=(2))*1e-3./(2/3*A), hab, label="", color="red", linestyle=":", marker="",markersize=3)
-    # line5,=axs[1].plot(dropdims(mean(∇κ∇B_f,dims=2),dims=(2))*1e-3, hab, label="", linestyle=":", color=colors[3,:], marker=".",markersize=6)
-    axs[1].set_ylabel("HAB (m)")
-    axs[1].set_xlabel("mSv")
+# line2,=axs.plot(-dropdims(mean(div_uB_t,dims=2),dims=(2))*1e-3, hab, label="", color="red", linestyle="-",marker="",markersize=3)
+# lin2,=axs[1].plot(dropdims(mean(∇κ∇B_t,dims=2),dims=(2))*1e-3, hab, label="", color=colors[1,:], marker=".",markersize=2, alpha=0.5)
+line1,=axs[1].plot(nanmean(∇κ∇B_t,dim=2)*1e-3, hab, label="", color=colors[1,:], marker=".",markersize=4)
 
-    # axs[1].legend([line1, line3, line5], title=L"\mathcal{E}^{diff}",
-    # ["Total","Canyon","Flanks"], loc="upper right")
-    axs[1].grid(true)
-    axs[1].set_ylim(0,70)
-    axs[1].minorticks_on()
+# line4,=axs.plot(-dropdims(mean(div_uB_c,dims=2),dims=(2))*1e-3*1/3, hab, label="", color="red", linestyle="--", marker="",markersize=3)
+line3,=axs[1].plot(nanmean(∇κ∇B_c,dim=2)*1e-3, hab, label="", color=colors[2,:], linestyle="--", marker=".",markersize=4)
 
-    # plot histogram
-    # ∇κ∇B_t_BBL = mean(sum(∇κ∇B_t[1:3,:]*1e-3,dims=1))
-    # # ∇κ∇B_c_BBL = mean(sum(∇κ∇B_c[1:3,:]*1e-3,dims=1))
-    # # ∇κ∇B_f_BBL = mean(sum(∇κ∇B_f[1:3,:]*1e-3,dims=1))
+# # line6,=axs.plot(-dropdims(mean(div_uB_f,dims=2),dims=(2))*1e-3./(2/3*A), hab, label="", color="red", linestyle=":", marker="",markersize=3)
+line5,=axs[1].plot(nanmean(∇κ∇B_f,dim=2)*1e-3, hab, label="", linestyle=":", color=colors[3,:], marker=".",markersize=4)
+axs[1].set_ylabel("HAB [m]")
+axs[1].set_xlabel(L"\langle\overline{\mathcal{E}^{diff}}\rangle~[mSv]")
+# axs[1].legend([line1, line3], title=L"\mathcal{E}^{diff}",
+# ["Total","Canyon"], loc="upper right")
+axs[1].legend([line1, line3, line5],
+["Total","Canyon","Flanks"], loc="upper left")
+axs[1].grid(true)
+axs[1].set_ylim(0,800)
+# axs[1].minorticks_on()
+axs[1].set_xscale("symlog", linthresh=10^(0))
 
-    # data1 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL,∇κ∇B_f_BBL]
-    # data2 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL/(1/3),∇κ∇B_f_BBL/(2/3)]
-    # labels = ["Total","Canyon","Flanks"]
-    # bar1=axs[2].bar(labels, data2, edgecolor = "black",color=colors,alpha=0.2)
-    # bar2=axs[2].bar(labels, data1, edgecolor = "black",color=colors,alpha=1, width=0.5)
-    # axs[2].set_title("Transport in BBL (mSv)")
-    # axs[2].set_ylim(0,220)
-    # axs[2].legend([bar1[1],bar2[1]],[L"\mathcal{E}_{BBL}^{diff}\times A_R/A",L"\mathcal{E}_{BBL}^{diff}"],loc="upper left")
-    
+# plot histogram only includes the bottom boundary layer
 
-    tight_layout()
-    gcf()   
-    savefig(string("output/",simname,"/water_mass_transformation_diffusive_flux",".png"),dpi=250)
+# Calculate BBL contribution after the plot
+# ∇κ∇B_t_BBL = mean(sum(mean(∇κ∇B_t[1:2,:,:],dims=3)*1e-3,dims=1))
+# ∇κ∇B_c_BBL = mean(sum(mean(∇κ∇B_c[1:2,:,:],dims=3)*1e-3,dims=1))
+# ∇κ∇B_f_BBL = mean(sum(∇κ∇B_f[1:3,:]*1e-3,dims=1))
+
+# Create data arrays for BBL and SML
+bbl_data = [E_BBL_t, E_BBL_c*3, E_BBL_f*3/2]
+sml_data = .-[E_SML_t, E_SML_c*3, E_SML_f*3/2]
+
+# Set up x positions for the bars
+x = [1, 2, 3]
+width = 0.35
+labels = ["Total", "Canyon", "Flanks"]
+
+# Create the side-by-side bar plot
+axs[2].bar(x .- width/2, bbl_data, width, label=L"\overline{\mathcal{E}^{diff}_{BBL}}\times A/A_\mathcal{R}", edgecolor="black", color=colors, alpha=1)
+axs[2].bar(x .+ width/2, sml_data, width, label=L"-\overline{\mathcal{E}^{diff}_{SML}}\times A/A_\mathcal{R}", edgecolor="black", color=colors, alpha=0.5)
+
+# Configure the plot
+axs[2].set_xticks(x)
+axs[2].set_xticklabels(labels)
+# axs[2].set_title(L"Water Mass Transformation [mSv]")
+axs[2].legend(loc="center left")
+axs[2].set_ylabel("Water Mass Transformation [mSv]")
+# data2 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL/(1/3)]
+# data1 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL,∇κ∇B_f_BBL]
+# data2 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL/(1/3),∇κ∇B_f_BBL/(2/3)]
+labels = ["Total","Canyon","Flanks"]
+# labels = ["Total","Canyon"]
+# bar1=axs[2].bar(labels, data2, edgecolor = "black",color=colors,alpha=0.2)
+# bar2=axs[2].bar(labels, data1, edgecolor = "black",color=colors,alpha=1, width=0.5)
+# axs[2].set_title(L"\mathcal{E}^{diff} (A/A_\mathcal{R}) [mSv]")
+# axs[2].set_ylim(0,220)
+# axs[2].legend([bar1[1],bar2[1]],[L"\mathcal{E}_{BBL}^{diff}\times A_R/A",L"\mathcal{E}_{BBL}^{diff}"],loc="upper left")
+
+
+tight_layout()
+gcf()   
+savefig(string("output/",simname,"/water_mass_transformation_diffusive_flux",".png"),dpi=250)
+
+
+    # Create a quick pcolor plot of ∇κ∇B_t[:,:,1]
+    # bin_center2 = (b_bin[1:end-1] .+ b_bin[2:end]) ./ 2
+    # close("all")
+    # figure(figsize=(4, 3))
+    # pc = pcolor(b_bin*1e3, hab, ∇κ∇B_t[:,:], cmap="RdBu_r", shading="auto")
+    # colorbar(pc)
+    # xlabel("Buoyancy (×10⁻³ m/s²)")
+    # ylabel("HAB (m)")
+    # ylim(0,100)
+    # title(L"\overline{\frac{\partial}{\partial B}∭_{V(B'≤B)}\nabla\cdot(\kappa\nabla B)~dV}")
+    # tight_layout()
+    # gcf()
+    # savefig("output/tilt/∇κ∇B_t.png", dpi=250)
 
 
 ## plot diffusive and advective terms together with respect to HAB

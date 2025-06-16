@@ -146,29 +146,70 @@ end
 
 
 
+# plot the buoyancy budget terms
+# ∂B/∂t = -ũ⋅∇B - ∇⋅(-κ∇B)
 
-
-
-
-
-
-
-
-
-
-## test to see if the budget is closed
-
-
+using NCDatasets
 using CairoMakie
-fig = CairoMakie.Figure()
-ax = Axis(fig[1, 1],title = "Buoyancy budget")
-# hm = heatmap!(x,z,dBdt[:,1,:,end])
-ln1=lines!(ax,t[2:end],dBdt[1:end],linewidth=3,color=:black)
-ln2=lines!(ax,t[2:end],-div_uB[2:end])
-ln3=lines!(ax,t[2:end], ∇κ∇B[2:end])
-ln4=lines!(ax,t[2:end],-div_uB[2:end] .+ ∇κ∇B[2:end],linewidth=3,color=:red,linestyle=:dot)
-axislegend(ax,[ln1,ln2,ln3,ln4],["dB/dt","-∇⋅(u⃗B)","∇⋅(κ∇B)","-∇⋅(u⃗B)+∇⋅(κ∇B)"],position=:lb)
+using Statistics
+using NaNStatistics
+include("functions/bins.jl")
+include("functions/mmderiv.jl")
+simname = "tilt"
+tᶠ=460    
+θ=0.0036
 
-display(fig)
+## Decompose advection term
+# <∇⋅(uB)> = <u⋅∇B> = <u>⋅∇<B> + <u'⋅∇B'>
+file = string("output/",simname,"/TF_avg_tᶠ=",tᶠ,"_analysis.nc")
+ds = Dataset(file,"r")
 
-# save("output/test_buoyancy_budget/budget_25x4x25.png",fig)
+t = ds["t"][:]/(2*pi/1.4e-4)
+z = ds["bin_center"][:]
+ind1 = findfirst(x -> isapprox(x, 50; atol=5), z)
+ind2 = findfirst(x -> isapprox(x, 100; atol=5), z)
+div_uB_avg = ds["div_uB_avg"][:,:]
+u_bar_∇B_bar_avg = ds["u_bar_∇B_bar_avg"][:,:]
+u_prime∇B_prime_avg = ds["u_prime∇B_prime_avg"][:,:]
+dBdt_avg = ds["dBdt_avg"][:,:]
+∇κ∇B_avg = ds["∇κ∇B_avg"][:,:]
+
+using PyPlot
+# colors = [150 148 255;136 194 115;255 41 41]./255
+# Create a new figure
+fig, ax = plt.subplots(figsize=(5, 5))
+
+# Set font size
+plt.rcParams["font.size"] = 20
+end_time = 10
+# Plot each time series
+ax.plot(dropdims(mean(u_bar_∇B_bar_avg[:,2:end_time],dims=2),dims=2), z, 
+        label = L"\nabla\cdot(\langle\mathbf{u}\rangle\langle B\rangle)", linestyle="-", color = [150,148,255]/255, linewidth=2.5)
+ax.plot(dropdims(mean(u_prime∇B_prime_avg[:,2:end_time],dims=2),dims=2), z, 
+        label = L"\nabla\cdot\langle\mathbf{u'} B'\rangle", linestyle="-", color = [136,194,115]/255, linewidth=2.5)
+ax.plot(dropdims(mean(div_uB_avg[:,2:end_time],dims=2),dims=2), z, 
+        label = L"\langle\nabla\cdot(\mathbf{u}B)\rangle", color = [255,41,41]/255, linewidth=2.5)
+ax.plot(dropdims(mean(∇κ∇B_avg[:,2:end_time],dims=2),dims=2), z, 
+        label = L"\langle\nabla\cdot(\kappa\nabla B)\rangle", color = "orange", linestyle=":", linewidth=3)
+ax.plot(dropdims(mean(-div_uB_avg[:,2:end_time].+∇κ∇B_avg[:,2:end_time],dims=2),dims=2), z, 
+        label = L"-\langle\nabla\cdot(\mathbf{u}B)\rangle + \langle\nabla\cdot(\kappa\nabla B)\rangle", color = "black", linewidth=2.5)
+ax.plot([0,0],[0,200], color = "black", linewidth=1.5)
+ax.plot(-dropdims(mean(dBdt_avg[:,2:end_time],dims=2),dims=2), z, 
+        label = L"d\langle B\rangle/dt", color = "gray", linewidth=2.5, linestyle="--")
+
+# Set the y-limits and labels
+ax.set_ylim(0, 200)
+# ax.set_xlim(-.01e-8, .01e-8)
+ax.set_ylabel("HAB (m)")
+ax.set_title("Buoyancy Budget")
+
+# Set x-axis to symlog scale
+ax.set_xscale("symlog", linthresh=1*10^(-10))
+
+# Add legend
+ax.legend(loc="right", bbox_to_anchor=(1.01, .86), frameon=true, ncol=2, fontsize=12,
+        handlelength=1.4,columnspacing=.9, framealpha=.93)
+minorticks_on()
+# Display the figure
+plt.show()
+save(string("output/tilt/Buoyancy_budget_hab_tᶠ=",tᶠ,"_decompose.png"),fig)

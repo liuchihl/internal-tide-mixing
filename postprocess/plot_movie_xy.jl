@@ -196,7 +196,112 @@ end
 
 # close(ds_slice)
 
+#####
+# plot x-y in terms of vorticity
+using NCDatasets
+include("functions/mmderiv.jl")
+tᶠ = 460
+θ = 3.6e-3
+if θ==3.6e-3
+    simname = "tilt"
+else 
+    simname = "flat"
+end
+filename_slice = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ,"_slices_xy.nc")
+ds_slice = Dataset(filename_slice,"r")
 
+# grids
+zC = ds_slice["zC"]; Nz=length(zC)
+xC = ds_slice["xC"]; Nx=length(xC)
+yC = ds_slice["yC"]; Ny=length(yC)
+xF = ds_slice["xF"]
+yF = ds_slice["yF"]
+t = ds_slice["time"]
+
+# load u and v velocity data
+u = ds_slice["uhat"][:,:,:,:]
+v = ds_slice["v"][:,:,:,:]
+
+# Set zero values to NaN
+u[u.==0] .= NaN
+v[v.==0] .= NaN
+
+# Calculate vorticity (∂v/∂x - ∂u/∂y)
+ω = zeros(size(u[:,:,:,:]))
+for i in 1:length(t)
+        
+end
+for i in 1:length(t)
+    ω[:,:,:,i] = mmderiv(xC, v[:,:,1,i]) .- mmderiv(yC, u[:,:,1,i]')'
+end
+
+using MAT
+using CairoMakie
+using Printf
+using Statistics
+
+# Create an Observable for the time step
+n = Observable(1)
+f = -5.3e-5
+vortₙ = @lift(ω[:,:,1,$n]./f)
+ω₀ = 1.4e-4
+M₂_period = 2π/ω₀
+# Create the figure with appropriate dimensions - using just resolution
+fig = Figure(resolution = (800, 600))
+
+# Create a reactive title
+title = @lift @sprintf("z=1300 m, t=%1.2f M₂ tidal periods", t[$n]/M₂_period)
+
+# Set common axis parameters
+axis_kwargs = (
+    xlabel = "Zonal distance x (m)",
+    ylabel = "Cross canyon distance y (m)",
+    limits = ((0, xF[end]), (0, yF[end])),
+)
+
+# Create main axis for the vorticity plot
+ax_vort = Axis(fig[2,1]; title = "ω/f", axis_kwargs...)
+
+# Use DataAspect to maintain proper proportions
+ax_vort.aspect = DataAspect()
+
+# Calculate appropriate color range by excluding outliers
+vort_values = filter(!isnan, ω[:,:,1,:]./f)
+vort_range = maximum(abs.(vort_values)) * 0.05
+
+# Create the heatmap
+hm_vort = heatmap!(ax_vort, xC[:], yC[:], vortₙ,
+    colorrange = (-vort_range, vort_range), 
+    colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
+    highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
+    nan_color = :gray)
+
+# Add contour lines for topography
+contour!(ax_vort, xC[:], yC[:], z_interp, linewidth = 1.5, color = :black)
+
+# Add title to the first row, spanning both columns
+fig[1, 1:2] = Label(fig, title, fontsize=20)
+
+# Add colorbar to the right of the heatmap
+fig[2, 2] = Colorbar(fig, hm_vort; vertical=true, width=20)
+
+# Set appropriate spacing between elements
+colgap!(fig.layout, 5)
+rowgap!(fig.layout, 5)
+
+# Ensure the layout is tight
+trim!(fig.layout)
+
+# Define which frames to render
+frames = 1:length(t)  # Use all frames, or subset with 1:2:length(t)
+filename = join(split(filename_slice, ".")[1:end-1], ".")
+
+# Record the animation
+record(fig, string("output/", simname, "/", simname, "_vorticity_xy.mp4"), frames, framerate=14) do i
+    @info "Plotting frame $i of $(frames[end])..."
+    n[] = i
+end
 
 #################
 

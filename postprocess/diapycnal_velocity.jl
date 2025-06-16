@@ -69,7 +69,7 @@ for tt in 1:Nt
 end
 ẽ_avg = ẽ ./ Nt
 # Save ẽ to a NetCDF file
-output_dir = string("output/", simname, "/")
+output_dir = string(base_folder,"output/", simname, "/")
 
 output_filename = string(output_dir, "diapycnal_velocity_tᶠ=", tᶠ, "_theta=", θ, ".nc")
 ds_save = Dataset(output_filename, "c")
@@ -102,68 +102,121 @@ close(ds_save)
 ## read the data
 # Read the saved diapycnal velocity data
 
-# load data
+
 # Function to load data for a given case
-# function load_diapycnal_velocity(tᶠ, θ)
-#     if θ==3.6e-3
-#         simname = "tilt"
-#     else 
-#         simname = "flat"
-#     end
-#     output_filename = string("output/", simname, "/diapycnal_velocity_tᶠ=", tᶠ, "_theta=", θ, ".nc")
-#     ds_e = Dataset(output_filename, "r")
-#     ẽ = ds_e["ẽ"][:,:,:]
-#     xC = ds_e["xC"][:]
-#     yC = ds_e["yC"][:]
-#     zC = ds_e["zC"][:]
-#     close(ds_e)
-#     return ẽ, xC, yC, zC, simname
-# end
+function load_diapycnal_velocity(tᶠ, θ)
+    if θ==3.6e-3
+        simname = "tilt"
+    else 
+        simname = "flat"
+    end
+    output_filename = string("output/", simname, "/diapycnal_velocity_tᶠ=", tᶠ, "_theta=", θ, ".nc")
+    ds_e = Dataset(output_filename, "r")
+    ẽ = ds_e["ẽ_avg"][:,:,:]
+    xC = ds_e["xC"][:]
+    yC = ds_e["yC"][:]
+    zC = ds_e["zC"][:]
+    close(ds_e)
+    return ẽ, ds_e
+end
 
-# # Load flat case (θ = 0)
-# tᶠ = 460
-# ẽ_flat, xC_flat, yC_flat, zC_flat, simname_flat = load_diapycnal_velocity(tᶠ, 0)
+# Load flat case (θ = 0)
+tᶠ = 460
+ẽ_flat, xC_flat, yC_flat, zC_flat, simname_flat = load_diapycnal_velocity(tᶠ, 0)
 
-# # Load tilt case (θ = 3.6e-3)
-# ẽ_tilt, xC_tilt, yC_tilt, zC_tilt, simname_tilt = load_diapycnal_velocity(tᶠ, 3.6e-3)
+# Load tilt case (θ = 3.6e-3)
+ẽ_tilt, xC_tilt, yC_tilt, zC_tilt, simname_tilt = load_diapycnal_velocity(tᶠ, 3.6e-3)
 
-# # Find common color range for proper comparison
-# max_val = max(
-#     nanmaximum(abs.(filter(isfinite, ẽ_flat))),
-#     nanmaximum(abs.(filter(isfinite, ẽ_tilt)))
-# ) * 0.01
 
-# # Create a figure with two subplots side by side
-# fig = Figure(size=(1200, 500))
+## plotting the hab
+include("functions/bins.jl")
+bin_edge = 0:7:1500
+bin_center = (bin_edge[1:end-1] .+ bin_edge[2:end]) ./ 2
+# load hab
+filename_hab = "output/hab.nc"
+ds_hab = Dataset(filename_hab,"r")
+hab = ds_hab["hab"][:,:,:];
+bin_mask = hab
+dx = 30
+dy = 30
+# grids
+base_folder = "/scratch/bcpi/cliu28/internal-tide-mixing/"
+filename_field = string(base_folder, "output/tilt/internal_tide_theta=",0.0036,"_Nx=500_Nz=250_tᶠ=",460, "_threeD_Bbudget.nc")
+ds_field = Dataset(filename_field,"r")
 
-# # Flat case subplot
-# ax1 = Axis(fig[1, 1], 
-#     xlabel="x (m)", 
-#     ylabel="z (m)",
-#     title="Flat Case (θ = 0)")
+zF = ds_field["zF"][:];
+z_face = zF
+dx=30
+dy=30
+@time ẽ_tilt_avg, bin_center = bins(ẽ_tilt,bin_edge,bin_mask,dx=dx,dy=dy,z_face=z_face,normalize=true)
+@time ẽ_flat_avg, _ = bins(ẽ_flat, bin_edge, bin_mask, dx=dx, dy=dy, z_face=z_face, normalize=true)
 
-# # Tilt case subplot
-# ax2 = Axis(fig[1, 2], 
-#     xlabel="x (m)", 
-#     ylabel="z (m)",
-#     title="Tilt Case (θ = 3.6e-3)")
+# Use PyPlot for plotting
+using PyPlot
 
-# # Plot the heatmaps with the same colorrange
-# hm1 = heatmap!(ax1, xC_flat, zC_flat, ẽ_flat[:,length(yC_flat)÷2,:],
-#     colormap=:balance,
-#     colorrange=(-max_val, max_val),
-#     nan_color=:gray)
+# Set figure size and create figure
+PyPlot.figure(figsize=(10, 6))
 
-# hm2 = heatmap!(ax2, xC_tilt, zC_tilt, ẽ_tilt[:,length(yC_tilt)÷2,:],
-#     colormap=:balance,
-#     colorrange=(-max_val, max_val),
-#     nan_color=:gray)
+# Plot both datasets
+plt.plot(ẽ_tilt_avg, bin_center, "r-", linewidth=2, label="Tilt Case (θ = 3.6e-3)")
+plt.plot(ẽ_flat_avg, bin_center, "b--", linewidth=2, label="Flat Case (θ = 0)")
 
-# # Add colorbar
-# Colorbar(fig[1, 3], hm2, label="ẽ (m/s)")
+# Add grid, labels and title
+grid(true, alpha=0.3)
+xlabel("Diapycnal Velocity (m/s)", fontsize=14)
+ylabel("Height Above Bottom (m)", fontsize=14)
+title("Diapycnal Velocity vs. Height Above Bottom", fontsize=16)
 
-# # Save the figure
-# save("output/diapycnal_velocity_comparison.png", fig)
+# Add legend
+legend(fontsize=12)
+
+# Set tick label size
+tick_params(axis="both", which="major", labelsize=12)
+
+# Adjust layout
+tight_layout()
+
+# Save figure
+savefig("output/diapycnal_velocity_hab_both_cases.png", dpi=300, bbox_inches="tight")
+
+
+# Find common color range for proper comparison
+max_val = max(
+    nanmaximum(abs.(filter(isfinite, ẽ_flat))),
+    nanmaximum(abs.(filter(isfinite, ẽ_tilt)))
+) * 0.01
+
+# Create a figure with two subplots side by side
+fig = Figure(size=(1200, 500))
+
+# Flat case subplot
+ax1 = Axis(fig[1, 1], 
+    xlabel="x (m)", 
+    ylabel="z (m)",
+    title="Flat Case (θ = 0)")
+
+# Tilt case subplot
+ax2 = Axis(fig[1, 2], 
+    xlabel="x (m)", 
+    ylabel="z (m)",
+    title="Tilt Case (θ = 3.6e-3)")
+
+# Plot the heatmaps with the same colorrange
+hm1 = heatmap!(ax1, xC_flat, zC_flat, ẽ_flat[:,length(yC_flat)÷2,:],
+    colormap=:balance,
+    colorrange=(-max_val, max_val),
+    nan_color=:gray)
+
+hm2 = heatmap!(ax2, xC_tilt, zC_tilt, ẽ_tilt[:,length(yC_tilt)÷2,:],
+    colormap=:balance,
+    colorrange=(-max_val, max_val),
+    nan_color=:gray)
+
+# Add colorbar
+Colorbar(fig[1, 3], hm2, label="ẽ (m/s)")
+
+# Save the figure
+save("output/diapycnal_velocity_comparison.png", fig)
 
 # # Display the figure
 # fig

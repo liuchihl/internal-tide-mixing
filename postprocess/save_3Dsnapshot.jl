@@ -135,3 +135,84 @@ v5.attrib["comments"] = "True vertical velocity"
 
 
 close(ds_create)
+
+
+
+
+
+## save the tracer data
+using NCDatasets
+
+# Open the original file with the tracer data
+fname = "output/flat/internal_tide_theta=0_Nx=500_Nz=250_tᶠ=460_threeD_B-c.nc"
+ds_source = Dataset(fname, "r")
+
+# Get information about the 'c' variable
+c_var = ds_source["c"]
+dims = dimnames(c_var)
+dim_lens = [length(ds_source[dim]) for dim in dims]
+
+# Find time dimension
+time_dim_idx = findfirst(d -> occursin("time", lowercase(d)), dims)
+if isnothing(time_dim_idx)
+    error("Time dimension not found")
+end
+
+# Select 5 evenly spaced snapshots from the total 120
+total_snapshots = dim_lens[time_dim_idx]
+if total_snapshots < 10
+    snapshot_indices = 1:total_snapshots
+else
+    snapshot_indices = round.(Int, range(1, total_snapshots, length=10))
+end
+
+# Create a new NetCDF file for just the 'c' variable
+output_file = "output/flat/tracer_c_data_sampled.nc"
+ds_tracer = Dataset(output_file, "c")
+
+# Define all dimensions in the new file, but reduce time dimension to 10
+for (i, dim) in enumerate(dims)
+    if i == time_dim_idx
+        defDim(ds_tracer, dim, length(snapshot_indices))
+    else
+        defDim(ds_tracer, dim, dim_lens[i])
+    end
+    
+    # Copy dimension variables if they exist
+    if haskey(ds_source, dim)
+        if i == time_dim_idx
+            dim_var = defVar(ds_tracer, dim, eltype(ds_source[dim]), (dim,))
+            dim_var[:] = ds_source[dim][snapshot_indices]
+        else
+            dim_var = defVar(ds_tracer, dim, eltype(ds_source[dim]), (dim,))
+            dim_var[:] = ds_source[dim][:]
+        end
+        
+        # Copy dimension attributes
+        for (attr_name, attr_val) in ds_source[dim].attrib
+            dim_var.attrib[attr_name] = attr_val
+        end
+    end
+end
+
+# Define the 'c' variable in the new file
+c_out = defVar(ds_tracer, "c", eltype(c_var), dims)
+
+# Copy all attributes of the 'c' variable
+for (attr_name, attr_val) in c_var.attrib
+    c_out.attrib[attr_name] = attr_val
+end
+
+# Copy the selected time steps
+for (new_t, orig_t) in enumerate(snapshot_indices)
+    # Create indexing for both source and destination
+    src_idx = ntuple(i -> i == time_dim_idx ? orig_t : Colon(), length(dims))
+    dst_idx = ntuple(i -> i == time_dim_idx ? new_t : Colon(), length(dims))
+    
+    c_out[dst_idx...] = c_var[src_idx...]
+    println("Saved snapshot $orig_t as $new_t")
+end
+
+close(ds_tracer)
+close(ds_source)
+println("10 evenly distributed tracer 'c' snapshots saved to $output_file")

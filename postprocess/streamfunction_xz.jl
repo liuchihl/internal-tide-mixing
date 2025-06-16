@@ -3,12 +3,14 @@ using NaNStatistics
 # slope = "tilt"
 # timerange = "80-120"
 # θ=3.6e-3
-simname = "flat"
+simname = "tilt"
 tᶠ=450
 θ = simname == "tilt" ? 0.0036 : 0
 # load data
 filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg.nc")
 ds_field = Dataset(filename_field,"r")
+filename_b = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",10, "_threeD_timeavg.nc")
+ds_b = Dataset(filename_b,"r")
 zC = ds_field["zC"][:]; zF = ds_field["zF"][:];
 Nz=length(zC[:]);       dz = abs.(zF[1:end-1]-zF[2:end])
 
@@ -19,27 +21,37 @@ yC = ds_field["yC"][:]; yF = ds_field["yF"][:]
 Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
 Ly = yF[end]+dy
 t = ds_field["time"][:];
+
 if tᶠ == 450
     n = simname=="tilt" ? 1 : 3
 end
+uhat_tavg = nanmean(ds_field["uhat"][:,:,:,n:n+1],dim=(4))
+uhat_tavg[uhat_tavg.==0].=NaN
+what_tavg = nanmean(ds_field["what"][:,:,:,n:n+1],dim=(4))
+what_tavg[what_tavg.==0].=NaN
+uhat = nansum(uhat_tavg*dy,dim=2);    # true u (integral)
+what = nansum(what_tavg*dy,dim=2);    # true w (integral)
 
-    uhat = nansum(nanmean(ds_field["uhat"][:,:,:,n:n+1],dim=(4))*dy,dim=2);    # true u (integral)
-    what = nansum(nanmean(ds_field["what"][:,:,:,n:n+1],dim=(4))*dy,dim=2);    # true w (integral)
-    what_cen = (what[:,1:end-1] .+ what[:,2:end])./2 # what at center
-    # piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
-    wtemp = (vcat(what_cen[end:end,:],what_cen[1:end-1,:]) .+ what_cen[:,:])./2
-    U = (uhat[:,:]*cos(θ) .+ wtemp*sin(θ)) # cross-slope velocity transport
-    W = (-uhat[:,:]*sin(θ) .+ wtemp*cos(θ))# slope-normal velocity transport
-    ψ = zeros(Nx,Nz)
+b = ds_b["b"][:,:,:,1]
+B_avg = nanmean(ds_field["B"][:,:,:,n:n+1],dim=(4))
+B_avg[b.==0].=NaN
+B = nanmean(B_avg,dim=2)
+
+what_cen = (what[:,1:end-1] .+ what[:,2:end])./2 # what at center
+# piecewise linear interpolation of what_cen from [center,center,center] to [face,center,center]
+wtemp = (vcat(what_cen[end:end,:],what_cen[1:end-1,:]) .+ what_cen[:,:])./2
+U = (uhat[:,:]*cos(θ) .+ wtemp*sin(θ)) # cross-slope velocity transport
+W = (-uhat[:,:]*sin(θ) .+ wtemp*cos(θ))# slope-normal velocity transport
+ψ = zeros(Nx,Nz)
 for i in 1:Nx
     for j in 2:Nz
         ψ[i,j] = ψ[i,j-1] .- U[i,j-1]*dz[j]
     end
 end
 ψ[uhat.==0].=NaN
-U[U.==0].=NaN
-W[W.==0].=NaN
-
+# U[U.==0].=NaN
+# W[W.==0].=NaN
+# B[b.==0].=NaN
 # bathymetry
 using MAT
 file = matopen("topo.mat")
@@ -110,20 +122,21 @@ z_interp_y = nanmean(z_interp,dim=2)
 
     fig, ax = subplots(1, 1, figsize=(10, 8))
 
-    c1 = ax.contourf(xC[:], zC[:], ψ',120,cmap="GnBu_r")
-    colorbar(c1,label="ψ(m³/s)")
-    c2 = ax.contour(xC[:], zC[:], ψ',levels=-72000:4000:8000,colors=[63 43 43]./255,linewidth=0.8,linestyles="-")
-
-    PyPlot.quiver(xC[1:12:end],zC[1:6:end], U[1:12:end,1:6:end]', W[1:12:end,1:6:end]',               
+    c1 = ax.pcolor(xC[:], zC[:], ψ',cmap="coolwarm", vmin=-4e4, vmax=4e4)
+    colorbar(c1,label="ψ(m³/s)",)
+    c2 = ax.contour(xC[:], zC[:], ψ',levels=-1e7:5e3:1e7,colors=[63 43 43]./255,linewidth=0.8,linestyles="-")
+    ax.quiver(xC[1:12:end],zC[1:6:end], U[1:12:end,1:6:end]', W[1:12:end,1:6:end]',               
                 angles="xy", scale_units="xy")
                 # , scale=1, width=0.001,
                 # headwidth=5, headlength=.1, headaxislength=20,linewidth=1.0)
+    c3 = ax.contour(xC,zC,B_avg[:,500,:]',colors="green",levels=0.0007:0.0001:0.0025,linewidth=0.8,linestyles="-")
     time_start = round(Int, t[n]/(2π/1.4e-4)-10)
     time_end = round(Int, t[n+1]/(2π/1.4e-4))
-    title("$(time_start)-$(time_end) tidal periods")   
+    title("$(time_start)-$(time_end) tidal average")   
     ax.set_facecolor("gray")
     xlabel("x (m)") 
     ylabel("z (m)")
+
     PyPlot.plot(xC[:],z_interp_y,linewidth=2.5,color="brown")
     savefig("output/$simname/streamfunction_yavg_$simname.png",dpi=200)
 

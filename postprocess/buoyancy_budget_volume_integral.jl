@@ -50,7 +50,7 @@ function calculate_background_buoyancy(θ)
         return interior(compute!(Field(model.background_fields.tracers.b)))[:,:,:]
 end
 
-simname = "tilt"
+simname = "flat"
 θ = simname == "tilt" ? 0.0036 : 0
 tᶠ = 460
 N=0.001
@@ -62,7 +62,7 @@ ds_budget = Dataset(filename_budget,"r")
 if simname == "tilt"
         filename_B = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_B-c.nc")
         ds_B = Dataset(filename_B,"r")
-        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_u-v-w.nc")
+        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_const_dt_u-v-w-Rig.nc")
         ds_field = Dataset(filename_field,"r")
         t = ds_field["time"][:];
         filename_const_dt = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=460_threeD_timeavg_const_dt_Bbudget-wb-eps-chi.nc"
@@ -70,7 +70,9 @@ if simname == "tilt"
 else
         filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_u-v-w-B-c.nc")
         ds_field = Dataset(filename_field,"r")
-        t = ds_field["time"][:];
+        filename_budget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget-wb.nc")
+        ds_budget = Dataset(filename_budget,"r")
+        t = ds_budget["time"][:];
 end
 filename_3D = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_B-c.nc")
 ds_3D = Dataset(filename_3D,"r")
@@ -91,7 +93,7 @@ k = 250  #argmin(abs.(zC .- 2000))
 
 # take the average over 451-460 TP (2-10) from time averaged data
 
-u = zeros((length(xC), length(yC), k))
+u_10avg = zeros((length(xC), length(yC), k))
 w = zeros((length(xC), length(yC), k))
 wB_10avg = zeros((length(xC), length(yC), k))
 for i in n:m
@@ -116,10 +118,14 @@ for i in n:m
         @info i
 end
 wB_10avg ./= (m-n+1)
-u10_avg ./= (m-n+1)
-
-∇κ∇B = nanmean(ds_const_dt["∇κ∇B"][:,:,1:k,n:m],dim=4)
-div_uB = nanmean(ds_const_dt["div_uB"][:,:,1:k,n:m],dim=4)
+u_10avg ./= (m-n+1)
+if simname == "tilt"
+        ∇κ∇B = nanmean(ds_const_dt["∇κ∇B"][:,:,1:k,n:m],dim=4)
+        div_uB = nanmean(ds_const_dt["div_uB"][:,:,1:k,n:m],dim=4)        
+else
+        ∇κ∇B = nanmean(ds_budget["∇κ∇B"][:,:,1:k,n:m],dim=4)
+        div_uB = nanmean(ds_budget["div_uB"][:,:,1:k,n:m],dim=4)        
+end
 
 # Calculate background buoyancy
 B̄ = calculate_background_buoyancy(θ)
@@ -223,7 +229,7 @@ title("Integrated buoyancy budget")
 plt.minorticks_on()
 t_begin = Int(round(t_3D[begin_time]./(2*pi/1.4e-4)))
 t_end = Int(round(t_3D[end_time]./(2*pi/1.4e-4)))
-savefig(string("output/", simname, "/buoyancy_budget_volume_integral_testintegral_factor_const_dt",t_begin,"-",t_end,"TP.png"))
+savefig(string("output/", simname, "/buoyancy_budget_volume_integral_testintegral_nofactor_const_dt",t_begin,"-",t_end,"TP.png"))
 
 ################
 # this part of the script shows that wB calculated from the residual and directly from the snapshot data match well
