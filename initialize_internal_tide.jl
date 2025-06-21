@@ -192,9 +192,10 @@ function initialize_internal_tide(
             # 451-451.5, invalid particles (e.g., below topography, outside domain) are removed,
             # after 451.5, since we are picking up from a checkpoint file, there is no need to 
             # exclude the out-of-bounds particles (may cause particles number inconsistency). 
-            # Applying periodic boundary conditions to particles is necessary
+            # Applying periodic boundary conditions to particles is necessary; when apply periodic bounds, no vertical criterion
+            # is applied as well
         apply_periodic_bounds = tᶠ == 451.5 * 2π / ω₀ ? false : true 
-        Nparticles = 5e5
+        Nparticles = 499829 # number of particles to generate (this is the number of particles in the checkpoint file of 452.5)
         # particles are released at 1000 m above the bottom, which is about z=967 m
         x₀, y₀, z₀ = gaussian_particle_generator(
             Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
