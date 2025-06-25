@@ -377,7 +377,7 @@ function initialize_internal_tide(
         elseif analysis_round == "all"
             checkpoint_interval = 0.5 * 2π / ω₀
             point_diags = (; uhat=û, what=ŵ, B=B)
-            threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ, uhat=û, v=v, what=ŵ, B=B))
+            # threeD_diags_avg = merge(Bbudget, (; ε=ε, χ=χ, uhat=û, v=v, what=ŵ, B=B))
             threeD_diags = merge(Bbudget, (; ε=ε, νₑ=νₑ, Rig=Rig, χ=χ, uhat=û, v=v, what=ŵ, B=B, c=c))
             slice_diags = (; uhat=û, v=v, what=ŵ, B=B, ε=ε, χ=χ, νₑ=νₑ)
         end
@@ -395,22 +395,14 @@ function initialize_internal_tide(
         mkdir(dir)
     end
     if output_writer
-        # checkpoint  
-        checkpoint_prefix = "checkpoint"
-        simulation.output_writers[:checkpointer] = Checkpointer(
-            model,
-            schedule=TimeInterval(checkpoint_interval),
-            dir=dir,
-            prefix=checkpoint_prefix,
-            cleanup=clean_checkpoint)
-
+        
         ## output 3D field window time average
-        simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
-            filename=string(dir, fname, "_threeD_timeavg.nc"),
-            schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
-            verbose=true,
-            overwrite_existing=overwrite_output
-        )
+        # simulation.output_writers[:nc_threeD_timeavg] = NetCDFWriter(model, threeD_diags_avg,
+        #     filename=string(dir, fname, "_threeD_timeavg.nc"),
+        #     schedule=AveragedTimeInterval(avg_interval, window=avg_interval, stride=1),
+        #     verbose=true,
+        #     overwrite_existing=overwrite_output
+        # )
 
         ## output 2D slices
         # xz
@@ -461,6 +453,16 @@ function initialize_internal_tide(
             end
             
         end
+
+        # checkpoint  
+        checkpoint_prefix = "checkpoint"
+        simulation.output_writers[:checkpointer] = Checkpointer(
+            model,
+            schedule=TimeInterval(checkpoint_interval),
+            dir=dir,
+            prefix=checkpoint_prefix,
+            cleanup=clean_checkpoint)
+
     end
     ### Progress messages
 
