@@ -179,6 +179,8 @@ what_sum = ds_3D_0["what"][:, :, :, end:end]
 v_sum = ds_3D_0["v"][:, :, :, end:end]
 ∇κ∇B_sum = ds_3D_0["∇κ∇B"][:, :, :, end:end]
 div_uB_sum = ds_3D_0["div_uB"][:, :, :, end:end]
+ε_sum = ds_3D_0["ε"][:, :, :, end:end]
+χ_sum = ds_3D_0["χ"][:, :, :, end:end]
 # Count total timesteps processed
 total_steps = 1   # already have one timestep from the first dataset
 
@@ -192,6 +194,8 @@ for n in 1:Nt_first
     v_sum .+= ds_3D_first["v"][:, :, :, n:n]
     ∇κ∇B_sum .+= ds_3D_first["∇κ∇B"][:, :, :, n:n]
     div_uB_sum .+= ds_3D_first["div_uB"][:, :, :, n:n]
+    ε_sum .+= ds_3D_first["ε"][:, :, :, n:n]
+    χ_sum .+= ds_3D_first["χ"][:, :, :, n:n]
     # Free memory by explicitly clearing variables if needed
     GC.gc()
     global total_steps += 1
@@ -208,6 +212,8 @@ for n in 1:Nt_second
     v_sum .+= ds_3D_second["v"][:, :, :, n:n]
     ∇κ∇B_sum .+= ds_3D_second["∇κ∇B"][:, :, :, n:n]
     div_uB_sum .+= ds_3D_second["div_uB"][:, :, :, n:n]
+    ε_sum .+= ds_3D_second["ε"][:, :, :, n:n]
+    χ_sum .+= ds_3D_second["χ"][:, :, :, n:n]
 
     global total_steps += 1
 
@@ -222,6 +228,8 @@ what = what_sum ./ total_steps
 v = v_sum ./ total_steps
 ∇κ∇B = ∇κ∇B_sum ./ total_steps
 div_uB = div_uB_sum ./ total_steps
+ε = ε_sum ./ total_steps
+χ = χ_sum ./ total_steps
 
 
 # Clear the intermediate sums to free memory
@@ -307,6 +315,12 @@ bin_var=hab
 @time div_uB_avg_rest = bin_stat_over_xy(div_uB.*mask_rest, bin_edge, bin_var; stat="mean")
 @time u_bar_∇B_bar_avg_rest = bin_stat_over_xy(u_bar_∇B_bar.*mask_rest, bin_edge, bin_var; stat="mean")
 @time u_prime∇B_prime_avg_rest = bin_stat_over_xy(u_prime∇B_prime.*mask_rest, bin_edge, bin_var; stat="mean")
+@time uBx_center_rest = bin_stat_over_xy(u .* Bx_center.*mask_rest, bin_edge, bin_var; stat="mean")
+@time vBy_center_rest = bin_stat_over_xy(v .* By_center.*mask_rest, bin_edge, bin_var; stat="mean")
+@time wBz_center_rest = bin_stat_over_xy(w .* Bz_center.*mask_rest, bin_edge, bin_var; stat="mean")
+@time ε_avg_rest = bin_stat_over_xy(ε.*mask_rest, bin_edge, bin_var; stat="mean")
+@time χ_avg_rest = bin_stat_over_xy(χ.*mask_rest, bin_edge, bin_var; stat="mean")
+
 
 #2) flanks
 @time B_avg_flanks = bin_stat_over_xy(B.*mask_flanks, bin_edge, bin_var; stat="mean")
@@ -316,7 +330,13 @@ bin_var=hab
 @time ∇κ∇B_avg_flanks = bin_stat_over_xy(∇κ∇B.*mask_flanks, bin_edge, bin_var; stat="mean")
 @time div_uB_avg_flanks = bin_stat_over_xy(div_uB.*mask_flanks, bin_edge, bin_var; stat="mean")
 @time u_bar_∇B_bar_avg_flanks = bin_stat_over_xy(u_bar_∇B_bar.*mask_flanks, bin_edge, bin_var; stat="mean")
-u_prime∇B_prime_avg_flanks = div_uB_avg_flanks .- u_bar_∇B_bar_avg_flanks
+@time u_prime∇B_prime_avg_flanks = bin_stat_over_xy(u_prime∇B_prime.*mask_flanks, bin_edge, bin_var; stat="mean")
+@time uBx_center_flanks = bin_stat_over_xy(u .* Bx_center.*mask_flanks, bin_edge, bin_var; stat="mean")
+@time vBy_center_flanks = bin_stat_over_xy(v .* By_center.*mask_flanks, bin_edge, bin_var; stat="mean") 
+@time wBz_center_flanks = bin_stat_over_xy(w .* Bz_center.*mask_flanks, bin_edge, bin_var; stat="mean")
+@time ε_avg_flanks = bin_stat_over_xy(ε.*mask_flanks, bin_edge, bin_var; stat="mean")
+@time χ_avg_flanks = bin_stat_over_xy(χ.*mask_flanks, bin_edge, bin_var; stat="mean")
+
 
 #3) sills
 @time B_avg_sill = bin_stat_over_xy(B.*mask_sill, bin_edge, bin_var; stat="mean")
@@ -326,7 +346,12 @@ u_prime∇B_prime_avg_flanks = div_uB_avg_flanks .- u_bar_∇B_bar_avg_flanks
 @time ∇κ∇B_avg_sill = bin_stat_over_xy(∇κ∇B.*mask_sill, bin_edge, bin_var; stat="mean")
 @time div_uB_avg_sill = bin_stat_over_xy(div_uB.*mask_sill, bin_edge, bin_var; stat="mean")
 @time u_bar_∇B_bar_avg_sill = bin_stat_over_xy(u_bar_∇B_bar.*mask_sill, bin_edge, bin_var; stat="mean")
-u_prime∇B_prime_avg_sill = div_uB_avg_sill .- u_bar_∇B_bar_avg_sill
+@time u_prime∇B_prime_avg_sill = bin_stat_over_xy(u_prime∇B_prime.*mask_sill, bin_edge, bin_var; stat="mean")
+@time uBx_center_sill = bin_stat_over_xy(u .* Bx_center.*mask_sill, bin_edge, bin_var; stat="mean")
+@time vBy_center_sill = bin_stat_over_xy(v .* By_center.*mask_sill, bin_edge, bin_var; stat="mean")
+@time wBz_center_sill = bin_stat_over_xy(w .* Bz_center.*mask_sill, bin_edge, bin_var; stat="mean")
+@time ε_avg_sill = bin_stat_over_xy(ε.*mask_sill, bin_edge, bin_var; stat="mean")
+@time χ_avg_sill = bin_stat_over_xy(χ.*mask_sill, bin_edge, bin_var; stat="mean")
 
 dBdt = (ds_3D_second["B"][:, :, :, end] .- ds_3D_0["B"][:, :, :, end]) ./ (ds_3D_second["time"][end] .- ds_3D_0["time"][end])
 @time dBdt_avg_rest = bin_stat_over_xy(dBdt.*mask_rest, bin_edge, bin_var; stat="mean")
@@ -351,7 +376,7 @@ defDim(ds_create, "yC", Ny)
 
 # Define a global attribute
 ds_create.attrib["title"] = "Terrain-following averages"
-# Define variables for the full domain
+# Define variables for the rest of the domain
 v1 = defVar(ds_create, "B_avg_rest", Float64, ("z_TF", "t"))
 v1[:, :] = B_avg_rest
 v2 = defVar(ds_create, "Bz_avg_rest", Float64, ("z_TF", "t"))
@@ -370,6 +395,16 @@ v8 = defVar(ds_create, "u_bar_∇B_bar_avg_rest", Float64, ("z_TF", "t"))
 v8[:, :] = u_bar_∇B_bar_avg_rest
 v9 = defVar(ds_create, "u_prime∇B_prime_avg_rest", Float64, ("z_TF", "t"))
 v9[:, :] = u_prime∇B_prime_avg_rest
+v9a = defVar(ds_create, "uBx_center_rest", Float64, ("z_TF", "t"))
+v9a[:, :] = uBx_center_rest
+v9b = defVar(ds_create, "vBy_center_rest", Float64, ("z_TF", "t"))
+v9b[:, :] = vBy_center_rest
+v9c = defVar(ds_create, "wBz_center_rest", Float64, ("z_TF", "t"))
+v9c[:, :] = wBz_center_rest
+v9d = defVar(ds_create, "ε_avg_rest", Float64, ("z_TF", "t"))
+v9d[:, :] = ε_avg_rest
+v9e = defVar(ds_create, "χ_avg_rest", Float64, ("z_TF", "t"))
+v9e[:, :] = χ_avg_rest
 
 # Define variables for the flanks
 v10 = defVar(ds_create, "B_avg_flanks", Float64, ("z_TF", "t"))
@@ -390,6 +425,16 @@ v17 = defVar(ds_create, "u_bar_∇B_bar_avg_flanks", Float64, ("z_TF", "t"))
 v17[:, :] = u_bar_∇B_bar_avg_flanks
 v18 = defVar(ds_create, "u_prime∇B_prime_avg_flanks", Float64, ("z_TF", "t"))
 v18[:, :] = u_prime∇B_prime_avg_flanks
+v18a = defVar(ds_create, "uBx_center_flanks", Float64, ("z_TF", "t"))
+v18a[:, :] = uBx_center_flanks
+v18b = defVar(ds_create, "vBy_center_flanks", Float64, ("z_TF", "t"))
+v18b[:, :] = vBy_center_flanks
+v18c = defVar(ds_create, "wBz_center_flanks", Float64, ("z_TF", "t"))
+v18c[:, :] = wBz_center_flanks
+v18d = defVar(ds_create, "ε_avg_flanks", Float64, ("z_TF", "t"))
+v18d[:, :] = ε_avg_flanks
+v18e = defVar(ds_create, "χ_avg_flanks", Float64, ("z_TF", "t"))
+v18e[:, :] = χ_avg_flanks
 
 # Define variables for the sills
 v19 = defVar(ds_create, "B_avg_sill", Float64, ("z_TF", "t"))
@@ -410,6 +455,16 @@ v26 = defVar(ds_create, "u_bar_∇B_bar_avg_sill", Float64, ("z_TF", "t"))
 v26[:, :] = u_bar_∇B_bar_avg_sill
 v27 = defVar(ds_create, "u_prime∇B_prime_avg_sill", Float64, ("z_TF", "t"))
 v27[:, :] = u_prime∇B_prime_avg_sill
+v27a = defVar(ds_create, "uBx_center_sill", Float64, ("z_TF", "t"))
+v27a[:, :] = uBx_center_sill
+v27b = defVar(ds_create, "vBy_center_sill", Float64, ("z_TF", "t"))
+v27b[:, :] = vBy_center_sill
+v27c = defVar(ds_create, "wBz_center_sill", Float64, ("z_TF", "t"))
+v27c[:, :] = wBz_center_sill
+v27d = defVar(ds_create, "ε_avg_sill", Float64, ("z_TF", "t"))
+v27d[:, :] = ε_avg_sill
+v27e = defVar(ds_create, "χ_avg_sill", Float64, ("z_TF", "t"))
+v27e[:, :] = χ_avg_sill
 
 # Define dimension variables
 v28 = defVar(ds_create, "bin_center", Float64, ("z_TF",))
@@ -645,3 +700,10 @@ tight_layout()
 savefig(string("output/", simname, "/buoyancy_budget_regions_tᶠ=", tᶠ, ".png"), 
         dpi=300, bbox_inches="tight")
 display(gcf())
+
+
+### plot the buoyancy advection terms
+using PyPlot
+using NCDatasets
+simname = "tilt"  # or "flat" depending on the simulation
+tᶠ = 454.0
