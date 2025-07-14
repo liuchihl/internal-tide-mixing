@@ -162,7 +162,7 @@ function initialize_internal_tide(
     if output_mode == "analysis"
         # tracer initial distribution
         x_center_cart = 0
-        y_center_cart = Ny ÷ 2
+        y_center_cart = 500 # in meters
         if analysis_round == 1
             z_center_cart = 1000
         elseif analysis_round == "all"
