@@ -232,28 +232,26 @@ end
 
 # include("functions/mmderiv.jl")
 simname = "tilt"
-tᶠ = 460
+tᶠ = 456.0
 
 ## load data
-slice_uvwB = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_slices_xz-u-v-w-B.nc")
-ds_uvwB = Dataset(slice_uvwB,"r")
-slice_eps_chi = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_slices_xz-eps-chi.nc")
-ds_eps = Dataset(slice_eps_chi,"r")
+slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_analysis_round=all_slices_xz.nc")
+ds = Dataset(slice,"r")
 filename_slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
 ds_b = Dataset(filename_slice,"r")
 
-B = ds_uvwB["B"][:,:,:,:];
-uhat = ds_uvwB["uhat"][:,:,:,:];
-eps = ds_eps["ε"][:,:,:,:];
+B = ds["B"][:,:,:,:];
+uhat = ds["uhat"][:,:,:,:];
+eps = ds["ε"][:,:,:,:];
 b = ds_b["b"][:,:,:,:]; # for mask
 
 # grids
-zC = ds_eps["zC"][:]; Nz=length(zC)
-zF = ds_eps["zF"][:]; 
-xC = ds_eps["xC"][:]; Nx=length(xC)
-xF = ds_eps["xF"][:];
-yC = ds_eps["yC"][:]; Ny=length(yC)
-t = ds_eps["time"];
+zC = ds["z_aac"][:]; Nz=length(zC)
+zF = ds["z_aaf"][:]; 
+xC = ds["x_caa"][:]; Nx=length(xC)
+xF = ds["x_faa"][:];
+yC = ds["y_aca"][:]; Ny=length(yC)
+t = ds["time"];
 
 # set topography to NaN
 uhat[uhat.==0] .= NaN
@@ -262,20 +260,9 @@ eps[eps.==0] .= NaN
 # derivatives of B and u. Only slices are used because it can be memory intensive
 N = 1.e-3
 Bz = deriv(zC,B);
-Bz[b[:,:,1:end-1,1:240].==0] .= 0  # the grids are staggered, but this will effectively set the points inside and right above the immersed boundary to 0
+Bz[b[:,:,1:end-1,1:12].==0] .= 0  # the grids are staggered, but this will effectively set the points inside and right above the immersed boundary to 0
 
-# interpolate Bz from faces to center cell
-Bz_center = zeros(size(Bz,1), size(Bz,2), length(zC), size(Bz,4))
-for i in 1:size(Bz,1)
-    for j in 1:size(Bz,2)
-        for k in 1:size(Bz,4)
-            itp = linear_interpolation(zF[2:end-1], Bz[i,j,:,k], extrapolation_bc=Line())
-            Bz_center[i,j,:,k] = itp(zC)
-        end
-    end
-end
-Bz_center[b[:,:,:,1:240].==0] .= NaN
-B[b[:,:,:,1:240].==0] .= NaN
+Bz_center = (cat(zeros(Nx,1,1,length(t)), Bz, dims=3) .+ cat(Bz, zeros(Nx,1,1,length(t)), dims=3))/2 # average Bz at cell centers
 # plot
 
 n = Observable(1)
@@ -290,7 +277,7 @@ M₂_period = 2π/ω₀
 fig = CairoMakie.Figure(resolution = (1000, 900), figure_padding=(10, 40, 10, 10), size=(600,800))
 axis_kwargs = (xlabel = "Zonal distance x (m)",
               ylabel = "Elevation z (m)",
-              limits = ((0, ds_eps["xF"][end]), (0, ds_eps["zF"][end])),
+              limits = ((0, xF[end]), (0, zF[end])),
              )
 
 title = @lift @sprintf("t=%1.2f M₂ tidal periods", t[$n]/M₂_period)
@@ -346,7 +333,7 @@ Colorbar(fig[4,2], hm_Bz; label = "dB/dz [1/s²]")
 
 frames = 1:1:length(t)
 
-filename = join(split(slice_uvwB, ".")[1:end-1], ".")
+filename = join(split(slice, ".")[1:end-1], ".")
 
 record(fig, string(filename, "_uhat_eps_Bz.mp4"), frames, framerate=13) do i
     @info "Plotting frame $i of $(frames[end])..."
@@ -640,86 +627,416 @@ using Interpolations
 function deriv(z,y)
     dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
     return dydz
- end
+end
  
 # include("functions/mmderiv.jl")
 simname = "tilt"
-tᶠ = 460
+time_points = [452.0, 452.5, 453.0, 453.5, 454.0, 454.5, 455.0, 455.5, 456.0, 456.5, 457.0]
 
-## load data
-slice_uvwB = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_slices_xz-u-v-w-B.nc")
-ds_uvwB = Dataset(slice_uvwB,"r")
-slice_bnu = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_slices_xz-b-nu.nc")
-ds_bnu = Dataset(slice_bnu,"r")
+# Initialize arrays to hold combined data
+B_all = []
+uhat_all = []
+what_all = []
+eps_all = []
+t_all = []
 
-B = ds_uvwB["B"][:,:,:,:];
-what = ds_uvwB["what"][:,:,:,:];
-b = ds_bnu["b"][:,:,:,:];
-nu_const = 1.05e-6
-nu = ds_bnu["νₑ"][:,:,:,:].+nu_const;
-# grids
-zC = ds_uvwB["zC"][:]; Nz=length(zC)
-zF = ds_uvwB["zF"][:]; 
-xC = ds_uvwB["xC"][:]; Nx=length(xC)
-xF = ds_uvwB["xF"][:];
-yC = ds_uvwB["yC"][:]; Ny=length(yC)
-t = ds_uvwB["time"][:];
+# Load reference file for mask
+filename_mask = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
+ds_mask = Dataset(filename_mask,"r")
+b_mask = ds_mask["b"][:,:,:,:]; # for mask
 
-# set topography to NaN
-what[what.==0] .= NaN
-B[b[:,:,:,:].==0] .= NaN
-nu[b.==0] .= NaN
-b[b.==0] .= NaN
-# plot
-D = 130
+# Loop through each time point and load data
+for tᶠ in time_points
+    @info "Loading data for tᶠ = $tᶠ"
+    slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_analysis_round=all_slices_xz.nc")
+    ds = Dataset(slice,"r")
+    
+    # Load data for this time point
+    B = ds["B"][:,:,:,:];
+    uhat = ds["uhat"][:,:,:,:];
+    what = ds["what"][:,:,:,:];
+    eps = ds["ε"][:,:,:,:];
+    
+    # Get time values for this file
+    t = ds["time"];
+    
+    # Set topography to NaN
+    uhat[uhat.==0] .= NaN
+    what[what.==0] .= NaN
+    eps[eps.==0] .= NaN
+    
+    # Apply mask based on the reference file
+    mask_size = min(size(b_mask, 4), size(B, 4))
+    B[b_mask[:,:,:,1:mask_size].==0] .= NaN
+    
+    # Store data
+    push!(B_all, B)
+    push!(uhat_all, uhat)
+    push!(what_all, what)
+    push!(eps_all, eps)
+    push!(t_all, t[:])
+    
+    close(ds)
+end
+
+# Concatenate all data arrays along the time dimension
+B_combined = cat(B_all..., dims=4)
+uhat_combined = cat(uhat_all..., dims=4)
+what_combined = cat(what_all..., dims=4)
+eps_combined = cat(eps_all..., dims=4)
+t_combined = vcat(t_all...)
+
+# Get grid information
+zC = ds_mask["zC"][:]; Nz=length(zC)
+zF = ds_mask["zF"][:]; 
+xC = ds_mask["xC"][:]; Nx=length(xC)
+xF = ds_mask["xF"][:];
+yC = ds_mask["yC"][:]; Ny=length(yC)
+
+# Set up visualization
+D = 130 # Depth limit for zoomed view
 n = Observable(1)
-# bₙ = @lift(log10.(b[:,1,1:D,$n]))
-Bₙ = @lift(B[:,1,1:D,$n])
-nuₙ = @lift(nu[:,1,1:D,$n])
+Bₙ = @lift(B_combined[:,1,1:D,$n])
+wₙ = @lift(what_combined[:,1,1:D,$n])
+εₙ = @lift(log10.(eps_combined[:,1,1:D,$n]))
 
 ω₀ = 1.4e-4
 M₂_period = 2π/ω₀
-fig = CairoMakie.Figure(resolution = (1000, 500), size=(750,500))
+
+fig = CairoMakie.Figure(resolution = (1000, 900), figure_padding=(10, 40, 10, 10), size=(750,750))
 axis_kwargs = (xlabel = "Zonal distance x (m)",
               ylabel = "Elevation z (m)",
-              limits = ((0, ds_uvwB["xF"][end]), (0, ds_uvwB["zF"][D+1])),
+              limits = ((0, xF[end]), (0, zF[D+1])),
              )
 
-title = @lift @sprintf("t=%1.2f M₂ tidal periods", t[$n]/M₂_period)
+title = @lift @sprintf("t=%1.2f M₂ tidal periods", t_combined[$n]/M₂_period)
 fig[1, :] = Label(fig, title, fontsize=20, tellwidth=false)
 
-ax_b = Axis(fig[2, 1]; title = "Total buoyancy B with total buoyancy contours", axis_kwargs...)
-ax_nu = Axis(fig[3, 1]; title = "eddy viscosity (log νₑ) with total buoyancy contours", axis_kwargs...)
+ax_B = Axis(fig[2, 1]; title = "Total buoyancy (B) with contours", axis_kwargs...)
+ax_w = Axis(fig[3, 1]; title = "Vertical velocity (w) with buoyancy contours", axis_kwargs...)
+ax_ε = Axis(fig[4, 1]; title = "TKE dissipation rate (log ε) with buoyancy contours", axis_kwargs...)
 
-hm_b = heatmap!(ax_b, xC[:], zC[1:D], Bₙ,
+# Plot B with contours
+hm_B = heatmap!(ax_B, xC[:], zC[1:D], Bₙ,
     colorrange = (0.001,0.0012),
-    # colorrange = (0.0004,0.0008),
-    # colorrange = (-4,-3.2),
     colormap = reverse(cgrad(:Spectral)),
-    # colormap = custom_colormap(0.0003,0.0008),
     nan_color = :gray)
-ct_b = contour!(ax_b, xC, zC[1:D], Bₙ,
+ct_B = contour!(ax_B, xC, zC[1:D], Bₙ,
     levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
-Colorbar(fig[2,2], hm_b; label = "log₁₀ B [m/s²]")
+Colorbar(fig[2,2], hm_B; label = "B [m/s²]")
 
-# Add log-scale plot of eddy viscosity
-log_nuₙ = @lift(log10.($nuₙ))
-hm_nu = heatmap!(ax_nu, xC[:], zC[1:D], log_nuₙ,
-    colorrange = (-3.5, -2), colormap = :viridis,
+# Plot w with B contours
+U₀ = 0.01
+hm_w = heatmap!(ax_w, xC[:], zC[1:D], wₙ,
+    colorrange = (-3U₀, 3U₀), 
+    colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
+    highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
     nan_color = :gray)
-ct_nu = contour!(ax_nu, xC, zC[1:D], Bₙ,
+ct_w = contour!(ax_w, xC, zC[1:D], Bₙ,
     levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
-Colorbar(fig[3,2], hm_nu; label = "log₁₀(νₑ) [m²/s]")
+Colorbar(fig[3,2], hm_w; label = "w [m/s]")
 
-frames = 1:length(t)
+# Plot ε with B contours
+hm_ε = heatmap!(ax_ε, xC[:], zC[1:D], εₙ,
+    colorrange = (-10, -6), colormap = :rainbow_bgyrm_35_85_c69_n256,
+    lowclip=cgrad(:rainbow_bgyrm_35_85_c69_n256)[1], 
+    highclip=cgrad(:rainbow_bgyrm_35_85_c69_n256)[end],
+    nan_color = :gray)
+ct_ε = contour!(ax_ε, xC, zC[1:D], Bₙ,
+    levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[4,2], hm_ε; label = "log₁₀(ε) [m²/s³]")
 
-filename = join(split(slice_uvwB, ".")[1:end-1], ".")
+frames = 1:length(t_combined)
 
-record(fig, string(filename, "_b_log-nu-zoomin.mp4"), frames, framerate=13) do i
+output_filename = string("output/", simname, "/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=452-457_B_w_eps_zoomin.mp4")
+
+record(fig, output_filename, frames, framerate=13) do i
     @info "Plotting frame $i of $(frames[end])..."
     n[] = i
 end
 
+close(ds_mask)
+
+
+
+## zoomin B and Bz 
+using Printf
+using Oceananigans
+using Oceananigans.Units
+using CairoMakie
+using NCDatasets
+using Interpolations
+
+function deriv(z,y)
+    dydz = diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
+    return dydz
+end
+ 
+simname = "tilt"
+time_points = [452.0, 452.5, 453.0, 453.5, 454.0, 454.5, 455.0, 455.5, 456.0, 456.5, 457.0]
+
+# Initialize arrays to hold combined data
+B_all = []
+t_all = []
+
+# Load reference file for mask
+filename_mask = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
+ds_mask = Dataset(filename_mask,"r")
+b_mask = ds_mask["b"][:,:,:,:]; # for mask
+
+# Loop through each time point and load data
+for tᶠ in time_points
+    @info "Loading data for tᶠ = $tᶠ"
+    slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_analysis_round=all_slices_xz.nc")
+    ds = Dataset(slice,"r")
+    
+    # Load data for this time point
+    B = ds["B"][:,:,:,:];
+    
+    # Get time values for this file
+    t = ds["time"];
+    
+    # Apply mask based on the reference file
+    mask_size = min(size(b_mask, 4), size(B, 4))
+    B[b_mask[:,:,:,1:mask_size].==0] .= NaN
+    
+    # Store data
+    push!(B_all, B)
+    push!(t_all, t[:])
+    
+    close(ds)
+end
+
+# Concatenate all data arrays along the time dimension
+B_combined = cat(B_all..., dims=4)
+t_combined = vcat(t_all...)
+
+# Get grid information
+zC = ds_mask["zC"][:]; Nz=length(zC)
+zF = ds_mask["zF"][:]; 
+xC = ds_mask["xC"][:]; Nx=length(xC)
+xF = ds_mask["xF"][:];
+
+# Calculate Bz (vertical derivative of B)
+Bz = deriv(zC, B_combined);
+Bz[b_mask[:,:,1:end-1,1].*ones(1,1,1,size(Bz,4)) .== 0] .= 0  # Apply mask to faces
+
+Bz_center = (cat(zeros(Nx,1,1,length(t_combined)), Bz, dims=3) .+ cat(Bz, zeros(Nx,1,1,length(t_combined)), dims=3))/2 # average Bz at cell centers
+Bz_center[b_mask[:,:,:,1:132] .== 0] .= NaN # set zero values to NaN
+# Set up visualization
+D = 130 # Depth limit for zoomed view
+n = Observable(1)
+Bₙ = @lift(B_combined[:,1,1:D,$n])
+Bzₙ = @lift(Bz_center[:,1,1:D,$n])
+
+ω₀ = 1.4e-4
+M₂_period = 2π/ω₀
+
+fig = CairoMakie.Figure(resolution = (1000, 600), figure_padding=(10, 40, 10, 10), size=(750,500))
+axis_kwargs = (xlabel = "Zonal distance x (m)",
+              ylabel = "Elevation z (m)",
+              limits = ((0, xF[end]), (0, zF[D+1])),
+             )
+
+title = @lift @sprintf("t=%1.2f M₂ tidal periods", t_combined[$n]/M₂_period)
+fig[1, :] = Label(fig, title, fontsize=20, tellwidth=false)
+
+ax_B = Axis(fig[2, 1]; title = "Total buoyancy (B)", axis_kwargs...)
+ax_Bz = Axis(fig[3, 1]; title = "Stratification (dB/dz)", axis_kwargs...)
+
+# Plot B with contours
+hm_B = heatmap!(ax_B, xC[:], zC[1:D], Bₙ,
+    colorrange = (0.001,0.0012),
+    colormap = reverse(cgrad(:Spectral)),
+    nan_color = :gray)
+ct_B = contour!(ax_B, xC, zC[1:D], Bₙ,
+    levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[2,2], hm_B; label = "B [m/s²]")
+
+# Custom colormap for Bz that centers at zero
+function custom_colormap(min_val=-5e-7, max_val=2e-6)
+    # Calculate the zero point position in normalized space [0,1]
+    zero_point = -min_val / (max_val - min_val)
+    
+    # Create arrays of colors for smooth transitions
+    neg_colors = range(colorant"darkblue", colorant"lightblue", length=50)
+    neg_colors = vcat(neg_colors, range(colorant"lightblue", colorant"white", length=50))
+    pos_colors = range(colorant"white", colorant"yellow", length=50)
+    pos_colors = vcat(pos_colors, range(colorant"yellow", colorant"darkred", length=50))
+    
+    # Combine the colors into a single array
+    all_colors = vcat(neg_colors[1:end-1], pos_colors)
+    
+    # Create a colormap with proper scaling
+    return cgrad(all_colors, zero_point)
+end
+
+# Plot Bz with B contours
+hm_Bz = heatmap!(ax_Bz, xC[:], zC[1:D], Bzₙ,
+    colorrange = (-5e-7, 1e-6),
+    colormap = custom_colormap(-5e-7, 1e-6),
+    nan_color = :gray)
+ct_Bz = contour!(ax_Bz, xC, zC[1:D], Bₙ,
+    levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[3,2], hm_Bz; label = "dB/dz [1/s²]")
+
+frames = 1:length(t_combined)
+
+output_filename = string("output/", simname, "/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=452-457_B_Bz_zoomin.mp4")
+
+record(fig, output_filename, frames, framerate=13) do i
+    @info "Plotting frame $i of $(frames[end])..."
+    n[] = i
+end
+
+close(ds_mask)
+
+
+
+##
+
+## zoomin ν and Bz 
+using Printf
+using Oceananigans
+using Oceananigans.Units
+using CairoMakie
+using NCDatasets
+using Interpolations
+
+function deriv(z,y)
+    dydz = diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
+    return dydz
+end
+ 
+simname = "tilt"
+time_points = [452.0, 452.5, 453.0, 453.5, 454.0, 454.5, 455.0, 455.5, 456.0, 456.5, 457.0]
+
+# Initialize arrays to hold combined data
+B_all = []
+nu_all = []
+t_all = []
+
+# Load reference file for mask
+filename_mask = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
+ds_mask = Dataset(filename_mask,"r")
+b_mask = ds_mask["b"][:,:,:,:]; # for mask
+
+# Loop through each time point and load data
+for tᶠ in time_points
+    @info "Loading data for tᶠ = $tᶠ"
+    slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_analysis_round=all_slices_xz.nc")
+    ds = Dataset(slice,"r")
+    
+    # Load data for this time point
+    B = ds["B"][:,:,:,:];
+    nu = ds["νₑ"][:,:,:,:];
+    
+    # Get time values for this file
+    t = ds["time"];
+    
+    # Apply mask based on the reference file
+    mask_size = min(size(b_mask, 4), size(B, 4))
+    B[b_mask[:,:,:,1:mask_size].==0] .= NaN
+    nu[b_mask[:,:,:,1:mask_size].==0] .= NaN
+    
+    # Store data
+    push!(B_all, B)
+    push!(nu_all, nu)
+    push!(t_all, t[:])
+    
+    close(ds)
+end
+
+# Concatenate all data arrays along the time dimension
+B_combined = cat(B_all..., dims=4)
+nu_combined = cat(nu_all..., dims=4)
+t_combined = vcat(t_all...)
+
+# Get grid information
+zC = ds_mask["zC"][:]; Nz=length(zC)
+zF = ds_mask["zF"][:]; 
+xC = ds_mask["xC"][:]; Nx=length(xC)
+xF = ds_mask["xF"][:];
+# Calculate Bz (vertical derivative of B)
+Bz = deriv(zC, B_combined);
+Bz[b_mask[:,:,1:end-1,1].*ones(1,1,1,size(Bz,4)) .== 0] .= 0  # Apply mask to faces
+
+Bz_center = (cat(zeros(Nx,1,1,length(t_combined)), Bz, dims=3) .+ cat(Bz, zeros(Nx,1,1,length(t_combined)), dims=3))/2 # average Bz at cell centers
+Bz_center[b_mask[:,:,:,1:132] .== 0] .= NaN # set zero values to NaN
+
+# Add constant viscosity to eddy viscosity
+nu_const = 1.05e-6
+nu_combined = nu_combined .+ nu_const
+
+# Set up visualization
+D = 130 # Depth limit for zoomed view
+n = Observable(1)
+Bzₙ = @lift(Bz_center[:,1,1:D,$n])
+nuₙ = @lift(log10.(nu_combined[:,1,1:D,$n]))
+Bₙ = @lift(B_combined[:,1,1:D,$n]) # Keep B for contour lines
+
+ω₀ = 1.4e-4
+M₂_period = 2π/ω₀
+
+fig = CairoMakie.Figure(resolution = (1000, 600), figure_padding=(10, 40, 10, 10), size=(750,500))
+axis_kwargs = (xlabel = "Zonal distance x (m)",
+              ylabel = "Elevation z (m)",
+              limits = ((0, xF[end]), (0, zF[D+1])),
+             )
+
+title = @lift @sprintf("t=%1.2f M₂ tidal periods", t_combined[$n]/M₂_period)
+fig[1, :] = Label(fig, title, fontsize=20, tellwidth=false)
+
+ax_nu = Axis(fig[2, 1]; title = "Eddy viscosity (log₁₀(νₑ))", axis_kwargs...)
+ax_Bz = Axis(fig[3, 1]; title = "Stratification (dB/dz)", axis_kwargs...)
+
+# Plot nu with B contours
+hm_nu = heatmap!(ax_nu, xC[:], zC[1:D], nuₙ,
+    colorrange = (-4, -2),
+    colormap = :viridis,
+    nan_color = :gray)
+ct_nu = contour!(ax_nu, xC, zC[1:D], Bₙ,
+    levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[2,2], hm_nu; label = "log₁₀(νₑ) [m²/s]")
+
+# Custom colormap for Bz that centers at zero
+function custom_colormap(min_val=-5e-7, max_val=2e-6)
+    # Calculate the zero point position in normalized space [0,1]
+    zero_point = -min_val / (max_val - min_val)
+    
+    # Create arrays of colors for smooth transitions
+    neg_colors = range(colorant"darkblue", colorant"lightblue", length=50)
+    neg_colors = vcat(neg_colors, range(colorant"lightblue", colorant"white", length=50))
+    pos_colors = range(colorant"white", colorant"yellow", length=50)
+    pos_colors = vcat(pos_colors, range(colorant"yellow", colorant"darkred", length=50))
+    
+    # Combine the colors into a single array
+    all_colors = vcat(neg_colors[1:end-1], pos_colors)
+    
+    # Create a colormap with proper scaling
+    return cgrad(all_colors, zero_point)
+end
+
+# Plot Bz with B contours
+hm_Bz = heatmap!(ax_Bz, xC[:], zC[1:D], Bzₙ,
+    colorrange = (-5e-7, 1e-6),
+    colormap = custom_colormap(-5e-7, 1e-6),
+    nan_color = :gray)
+ct_Bz = contour!(ax_Bz, xC, zC[1:D], Bₙ,
+    levels=0.:.05e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[3,2], hm_Bz; label = "dB/dz [1/s²]")
+
+frames = 1:length(t_combined)
+
+output_filename = string("output/", simname, "/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=452-457_nu_Bz_zoomin.mp4")
+
+record(fig, output_filename, frames, framerate=13) do i
+    @info "Plotting frame $i of $(frames[end])..."
+    n[] = i
+end
+
+close(ds_mask)
 
 
 

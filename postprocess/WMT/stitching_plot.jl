@@ -33,21 +33,25 @@ Ny=length(yC[:]);       dy = yF[end]-yF[end-1];
 t = ds_3D["time"][:];
 
 
-B = zeros(Nx,Nz);          # total buoyancy
-∇κ∇B = zeros(Nx,Nz);          # total buoyancy
-for tᶠ in [451.5, 452]
-    filename_avg = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_analysis_round=all_threeD_timeavg.nc")
-    ds_avg = Dataset(filename_avg,"r")
-    B .+= ds_avg["B"][:,1,:,1:1];          # total buoyancy
-    ∇κ∇B .+= ds_avg["∇κ∇B"][:,1,:,1:1];    # ∇⋅κ∇B: buoyancy flux divergence
-end
+B = ds_3D["B"][:,1,:,1];          # total buoyancy
+B[b.==0] .= NaN;
+# ∇κ∇B = zeros(Nx,Nz);          # total buoyancy
+# for tᶠ in [451.5, 452]
+#     filename_avg = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=", tᶠ, "_analysis_round=all_threeD_timeavg.nc")
+#     ds_avg = Dataset(filename_avg,"r")
+#     B .+= ds_avg["B"][:,1,:,1:1];          # total buoyancy
+#     ∇κ∇B .+= ds_avg["∇κ∇B"][:,1,:,1:1];    # ∇⋅κ∇B: buoyancy flux divergence
+# end
 
 # one tidal average
-B = B ./2;          
-∇κ∇B = ∇κ∇B ./2;    
+# B = B ./2;          
+# ∇κ∇B = ∇κ∇B ./2;    
+# ∇κ∇B[b.==0] .= NaN;
+# # div_uB[b.==0] .= NaN;
+# B[b.==0] .= NaN;
+ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=456.0_4tidal_periods_avg.nc")
+∇κ∇B = ds["∇κ∇B"][:,1,:,1];    # ∇⋅κ∇B: buoyancy flux divergence
 ∇κ∇B[b.==0] .= NaN;
-# div_uB[b.==0] .= NaN;
-B[b.==0] .= NaN;
 
 ## coordinate transformation from simname-coordinate to Cartesian coordinate
 Lx = (xF[end]+dx) * cos(θ)
@@ -85,11 +89,11 @@ fig = figure(figsize=(16, 4))  # 10 inches wide by 6 inches tall
 # ax = subplots()
 col = PyPlot.pcolor(x̃./1000, z̃, ∇κ∇B̃[:,:],cmap="RdYlBu_r",norm=norm_log)
 cbar = colorbar(col, extend="both")
-cbar.set_label(L"-\overline{∇⋅\mathcal{B}}")
+cbar.set_label(L"∇⋅\overline{\mathcal{B}}")
 
 # PyPlot.contour(x̃./1000, z̃, B̃[:,:,1],colors="black",(0.05:0.1:3).*1e-3,linewidths=1)
 PyPlot.contour(x̃./1000, z̃, B̃[:,:],colors="black",(0.1:0.8:0.9).*1e-3,linewidths=2.3)
-# PyPlot.contour(x̃./1000, z̃, B̃[:,:],colors="black",(0.1:0.02:0.9).*1e-3,linewidths=1)
+# PyPlot.contour(x̃./1000, z̃, B̃[:,:],colors="black",(0.1:0.05:0.9).*1e-3,linewidths=0.5)
 for n in -19:-1:-20
 # PyPlot.plot([Lx*n,Lx*n]./1000, [-150,3000],linewidth=1.1,linestyle="-",color="green")
 PyPlot.plot([Lx*n,Lx*n]./1000, [-1500,2300],linewidth=1.5,linestyle="-",color="green")

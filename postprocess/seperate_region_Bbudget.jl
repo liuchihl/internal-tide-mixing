@@ -266,28 +266,51 @@ for i in 1:size(Bz, 1)
         Bz_center[i, j, :, :] = itp(zC)
     end
 end
-Bx_center = zeros(size(B))
-By_center = zeros(size(B))
-# Interpolate dB̄dx and dB̄dy from faces to center cell
-for i in 1:size(dB̄dx, 2)
-    for j in 1:size(dB̄dx, 3)
-        itp = linear_interpolation(xF[1:end], dB̄dx[:, i, j, 1], extrapolation_bc=Line())
-        Bx_center[:, i, j, :] = itp(xC)
-    end
-end
-for i in 1:size(dB̄dy, 1)
-    for j in 1:size(dB̄dy, 3)
-        itp = linear_interpolation(yF[1:end], dB̄dy[i, :, j, 1], extrapolation_bc=Line())
-        By_center[i, :, j, :] = itp(yC)
-    end
-end
-Bx_center[abs.(Bx_center).>0.5*nanmaximum(abs.(Bx_center))] .= 0  # set the points inside and right above the immersed boundary to NaN
-By_center[abs.(By_center).>0.5*nanmaximum(abs.(By_center))] .= 0 
 
-u_bar_∇B_bar = u .* Bx_center .+ v .* By_center .+ w .* Bz_center
-u_bar_∇B_bar[b.==0] .= NaN  # set the points inside and right above the immersed boundary to NaN
+# or try the simplest way (piecewise linear manually)
+Bx_center_manual = (vcat(dB̄dx[2:end, :, :, 1], dB̄dx[1:1, :, :]) .+ dB̄dx[:, :, :]) ./ 2
+By_center_manual = (hcat(dB̄dy[:, 2:end, :, 1], dB̄dy[:, 1:1, :, 1]) .+ dB̄dy[:, :, :]) ./ 2
+Bx_center_manual[abs.(Bx_center_manual).>0.1*nanmaximum(abs.(Bx_center_manual))] .= 0  # set the points inside and right above the immersed boundary to NaN
+By_center_manual[abs.(By_center_manual).>0.1*nanmaximum(abs.(By_center_manual))] .= 0 
+
+
+# Bx_center_manual_havg = nanmean(Bx_center_manual, dim=(1,2))
+# Bx_center_havg = nanmean(Bx_center, dim=(1,2))
+
+# # Plot comparison
+# using PyPlot
+# close("all")
+# fig = figure(figsize=(10, 8))
+
+# # Plot horizontal averages
+# subplot(1, 2, 1)
+# plt.plot(Bx_center_manual_havg, zC, label="Bx_center_manual")
+# plt.plot(Bx_center_havg, zC, label="Bx_center")
+# xlabel(L"$\partial B/\partial x$ [s$^{-2}$ m$^{-1}$]")
+# ylabel("Depth [m]")
+# title("Horizontal Average Comparison")
+# legend()
+# grid(true, alpha=0.3)
+
+# # Plot difference
+# subplot(1, 2, 2)
+# plt.plot(Bx_center_manual_havg - Bx_center_havg, zC)
+# ylabel("Depth [m]")
+# title("Difference: Bx_center_manual - Bx_center")
+# grid(true, alpha=0.3)
+
+# tight_layout()
+# savefig("output/tilt/Bx_center_comparison.png", dpi=300)
+# display(gcf())
+
+
+# u_bar_∇B_bar = u .* Bx_center .+ v .* By_center .+ w .* Bz_center
+u_bar_∇B_bar_manual = u .* Bx_center_manual .+ v .* By_center_manual .+ w .* Bz_center
+# u_bar_∇B_bar[b.==0] .= NaN  # set the points inside and right above the immersed boundary to NaN
+u_bar_∇B_bar_manual[b.==0] .= NaN  # set the points inside and right above the immersed boundary to NaN
+
 div_uB[b.==0] .= NaN
-u_prime∇B_prime = div_uB .- u_bar_∇B_bar
+u_prime∇B_prime = div_uB .- u_bar_∇B_bar_manual
 
 ### define masks including flanks and sills using vertical velocity and bathymetry
 mask_sill, mask_flanks = create_masks(; sill_height_threshold=300, high_sill_threshold=830, w=w)
@@ -313,10 +336,10 @@ bin_var=hab
 @time u_avg_rest = bin_stat_over_xy(u.*mask_rest, bin_edge, bin_var; stat="mean")
 @time ∇κ∇B_avg_rest = bin_stat_over_xy(∇κ∇B.*mask_rest, bin_edge, bin_var; stat="mean")
 @time div_uB_avg_rest = bin_stat_over_xy(div_uB.*mask_rest, bin_edge, bin_var; stat="mean")
-@time u_bar_∇B_bar_avg_rest = bin_stat_over_xy(u_bar_∇B_bar.*mask_rest, bin_edge, bin_var; stat="mean")
+@time u_bar_∇B_bar_avg_rest = bin_stat_over_xy(u_bar_∇B_bar_manual.*mask_rest, bin_edge, bin_var; stat="mean")
 @time u_prime∇B_prime_avg_rest = bin_stat_over_xy(u_prime∇B_prime.*mask_rest, bin_edge, bin_var; stat="mean")
-@time uBx_center_rest = bin_stat_over_xy(u .* Bx_center.*mask_rest, bin_edge, bin_var; stat="mean")
-@time vBy_center_rest = bin_stat_over_xy(v .* By_center.*mask_rest, bin_edge, bin_var; stat="mean")
+@time uBx_center_rest = bin_stat_over_xy(u .* Bx_center_manual.*mask_rest, bin_edge, bin_var; stat="mean")
+@time vBy_center_rest = bin_stat_over_xy(v .* By_center_manual.*mask_rest, bin_edge, bin_var; stat="mean")
 @time wBz_center_rest = bin_stat_over_xy(w .* Bz_center.*mask_rest, bin_edge, bin_var; stat="mean")
 @time ε_avg_rest = bin_stat_over_xy(ε.*mask_rest, bin_edge, bin_var; stat="mean")
 @time χ_avg_rest = bin_stat_over_xy(χ.*mask_rest, bin_edge, bin_var; stat="mean")
@@ -329,10 +352,10 @@ bin_var=hab
 @time u_avg_flanks = bin_stat_over_xy(u.*mask_flanks, bin_edge, bin_var; stat="mean")
 @time ∇κ∇B_avg_flanks = bin_stat_over_xy(∇κ∇B.*mask_flanks, bin_edge, bin_var; stat="mean")
 @time div_uB_avg_flanks = bin_stat_over_xy(div_uB.*mask_flanks, bin_edge, bin_var; stat="mean")
-@time u_bar_∇B_bar_avg_flanks = bin_stat_over_xy(u_bar_∇B_bar.*mask_flanks, bin_edge, bin_var; stat="mean")
+@time u_bar_∇B_bar_avg_flanks = bin_stat_over_xy(u_bar_∇B_bar_manual.*mask_flanks, bin_edge, bin_var; stat="mean")
 @time u_prime∇B_prime_avg_flanks = bin_stat_over_xy(u_prime∇B_prime.*mask_flanks, bin_edge, bin_var; stat="mean")
-@time uBx_center_flanks = bin_stat_over_xy(u .* Bx_center.*mask_flanks, bin_edge, bin_var; stat="mean")
-@time vBy_center_flanks = bin_stat_over_xy(v .* By_center.*mask_flanks, bin_edge, bin_var; stat="mean") 
+@time uBx_center_flanks = bin_stat_over_xy(u .* Bx_center_manual.*mask_flanks, bin_edge, bin_var; stat="mean")
+@time vBy_center_flanks = bin_stat_over_xy(v .* By_center_manual.*mask_flanks, bin_edge, bin_var; stat="mean") 
 @time wBz_center_flanks = bin_stat_over_xy(w .* Bz_center.*mask_flanks, bin_edge, bin_var; stat="mean")
 @time ε_avg_flanks = bin_stat_over_xy(ε.*mask_flanks, bin_edge, bin_var; stat="mean")
 @time χ_avg_flanks = bin_stat_over_xy(χ.*mask_flanks, bin_edge, bin_var; stat="mean")
@@ -345,10 +368,10 @@ bin_var=hab
 @time u_avg_sill = bin_stat_over_xy(u.*mask_sill, bin_edge, bin_var; stat="mean")
 @time ∇κ∇B_avg_sill = bin_stat_over_xy(∇κ∇B.*mask_sill, bin_edge, bin_var; stat="mean")
 @time div_uB_avg_sill = bin_stat_over_xy(div_uB.*mask_sill, bin_edge, bin_var; stat="mean")
-@time u_bar_∇B_bar_avg_sill = bin_stat_over_xy(u_bar_∇B_bar.*mask_sill, bin_edge, bin_var; stat="mean")
+@time u_bar_∇B_bar_avg_sill = bin_stat_over_xy(u_bar_∇B_bar_manual.*mask_sill, bin_edge, bin_var; stat="mean")
 @time u_prime∇B_prime_avg_sill = bin_stat_over_xy(u_prime∇B_prime.*mask_sill, bin_edge, bin_var; stat="mean")
-@time uBx_center_sill = bin_stat_over_xy(u .* Bx_center.*mask_sill, bin_edge, bin_var; stat="mean")
-@time vBy_center_sill = bin_stat_over_xy(v .* By_center.*mask_sill, bin_edge, bin_var; stat="mean")
+@time uBx_center_sill = bin_stat_over_xy(u .* Bx_center_manual.*mask_sill, bin_edge, bin_var; stat="mean")
+@time vBy_center_sill = bin_stat_over_xy(v .* By_center_manual.*mask_sill, bin_edge, bin_var; stat="mean")
 @time wBz_center_sill = bin_stat_over_xy(w .* Bz_center.*mask_sill, bin_edge, bin_var; stat="mean")
 @time ε_avg_sill = bin_stat_over_xy(ε.*mask_sill, bin_edge, bin_var; stat="mean")
 @time χ_avg_sill = bin_stat_over_xy(χ.*mask_sill, bin_edge, bin_var; stat="mean")
@@ -552,7 +575,7 @@ region_colors = [
 # Create figure with custom subplot layout
 close("all")
 # Set font size globally
-plt.rcParams["font.size"] = 15
+plt.rcParams["font.size"] = 14
 
 fig = figure(figsize=(12, 8))
 
@@ -645,14 +668,22 @@ function plot_budget_region(ax, dBdt, ∇κ∇B, div_uB, u_bar_∇B_bar, u_prime
     ax.plot(∇κ∇B*1e9, bin_center, color=budget_colors[4], linewidth=3, linestyle=":", label=budget_labels[4])
     ax.plot(dBdt*1e9, bin_center, color=budget_colors[5], linewidth=2.5, linestyle="-", label=budget_labels[5])
     ax.plot((∇κ∇B.-div_uB)*1e9, bin_center, color=budget_colors[6], linewidth=2.5, linestyle="--", label=budget_labels[6])
+    # ax.plot(u_bar_∇B_bar*1e9, bin_center, color=budget_colors[1], linewidth=2.5, label=budget_labels[1])
+    # ax.plot(u_prime∇B_prime*1e9, bin_center, color=budget_colors[2], linewidth=2.5, label=budget_labels[2])
+    # ax.plot(div_uB*1e9, bin_center, color=budget_colors[3], linewidth=2.5, label=budget_labels[3])
+    # ax.plot(∇κ∇B*1e9, bin_center, color=budget_colors[4], linewidth=3, linestyle=":", label=budget_labels[4])
+    # ax.plot(dBdt*1e9, bin_center, color=budget_colors[5], linewidth=2.5, linestyle="-", label=budget_labels[5])
+    # ax.plot((∇κ∇B.-div_uB)*1e9, bin_center, color=budget_colors[6], linewidth=2.5, linestyle="--", label=budget_labels[6])
     
     # Add zero line
     ax.plot([0, 0], [0, 1000], color="black", linewidth=1.5)
     
     # Set symlog scale and ticks
-    # ax.set_xscale("symlog", linthresh=10^(-9.1))
-    # ax.set_xticks([-1e-9, -1e-10, 0, 1e-10, 1e-9])
-    # ax.set_xticklabels([L"-10^{-9}", L"-10^{-10}", "0", L"10^{-10}", L"10^{-9}"])
+    # ax.set_xscale("symlog", linthresh=1)
+    ax.set_xticks([-3, -2, -1, 0, 1, 2, 3])
+    # ax.set_xticklabels([L"-10^{-9}", L"-10^{-10}", L"10^{-10}", L"10^{-9}"])
+    ax.set_xticklabels(["-3", "-2", "-1", "0", "1", "2", "3"])
+    # ax.set_xticklabels(["-5", "-1", "-0.5", "0", "0.5", "1", "5"])
     
     # Set y-limits and styling
     # ax.set_title(title, fontsize=14, color=region_color)
@@ -660,14 +691,18 @@ function plot_budget_region(ax, dBdt, ∇κ∇B, div_uB, u_bar_∇B_bar, u_prime
     ax.tick_params(axis="both", which="major", labelsize=15)
     ax.set_yscale("log")
     ax.set_ylim(0, 500)
+    # ax.set_xlim(-10e-9, 10e-9)
+    ax.set_xlim(-2, 3.5)
+    ax.minorticks_on()
+
     # Configure minor ticks
     # matplotlib_ticker = PyCall.pyimport("matplotlib.ticker")
     # FixedLocator = matplotlib_ticker.FixedLocator
     
-    # minor_ticks_negative = [-2e-10, -3e-10, -4e-10, -5e-10, -6e-10, -7e-10, -8e-10, -9e-10]
-    # minor_ticks_positive = [2e-10, 3e-10, 4e-10, 5e-10, 6e-10, 7e-10, 8e-10, 9e-10]
+    # minor_ticks_negative = .-[ 2, 3, 4, 5, 6, 7, 8, 9]
+    # minor_ticks_positive = [2, 3, 4, 5, 6, 7, 8, 9]
     # all_minor_ticks = vcat(minor_ticks_negative, minor_ticks_positive)
-    
+
     # ax.xaxis.set_minor_locator(FixedLocator(all_minor_ticks))
     # ax.tick_params(axis="x", which="minor", length=4, width=0.8)
     # ax.tick_params(axis="x", which="major", length=7, width=1.0)
@@ -678,20 +713,20 @@ end
 # Plot each region
 plot_budget_region(ax_sill, dBdt_sill, ∇κ∇B_sill, div_uB_sill, u_bar_∇B_bar_sill, 
                   u_prime∇B_prime_sill, bin_center_saved, "Sill", region_colors[1])
-ax_sill.set_xlim(-3, 3)
+# ax_sill.set_xlim(-10,10)
 
 plot_budget_region(ax_flanks, dBdt_flanks, ∇κ∇B_flanks, div_uB_flanks, u_bar_∇B_bar_flanks, 
                   u_prime∇B_prime_flanks, bin_center_saved, "Flanks", region_colors[2])
 ax_flanks.set_ylabel("Height above bottom [m]", fontsize=14)
-ax_flanks.set_xlim(-3, 3)
+# ax_flanks.set_xlim(-10,10)
 plot_budget_region(ax_rest, dBdt_rest, ∇κ∇B_rest, div_uB_rest, u_bar_∇B_bar_rest, 
                   u_prime∇B_prime_rest, bin_center_saved, "Rest", region_colors[3])
 ax_rest.set_xlabel(L"[10^{-9} \, \text{m s}^{-3}]", fontsize=14)
+ax_rest.legend(loc="upper right", fontsize=12, frameon=true, framealpha=0.93)
+
 # ax_rest.set_xlabel(L"[\text{s}^{-2}]", fontsize=14)
-ax_rest.set_xlim(-3, 3)
-ax_rest.legend(loc="upper right", fontsize=13, frameon=true, framealpha=0.93)
+# ax_rest.set_xlim(-10,10)
 # Enable minor ticks
-# minorticks_on()
 
 # Adjust layout
 tight_layout()
@@ -702,8 +737,249 @@ savefig(string("output/", simname, "/buoyancy_budget_regions_tᶠ=", tᶠ, ".png
 display(gcf())
 
 
+
 ### plot the buoyancy advection terms
 using PyPlot
 using NCDatasets
 simname = "tilt"  # or "flat" depending on the simulation
 tᶠ = 454.0
+
+#load the buoyancy advection terms
+ds_adv = Dataset(string("output/", simname, "/TF_avg_tᶠ=", tᶠ, "_analysis.nc"), "r")
+bin_center_adv = ds_adv["bin_center"][:]
+# Load buoyancy advection terms for each region
+uBx_center_rest = ds_adv["uBx_center_rest"][:, 1]
+vBy_center_rest = ds_adv["vBy_center_rest"][:, 1]
+wBz_center_rest = ds_adv["wBz_center_rest"][:, 1]
+uBx_center_flanks = ds_adv["uBx_center_flanks"][:, 1]
+vBy_center_flanks = ds_adv["vBy_center_flanks"][:, 1]   
+wBz_center_flanks = ds_adv["wBz_center_flanks"][:, 1]
+uBx_center_sill = ds_adv["uBx_center_sill"][:, 1]
+vBy_center_sill = ds_adv["vBy_center_sill"][:, 1]
+wBz_center_sill = ds_adv["wBz_center_sill"][:, 1]
+
+close("all")
+
+# Set font size globally
+plt.rcParams["font.size"] = 15
+
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+
+# Define advection term colors
+adv_colors = ["blue", "green", "red"]
+adv_labels = [L"u\frac{\partial B}{\partial x}", L"v\frac{\partial B}{\partial y}", L"w\frac{\partial B}{\partial z}"]
+
+# Function to plot advection terms for each region
+function plot_advection_region(ax, uBx, vBy, wBz, bin_center, title)
+    # Plot advection terms
+    ax.plot(uBx*1e9, bin_center, color=adv_colors[1], linewidth=2.5, label=adv_labels[1])
+    ax.plot(vBy*1e9, bin_center, color=adv_colors[2], linewidth=2.5, label=adv_labels[2])
+    ax.plot(wBz*1e9, bin_center, color=adv_colors[3], linewidth=2.5, label=adv_labels[3])
+    ax.plot((uBx + vBy + wBz)*1e9, bin_center, color="black", linewidth=2.5, linestyle="-", marker="o", markersize=5, label=L"\nabla\cdot(\mathbf{u}B)")
+    
+    # Add zero line
+    ax.axvline(x=0, color="black", linewidth=1.0, alpha=0.5)
+    
+    # Set y-limits and styling
+    ax.set_title(title, fontsize=14)
+    ax.grid(true, alpha=0.3)
+    ax.set_yscale("log")
+    ax.set_ylim(0, 500)
+    ax.tick_params(axis="both", which="major", labelsize=15)
+end
+
+# Common x-limit for all subplots
+
+# Plot each region
+plot_advection_region(ax1, uBx_center_sill, vBy_center_sill, wBz_center_sill, 
+                     bin_center_adv, "Sill")
+ax1.set_xlim(-16, 10)
+ax1.legend(loc="upper right", fontsize=13, frameon=true)
+
+plot_advection_region(ax2, uBx_center_flanks, vBy_center_flanks, wBz_center_flanks, 
+                     bin_center_adv, "Flanks")
+ax2.set_xlim(-2, 2)
+ax2.set_ylabel("Height above bottom [m]", fontsize=14)
+
+plot_advection_region(ax3, uBx_center_rest, vBy_center_rest, wBz_center_rest, 
+                     bin_center_adv, "Rest of Domain")
+ax3.set_xlim(-2, 2)
+ax3.set_xlabel(L"Buoyancy Advection Terms [$10^{-9} \, \text{m s}^{-3}$]", fontsize=14)
+
+
+# Adjust layout
+plt.tight_layout()
+
+# Save figure
+savefig(string("output/", simname, "/buoyancy_advection_terms_tᶠ=", tᶠ, ".png"), 
+        dpi=300, bbox_inches="tight")
+display(gcf())
+
+
+
+# plot χ and ε
+# Plot turbulent dissipation (ε) and scalar variance dissipation (χ)
+using PyPlot
+using NCDatasets
+
+# Load the saved data again to get χ, ε and Bz
+ds_budget = Dataset(string("output/", simname, "/TF_avg_tᶠ=", tᶠ, "_analysis.nc"), "r")
+bin_center_saved = ds_budget["bin_center"][:]
+
+# Load dissipation terms for each region
+ε_rest = ds_budget["ε_avg_rest"][:, 1]
+χ_rest = ds_budget["χ_avg_rest"][:, 1]
+Bz_rest = ds_budget["Bz_avg_rest"][:, 1]
+
+ε_flanks = ds_budget["ε_avg_flanks"][:, 1]
+χ_flanks = ds_budget["χ_avg_flanks"][:, 1]
+Bz_flanks = ds_budget["Bz_avg_flanks"][:, 1]
+
+ε_sill = ds_budget["ε_avg_sill"][:, 1]
+χ_sill = ds_budget["χ_avg_sill"][:, 1]
+Bz_sill = ds_budget["Bz_avg_sill"][:, 1]
+
+close(ds_budget)
+
+# Calculate normalized χ 
+χ_norm_rest = χ_rest
+χ_norm_flanks = χ_flanks
+χ_norm_sill = χ_sill
+# Plot dissipation terms
+close("all")
+plt.rcParams["font.size"] = 16
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Colors for different regions
+region_colors = [
+    (0.6, 0.4, 0.2, 1.0),  # Brown for sill region
+    (0.2, 0.6, 0.8, 1.0),  # Light blue for flanks
+    (0.2, 0.4, 0.8, 1.0)   # Darker blue for rest of domain
+]
+
+# First subplot: ε (TKE dissipation)
+ax1.plot(ε_sill, bin_center_saved, color=region_colors[1], linewidth=3.0, label="Sill")
+ax1.plot(ε_flanks, bin_center_saved, color=region_colors[2], linewidth=3.0, label="Flanks")
+ax1.plot(ε_rest, bin_center_saved, color=region_colors[3], linewidth=3.0, label="Rest")
+
+ax1.set_xscale("log")
+ax1.set_ylim(1, 1000)
+ax1.set_xlim(1e-9, 1e-5)
+ax1.set_xlabel("ε [m² s⁻³]", fontsize=16)
+ax1.set_ylabel("Height above bottom [m]", fontsize=16)
+ax1.tick_params(axis="both", which="major", labelsize=16)
+ax1.grid(true, alpha=0.3)
+ax1.legend(loc="upper right", fontsize=14)
+
+
+# Third subplot: χ (Scalar variance dissipation)
+ax2.plot(χ_norm_sill, bin_center_saved, color=region_colors[1], linewidth=3.0, label="Sill")
+ax2.plot(χ_norm_flanks, bin_center_saved, color=region_colors[2], linewidth=3.0, label="Flanks")
+ax2.plot(χ_norm_rest, bin_center_saved, color=region_colors[3], linewidth=3.0, label="Rest")
+ax2.tick_params(axis="both", which="major", labelsize=14)
+ax2.set_xscale("log")
+ax2.set_ylim(1, 1000)
+ax2.set_xlabel("χ N² [m² s⁻⁵]", fontsize=16)
+ax2.grid(true, alpha=0.3)
+ax2.legend(loc="upper right", fontsize=16)
+
+tight_layout()
+savefig(string("output/", simname, "/turbulent_dissipation_tᶠ=", tᶠ, ".png"), 
+        dpi=300, bbox_inches="tight")
+
+display(gcf())
+
+
+## plot all other terms including B, what, u, Bz_avg
+# Load buoyancy and velocity data for each region
+ds = Dataset(string("output/", simname, "/TF_avg_tᶠ=", tᶠ, "_analysis.nc"), "r")
+bin_center_saved = ds["bin_center"][:]
+
+B_avg_rest = ds["B_avg_rest"][:, 1]
+Bz_avg_rest = ds["Bz_avg_rest"][:, 1]
+what_avg_rest = ds["what_avg_rest"][:, 1]
+u_avg_rest = ds["u_avg_rest"][:, 1]
+
+B_avg_flanks = ds["B_avg_flanks"][:, 1]
+Bz_avg_flanks = ds["Bz_avg_flanks"][:, 1]
+what_avg_flanks = ds["what_avg_flanks"][:, 1]
+u_avg_flanks = ds["u_avg_flanks"][:, 1]
+
+B_avg_sill = ds["B_avg_sill"][:, 1]
+Bz_avg_sill = ds["Bz_avg_sill"][:, 1]
+what_avg_sill = ds["what_avg_sill"][:, 1]
+u_avg_sill = ds["u_avg_sill"][:, 1]
+
+# Plot remaining terms: B, what, u, Bz_avg
+close("all")
+plt.rcParams["font.size"] = 16
+
+# Create figure with 2x2 layout
+fig, ((ax1, ax2, ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+
+# Colors for different regions
+region_colors = [
+    (0.6, 0.4, 0.2, 1.0),  # Brown for sill region
+    (0.2, 0.6, 0.8, 1.0),  # Light blue for flanks
+    (0.2, 0.4, 0.8, 1.0)   # Darker blue for rest of domain
+]
+
+# 1. Plot buoyancy (B)
+ax1.plot(B_avg_sill, bin_center_saved, color=region_colors[1], linewidth=3.0, label="Sill")
+ax1.plot(B_avg_flanks, bin_center_saved, color=region_colors[2], linewidth=3.0, label="Flanks")
+ax1.plot(B_avg_rest, bin_center_saved, color=region_colors[3], linewidth=3.0, label="Rest")
+ax1.set_ylabel("Height above bottom [m]", fontsize=16)
+ax1.set_xlabel("B [m s⁻²]", fontsize=16)
+ax1.set_ylim(1, 1500)
+# ax1.set_yscale("log")
+ax1.grid(true, alpha=0.3)
+ax1.tick_params(axis="both", which="major", labelsize=14)
+ax1.legend(loc="upper left", fontsize=14)
+# ax1.set_title("Buoyancy", fontsize=16)
+
+# 2. Plot vertical buoyancy gradient (Bz)
+ax2.plot(Bz_avg_sill, bin_center_saved, color=region_colors[1], linewidth=3.0, label="Sill")
+ax2.plot(Bz_avg_flanks, bin_center_saved, color=region_colors[2], linewidth=3.0, label="Flanks")
+ax2.plot(Bz_avg_rest, bin_center_saved, color=region_colors[3], linewidth=3.0, label="Rest")
+ax2.set_xlabel("∂B/∂z [s⁻²]", fontsize=16)
+ax2.set_ylim(1, 1500)
+# ax4.set_yscale("log")
+ax2.grid(true, alpha=0.3)
+ax2.tick_params(axis="both", which="major", labelsize=14)
+ax2.legend(loc="upper left", fontsize=14)
+
+# 3. Plot along-slope velocity (what)
+ax3.plot(what_avg_sill, bin_center_saved, color=region_colors[1], linewidth=3.0, label="Sill")
+ax3.plot(what_avg_flanks, bin_center_saved, color=region_colors[2], linewidth=3.0, label="Flanks")
+ax3.plot(what_avg_rest, bin_center_saved, color=region_colors[3], linewidth=3.0, label="Rest")
+ax3.set_xlabel("True vertical velocity ŵ [m s⁻¹]", fontsize=16)
+ax3.set_ylim(1, 1500)
+# ax2.set_yscale("log")
+ax3.grid(true, alpha=0.3)
+ax3.tick_params(axis="both", which="major", labelsize=14)
+ax3.legend(loc="upper right", fontsize=14)
+# ax2.set_title("Along-slope Velocity", fontsize=16)
+
+# 4. Plot cross-slope velocity (u)
+ax4.plot(u_avg_sill, bin_center_saved, color=region_colors[1], linewidth=3.0, label="Sill")
+ax4.plot(u_avg_flanks, bin_center_saved, color=region_colors[2], linewidth=3.0, label="Flanks")
+ax4.plot(u_avg_rest, bin_center_saved, color=region_colors[3], linewidth=3.0, label="Rest")
+ax4.set_ylabel("Height above bottom [m]", fontsize=16)
+ax4.set_xlabel("u [m s⁻¹]", fontsize=16)
+ax4.set_ylim(1, 1500)
+# ax3.set_yscale("log")
+ax4.grid(true, alpha=0.3)
+ax4.tick_params(axis="both", which="major", labelsize=14)
+ax4.legend(loc="upper right", fontsize=14)
+# ax3.set_title("Cross-slope Velocity", fontsize=16)
+
+
+# ax4.set_title("Buoyancy Gradient", fontsize=16)
+
+# Adjust layout
+plt.tight_layout()
+
+# Save figure
+savefig(string("output/", simname, "/TF_profiles_tᶠ=", tᶠ, ".png"), 
+       dpi=300, bbox_inches="tight")
+display(gcf())

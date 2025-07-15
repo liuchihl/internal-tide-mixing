@@ -1,360 +1,368 @@
-  5.271895 seconds (1.87 M allocations: 1.982 GiB, 2.25% gc time, 30.39% compilation time)
-  3.615983 seconds (30 allocations: 1.863 GiB, 0.48% gc time)
-  4.035065 seconds (30 allocations: 1.863 GiB, 7.65% gc time)
-  3.605274 seconds (30 allocations: 1.863 GiB, 0.12% gc time)
-  4.057481 seconds (30 allocations: 1.863 GiB, 7.74% gc time)
-  3.969256 seconds (30 allocations: 1.863 GiB, 0.13% gc time)
-  4.092846 seconds (30 allocations: 1.863 GiB, 7.52% gc time)
-  3.604294 seconds (30 allocations: 1.863 GiB, 0.14% gc time)
-  4.018243 seconds (30 allocations: 1.863 GiB, 7.67% gc time)
-  3.608916 seconds (30 allocations: 1.863 GiB, 0.13% gc time)
-  4.021793 seconds (30 allocations: 1.863 GiB, 7.70% gc time)
-  3.606967 seconds (30 allocations: 1.863 GiB, 0.12% gc time)
-  4.026500 seconds (30 allocations: 1.863 GiB, 8.48% gc time)
-  3.615333 seconds (30 allocations: 1.863 GiB, 0.13% gc time)
-  4.205684 seconds (30 allocations: 1.863 GiB, 7.26% gc time)
-  3.826393 seconds (30 allocations: 1.863 GiB, 0.94% gc time)
-  4.231464 seconds (30 allocations: 1.863 GiB, 7.25% gc time)
-  3.841860 seconds (30 allocations: 1.863 GiB, 0.99% gc time)
-  4.188316 seconds (30 allocations: 1.863 GiB, 7.30% gc time)
-  4.037742 seconds (30 allocations: 1.863 GiB, 0.96% gc time)
-  4.206609 seconds (30 allocations: 1.863 GiB, 7.28% gc time)
-  3.870744 seconds (30 allocations: 1.863 GiB, 1.14% gc time)
-  4.220061 seconds (30 allocations: 1.863 GiB, 7.27% gc time)
-  3.872607 seconds (30 allocations: 1.863 GiB, 1.09% gc time)
-  4.273318 seconds (30 allocations: 1.863 GiB, 7.62% gc time)
-  3.834929 seconds (30 allocations: 1.863 GiB, 1.13% gc time)
-  4.258014 seconds (30 allocations: 1.863 GiB, 7.52% gc time)
-  3.854792 seconds (30 allocations: 1.863 GiB, 1.17% gc time)
-  4.179937 seconds (30 allocations: 1.863 GiB, 7.78% gc time)
-  4.088587 seconds (30 allocations: 1.863 GiB, 0.70% gc time)
-  4.378211 seconds (30 allocations: 1.863 GiB, 7.30% gc time)
-  3.936825 seconds (30 allocations: 1.863 GiB, 0.82% gc time)
-  4.204893 seconds (30 allocations: 1.863 GiB, 7.03% gc time)
-  3.834110 seconds (30 allocations: 1.863 GiB, 1.06% gc time)
-  4.281010 seconds (30 allocations: 1.863 GiB, 7.75% gc time)
-  3.874704 seconds (30 allocations: 1.863 GiB, 1.08% gc time)
-  4.317257 seconds (30 allocations: 1.863 GiB, 8.65% gc time)
-  3.846166 seconds (30 allocations: 1.863 GiB, 1.23% gc time)
-  4.536297 seconds (30 allocations: 1.863 GiB, 7.10% gc time)
-  3.858504 seconds (30 allocations: 1.863 GiB, 1.17% gc time)
-  4.275739 seconds (30 allocations: 1.863 GiB, 7.48% gc time)
-  3.943027 seconds (30 allocations: 1.863 GiB, 1.20% gc time)
-  4.299830 seconds (30 allocations: 1.863 GiB, 7.52% gc time)
-  3.866235 seconds (30 allocations: 1.863 GiB, 1.24% gc time)
-  4.331387 seconds (30 allocations: 1.863 GiB, 8.70% gc time)
-  3.951801 seconds (30 allocations: 1.863 GiB, 1.27% gc time)
-  4.283639 seconds (30 allocations: 1.863 GiB, 7.53% gc time)
-  3.863640 seconds (30 allocations: 1.863 GiB, 1.26% gc time)
-  4.274321 seconds (30 allocations: 1.863 GiB, 7.51% gc time)
-  3.858932 seconds (30 allocations: 1.863 GiB, 1.25% gc time)
-  4.296880 seconds (30 allocations: 1.863 GiB, 7.53% gc time)
-  3.884172 seconds (30 allocations: 1.863 GiB, 1.32% gc time)
-  4.290798 seconds (30 allocations: 1.863 GiB, 8.18% gc time)
-  4.043769 seconds (30 allocations: 1.863 GiB, 1.28% gc time)
-  4.452505 seconds (30 allocations: 1.863 GiB, 7.30% gc time)
-  4.186744 seconds (30 allocations: 1.863 GiB, 1.33% gc time)
-  4.319481 seconds (30 allocations: 1.863 GiB, 7.49% gc time)
-  3.932594 seconds (30 allocations: 1.863 GiB, 1.34% gc time)
-  4.326332 seconds (30 allocations: 1.863 GiB, 7.46% gc time)
-  3.917946 seconds (30 allocations: 1.863 GiB, 1.44% gc time)
-  4.334592 seconds (30 allocations: 1.863 GiB, 7.37% gc time)
-  3.943167 seconds (30 allocations: 1.863 GiB, 1.52% gc time)
-  4.417619 seconds (30 allocations: 1.863 GiB, 7.10% gc time)
-  4.218350 seconds (30 allocations: 1.863 GiB, 1.37% gc time)
-  4.386960 seconds (30 allocations: 1.863 GiB, 7.38% gc time)
-  3.963739 seconds (30 allocations: 1.863 GiB, 1.49% gc time)
-  4.473849 seconds (30 allocations: 1.863 GiB, 7.33% gc time)
-  3.978490 seconds (30 allocations: 1.863 GiB, 1.60% gc time)
-  4.375164 seconds (30 allocations: 1.863 GiB, 7.37% gc time)
-  4.206605 seconds (30 allocations: 1.863 GiB, 1.51% gc time)
-  4.410384 seconds (30 allocations: 1.863 GiB, 7.77% gc time)
-  3.975093 seconds (30 allocations: 1.863 GiB, 1.62% gc time)
-  4.412881 seconds (30 allocations: 1.863 GiB, 7.13% gc time)
-  4.305634 seconds (30 allocations: 1.863 GiB, 1.46% gc time)
-  4.379939 seconds (30 allocations: 1.863 GiB, 7.40% gc time)
-  4.082433 seconds (30 allocations: 1.863 GiB, 1.56% gc time)
-  4.388111 seconds (30 allocations: 1.863 GiB, 7.48% gc time)
-  3.970033 seconds (30 allocations: 1.863 GiB, 1.67% gc time)
-  4.370870 seconds (30 allocations: 1.863 GiB, 7.25% gc time)
-  3.971679 seconds (30 allocations: 1.863 GiB, 1.64% gc time)
-  4.387561 seconds (30 allocations: 1.863 GiB, 7.28% gc time)
-  3.982777 seconds (30 allocations: 1.863 GiB, 1.67% gc time)
-  4.384826 seconds (30 allocations: 1.863 GiB, 7.26% gc time)
-  4.023280 seconds (30 allocations: 1.863 GiB, 1.67% gc time)
-  4.452238 seconds (30 allocations: 1.863 GiB, 7.37% gc time)
-  4.081416 seconds (30 allocations: 1.863 GiB, 1.83% gc time)
-  4.528290 seconds (30 allocations: 1.863 GiB, 6.94% gc time)
-  4.327918 seconds (30 allocations: 1.863 GiB, 1.60% gc time)
-  4.394100 seconds (30 allocations: 1.863 GiB, 7.12% gc time)
-  4.002377 seconds (30 allocations: 1.863 GiB, 1.77% gc time)
-  4.390574 seconds (30 allocations: 1.863 GiB, 7.14% gc time)
-  4.061157 seconds (30 allocations: 1.863 GiB, 1.76% gc time)
-  4.430001 seconds (30 allocations: 1.863 GiB, 7.31% gc time)
-  4.038510 seconds (30 allocations: 1.863 GiB, 1.80% gc time)
-  4.484967 seconds (30 allocations: 1.863 GiB, 7.42% gc time)
-  4.057094 seconds (30 allocations: 1.863 GiB, 1.81% gc time)
-  4.394895 seconds (30 allocations: 1.863 GiB, 5.96% gc time)
-  4.090425 seconds (30 allocations: 1.863 GiB, 2.00% gc time)
-  4.453154 seconds (30 allocations: 1.863 GiB, 7.28% gc time)
-  4.050692 seconds (30 allocations: 1.863 GiB, 1.80% gc time)
-  4.441628 seconds (30 allocations: 1.863 GiB, 7.53% gc time)
-  4.094767 seconds (30 allocations: 1.863 GiB, 1.85% gc time)
-  4.675468 seconds (30 allocations: 1.863 GiB, 6.94% gc time)
-  4.263455 seconds (30 allocations: 1.863 GiB, 1.76% gc time)
-  4.437148 seconds (30 allocations: 1.863 GiB, 7.22% gc time)
-  4.052779 seconds (30 allocations: 1.863 GiB, 1.87% gc time)
-  4.446429 seconds (30 allocations: 1.863 GiB, 7.19% gc time)
-  4.077493 seconds (30 allocations: 1.863 GiB, 1.93% gc time)
-  4.458182 seconds (30 allocations: 1.863 GiB, 8.50% gc time)
-  4.091093 seconds (30 allocations: 1.863 GiB, 1.98% gc time)
-  4.492697 seconds (30 allocations: 1.863 GiB, 7.29% gc time)
-  4.086308 seconds (30 allocations: 1.863 GiB, 1.95% gc time)
-  4.468666 seconds (30 allocations: 1.863 GiB, 7.29% gc time)
-  4.051907 seconds (30 allocations: 1.863 GiB, 1.92% gc time)
-  4.437642 seconds (30 allocations: 1.863 GiB, 7.08% gc time)
-  4.058166 seconds (30 allocations: 1.863 GiB, 1.92% gc time)
-  4.471906 seconds (30 allocations: 1.863 GiB, 8.24% gc time)
-  4.208505 seconds (30 allocations: 1.863 GiB, 1.93% gc time)
-  4.442458 seconds (30 allocations: 1.863 GiB, 7.10% gc time)
-  4.068436 seconds (30 allocations: 1.863 GiB, 1.89% gc time)
-  1.797099 seconds (30 allocations: 637.191 MiB, 0.08% gc time)
-  1.228962 seconds (31 allocations: 637.191 MiB, 0.70% gc time)
-  1.918113 seconds (30 allocations: 637.191 MiB, 17.97% gc time)
-  1.198051 seconds (31 allocations: 637.191 MiB, 0.21% gc time)
-  2.117829 seconds (30 allocations: 637.191 MiB, 16.19% gc time)
-  1.201679 seconds (31 allocations: 637.191 MiB, 0.22% gc time)
-  1.949375 seconds (30 allocations: 637.191 MiB, 17.77% gc time)
-  1.348538 seconds (31 allocations: 637.191 MiB, 1.80% gc time)
-  1.907071 seconds (30 allocations: 637.191 MiB, 17.84% gc time)
-  1.346582 seconds (31 allocations: 637.191 MiB, 1.76% gc time)
-  1.942649 seconds (30 allocations: 637.191 MiB, 17.73% gc time)
-  1.354301 seconds (31 allocations: 637.191 MiB, 1.86% gc time)
-  2.033679 seconds (30 allocations: 637.191 MiB, 17.20% gc time)
-  1.381719 seconds (31 allocations: 637.191 MiB, 1.79% gc time)
-  2.217917 seconds (30 allocations: 637.191 MiB, 15.50% gc time)
-  1.461297 seconds (31 allocations: 637.191 MiB, 1.83% gc time)
-  1.957452 seconds (30 allocations: 637.191 MiB, 17.59% gc time)
-  1.439319 seconds (31 allocations: 637.191 MiB, 1.83% gc time)
-  1.893568 seconds (30 allocations: 637.191 MiB, 15.47% gc time)
-  1.377153 seconds (31 allocations: 637.191 MiB, 2.27% gc time)
-  1.920857 seconds (30 allocations: 637.191 MiB, 17.78% gc time)
-  1.400092 seconds (31 allocations: 637.191 MiB, 1.94% gc time)
-  1.916888 seconds (30 allocations: 637.191 MiB, 17.98% gc time)
-  1.449760 seconds (31 allocations: 637.191 MiB, 1.97% gc time)
-  1.958469 seconds (30 allocations: 637.191 MiB, 17.63% gc time)
-  1.432249 seconds (31 allocations: 637.191 MiB, 1.97% gc time)
-  1.959627 seconds (30 allocations: 637.191 MiB, 17.51% gc time)
-  1.391951 seconds (31 allocations: 637.191 MiB, 2.18% gc time)
-  1.974715 seconds (30 allocations: 637.191 MiB, 20.83% gc time)
-  1.390862 seconds (31 allocations: 637.191 MiB, 2.13% gc time)
-  1.975752 seconds (30 allocations: 637.191 MiB, 17.44% gc time)
-  1.396907 seconds (31 allocations: 637.191 MiB, 2.19% gc time)
-  2.136141 seconds (30 allocations: 637.191 MiB, 16.05% gc time)
-  1.397330 seconds (31 allocations: 637.191 MiB, 2.23% gc time)
-  1.942510 seconds (30 allocations: 637.191 MiB, 17.64% gc time)
-  1.407944 seconds (31 allocations: 637.191 MiB, 2.32% gc time)
-  2.217854 seconds (30 allocations: 637.191 MiB, 16.86% gc time)
-  1.378905 seconds (31 allocations: 637.191 MiB, 2.46% gc time)
-  1.967678 seconds (30 allocations: 637.191 MiB, 17.75% gc time)
-  1.437910 seconds (31 allocations: 637.191 MiB, 2.08% gc time)
-  2.016202 seconds (30 allocations: 637.191 MiB, 17.04% gc time)
-  1.421419 seconds (31 allocations: 637.191 MiB, 2.02% gc time)
-  1.973697 seconds (30 allocations: 637.191 MiB, 17.42% gc time)
-  1.405076 seconds (31 allocations: 637.191 MiB, 1.67% gc time)
-  1.916897 seconds (30 allocations: 637.191 MiB, 17.96% gc time)
-  1.389309 seconds (31 allocations: 637.191 MiB, 1.60% gc time)
-  1.950295 seconds (30 allocations: 637.191 MiB, 17.54% gc time)
-  1.373100 seconds (31 allocations: 637.191 MiB, 2.09% gc time)
-  1.907573 seconds (30 allocations: 637.191 MiB, 19.24% gc time)
-  1.366105 seconds (31 allocations: 637.191 MiB, 1.92% gc time)
-  1.941219 seconds (30 allocations: 637.191 MiB, 17.59% gc time)
-  1.370642 seconds (31 allocations: 637.191 MiB, 2.03% gc time)
-  1.947041 seconds (30 allocations: 637.191 MiB, 17.49% gc time)
-  1.367099 seconds (31 allocations: 637.191 MiB, 1.94% gc time)
-  1.937377 seconds (30 allocations: 637.191 MiB, 17.65% gc time)
-  1.368335 seconds (31 allocations: 637.191 MiB, 2.02% gc time)
-  2.261666 seconds (30 allocations: 637.191 MiB, 17.40% gc time)
-  1.387364 seconds (31 allocations: 637.191 MiB, 2.10% gc time)
-  1.927524 seconds (30 allocations: 637.191 MiB, 17.75% gc time)
-  1.371405 seconds (31 allocations: 637.191 MiB, 1.97% gc time)
-  1.962534 seconds (30 allocations: 637.191 MiB, 17.41% gc time)
-  1.372329 seconds (31 allocations: 637.191 MiB, 2.02% gc time)
-  1.960448 seconds (30 allocations: 637.191 MiB, 17.55% gc time)
-  1.368959 seconds (31 allocations: 637.191 MiB, 1.95% gc time)
-  1.908262 seconds (30 allocations: 637.191 MiB, 19.63% gc time)
-  1.375148 seconds (31 allocations: 637.191 MiB, 2.00% gc time)
-  1.976211 seconds (30 allocations: 637.191 MiB, 17.42% gc time)
-  1.436616 seconds (31 allocations: 637.191 MiB, 2.01% gc time)
-  2.043355 seconds (30 allocations: 637.191 MiB, 16.92% gc time)
-  1.389318 seconds (31 allocations: 637.191 MiB, 2.26% gc time)
-  2.203711 seconds (30 allocations: 637.191 MiB, 15.59% gc time)
-  1.399735 seconds (31 allocations: 637.191 MiB, 2.28% gc time)
-  2.078080 seconds (30 allocations: 637.191 MiB, 16.93% gc time)
-  1.390906 seconds (31 allocations: 637.191 MiB, 2.20% gc time)
-  2.283017 seconds (30 allocations: 637.191 MiB, 15.41% gc time)
-  1.400956 seconds (31 allocations: 637.191 MiB, 2.28% gc time)
-  1.937061 seconds (30 allocations: 637.191 MiB, 17.75% gc time)
-  1.391177 seconds (31 allocations: 637.191 MiB, 2.19% gc time)
-  1.937154 seconds (30 allocations: 637.191 MiB, 17.70% gc time)
-  1.410162 seconds (31 allocations: 637.191 MiB, 2.19% gc time)
-  2.212184 seconds (30 allocations: 637.191 MiB, 15.60% gc time)
-  1.390301 seconds (31 allocations: 637.191 MiB, 2.23% gc time)
-  2.204624 seconds (30 allocations: 637.191 MiB, 15.49% gc time)
-  1.389159 seconds (31 allocations: 637.191 MiB, 2.11% gc time)
-  1.939190 seconds (30 allocations: 637.191 MiB, 19.22% gc time)
-  1.394307 seconds (31 allocations: 637.191 MiB, 2.17% gc time)
-  2.340382 seconds (30 allocations: 637.191 MiB, 14.73% gc time)
-  1.498019 seconds (31 allocations: 637.191 MiB, 2.11% gc time)
-  2.030497 seconds (30 allocations: 637.191 MiB, 17.01% gc time)
-  1.413466 seconds (31 allocations: 637.191 MiB, 2.10% gc time)
-  1.960504 seconds (30 allocations: 637.191 MiB, 17.61% gc time)
-  1.449200 seconds (31 allocations: 637.191 MiB, 2.25% gc time)
-  1.940365 seconds (30 allocations: 637.191 MiB, 17.75% gc time)
-  1.394812 seconds (31 allocations: 637.191 MiB, 2.20% gc time)
-  2.026872 seconds (30 allocations: 637.191 MiB, 18.07% gc time)
-  1.413049 seconds (31 allocations: 637.191 MiB, 2.50% gc time)
-  1.943629 seconds (30 allocations: 637.191 MiB, 17.72% gc time)
-  1.424205 seconds (31 allocations: 637.191 MiB, 2.13% gc time)
-  1.968549 seconds (30 allocations: 637.191 MiB, 17.39% gc time)
-  1.404866 seconds (31 allocations: 637.191 MiB, 2.23% gc time)
-  2.208358 seconds (30 allocations: 637.191 MiB, 15.41% gc time)
-  1.386154 seconds (31 allocations: 637.191 MiB, 2.24% gc time)
-  1.929617 seconds (30 allocations: 637.191 MiB, 17.78% gc time)
-  1.393956 seconds (31 allocations: 637.191 MiB, 2.22% gc time)
-  1.924552 seconds (30 allocations: 637.191 MiB, 18.25% gc time)
-  1.386608 seconds (31 allocations: 637.191 MiB, 2.21% gc time)
-  1.918955 seconds (30 allocations: 637.191 MiB, 17.69% gc time)
-  1.400165 seconds (31 allocations: 637.191 MiB, 2.48% gc time)
-  2.006897 seconds (30 allocations: 637.191 MiB, 16.93% gc time)
-  1.391849 seconds (31 allocations: 637.191 MiB, 2.27% gc time)
-  2.017571 seconds (30 allocations: 637.191 MiB, 14.86% gc time)
-  1.404067 seconds (31 allocations: 637.191 MiB, 2.36% gc time)
-  2.216072 seconds (30 allocations: 637.191 MiB, 15.44% gc time)
-  1.443861 seconds (31 allocations: 637.191 MiB, 2.20% gc time)
-  1.944061 seconds (30 allocations: 637.191 MiB, 17.59% gc time)
-  1.419891 seconds (31 allocations: 637.191 MiB, 2.46% gc time)
-  1.972453 seconds (30 allocations: 637.191 MiB, 17.71% gc time)
-  1.416200 seconds (31 allocations: 637.191 MiB, 2.53% gc time)
-  1.898662 seconds (30 allocations: 637.191 MiB, 15.98% gc time)
-  1.375893 seconds (31 allocations: 637.191 MiB, 2.48% gc time)
-  3.436335 seconds (30 allocations: 1.244 GiB, 0.54% gc time)
-  2.766790 seconds (31 allocations: 1.244 GiB, 3.21% gc time)
-  3.035754 seconds (30 allocations: 1.244 GiB, 0.62% gc time)
-  2.901985 seconds (31 allocations: 1.244 GiB, 3.01% gc time)
-  3.161274 seconds (30 allocations: 1.244 GiB, 0.60% gc time)
-  2.848306 seconds (31 allocations: 1.244 GiB, 3.08% gc time)
-  3.316671 seconds (30 allocations: 1.244 GiB, 0.55% gc time)
-  2.812542 seconds (31 allocations: 1.244 GiB, 3.10% gc time)
-  2.816012 seconds (30 allocations: 1.244 GiB, 0.53% gc time)
-  2.968117 seconds (31 allocations: 1.244 GiB, 3.01% gc time)
-  2.777846 seconds (30 allocations: 1.244 GiB, 0.43% gc time)
-  3.018738 seconds (31 allocations: 1.244 GiB, 3.15% gc time)
-  2.976799 seconds (30 allocations: 1.244 GiB, 0.40% gc time)
-  2.961251 seconds (31 allocations: 1.244 GiB, 3.08% gc time)
-  3.173725 seconds (30 allocations: 1.244 GiB, 0.51% gc time)
-  3.175190 seconds (31 allocations: 1.244 GiB, 2.77% gc time)
-  3.254174 seconds (30 allocations: 1.244 GiB, 0.56% gc time)
-  2.838970 seconds (31 allocations: 1.244 GiB, 3.23% gc time)
-  2.863411 seconds (30 allocations: 1.244 GiB, 0.61% gc time)
-  3.146585 seconds (31 allocations: 1.244 GiB, 2.87% gc time)
-  3.413090 seconds (30 allocations: 1.244 GiB, 0.63% gc time)
-  2.888774 seconds (31 allocations: 1.244 GiB, 3.43% gc time)
-  2.911423 seconds (30 allocations: 1.244 GiB, 0.63% gc time)
-  2.989872 seconds (31 allocations: 1.244 GiB, 3.06% gc time)
-  3.083256 seconds (30 allocations: 1.244 GiB, 0.43% gc time)
-  2.858693 seconds (31 allocations: 1.244 GiB, 3.12% gc time)
-  2.799600 seconds (30 allocations: 1.244 GiB, 0.49% gc time)
-  3.006983 seconds (31 allocations: 1.244 GiB, 3.01% gc time)
-  2.935104 seconds (30 allocations: 1.244 GiB, 0.48% gc time)
-  2.946840 seconds (31 allocations: 1.244 GiB, 3.27% gc time)
-  2.978338 seconds (30 allocations: 1.244 GiB, 0.46% gc time)
-  2.946926 seconds (31 allocations: 1.244 GiB, 3.06% gc time)
-  2.818245 seconds (30 allocations: 1.244 GiB, 0.53% gc time)
-  2.991006 seconds (31 allocations: 1.244 GiB, 3.10% gc time)
-  3.055553 seconds (30 allocations: 1.244 GiB, 0.48% gc time)
-  2.875049 seconds (31 allocations: 1.244 GiB, 3.45% gc time)
-  3.073203 seconds (30 allocations: 1.244 GiB, 0.46% gc time)
-  2.856152 seconds (31 allocations: 1.244 GiB, 3.33% gc time)
-  2.800630 seconds (30 allocations: 1.244 GiB, 0.49% gc time)
-  3.001985 seconds (31 allocations: 1.244 GiB, 3.07% gc time)
-  3.420430 seconds (30 allocations: 1.244 GiB, 0.60% gc time)
-  2.874786 seconds (31 allocations: 1.244 GiB, 3.34% gc time)
-  2.797396 seconds (30 allocations: 1.244 GiB, 0.55% gc time)
-  3.095501 seconds (31 allocations: 1.244 GiB, 2.84% gc time)
-  3.087595 seconds (30 allocations: 1.244 GiB, 0.51% gc time)
-  2.867172 seconds (31 allocations: 1.244 GiB, 3.30% gc time)
-  3.157817 seconds (30 allocations: 1.244 GiB, 0.70% gc time)
-  3.008718 seconds (31 allocations: 1.244 GiB, 3.13% gc time)
-  3.089785 seconds (30 allocations: 1.244 GiB, 0.50% gc time)
-  2.869125 seconds (31 allocations: 1.244 GiB, 3.28% gc time)
-  2.800527 seconds (30 allocations: 1.244 GiB, 0.55% gc time)
-  3.014660 seconds (31 allocations: 1.244 GiB, 3.04% gc time)
-  3.040725 seconds (30 allocations: 1.244 GiB, 0.61% gc time)
-  3.138494 seconds (31 allocations: 1.244 GiB, 3.05% gc time)
-  3.083454 seconds (30 allocations: 1.244 GiB, 0.59% gc time)
-  2.817967 seconds (31 allocations: 1.244 GiB, 3.50% gc time)
-  2.809603 seconds (30 allocations: 1.244 GiB, 0.64% gc time)
-  3.011525 seconds (31 allocations: 1.244 GiB, 3.12% gc time)
-  2.937267 seconds (30 allocations: 1.244 GiB, 0.75% gc time)
-  2.964060 seconds (31 allocations: 1.244 GiB, 3.50% gc time)
-  3.456657 seconds (30 allocations: 1.244 GiB, 0.84% gc time)
-  2.919414 seconds (31 allocations: 1.244 GiB, 3.63% gc time)
-  2.812872 seconds (30 allocations: 1.244 GiB, 0.72% gc time)
-  2.895943 seconds (31 allocations: 1.244 GiB, 3.34% gc time)
-  3.013414 seconds (30 allocations: 1.244 GiB, 0.79% gc time)
-  2.927767 seconds (31 allocations: 1.244 GiB, 3.33% gc time)
-  3.311345 seconds (30 allocations: 1.244 GiB, 0.84% gc time)
-  2.871515 seconds (31 allocations: 1.244 GiB, 3.21% gc time)
-  2.983400 seconds (30 allocations: 1.244 GiB, 0.99% gc time)
-  2.994953 seconds (31 allocations: 1.244 GiB, 3.15% gc time)
-  3.184289 seconds (30 allocations: 1.244 GiB, 0.97% gc time)
-  3.089969 seconds (31 allocations: 1.244 GiB, 3.50% gc time)
-  3.273230 seconds (30 allocations: 1.244 GiB, 0.97% gc time)
-  2.889063 seconds (31 allocations: 1.244 GiB, 3.35% gc time)
-  3.053433 seconds (30 allocations: 1.244 GiB, 1.06% gc time)
-  2.932594 seconds (31 allocations: 1.244 GiB, 3.36% gc time)
-  2.974432 seconds (30 allocations: 1.244 GiB, 0.77% gc time)
-  2.984719 seconds (31 allocations: 1.244 GiB, 3.37% gc time)
-  2.973045 seconds (30 allocations: 1.244 GiB, 0.64% gc time)
-  2.825693 seconds (31 allocations: 1.244 GiB, 2.93% gc time)
-  2.835901 seconds (30 allocations: 1.244 GiB, 0.74% gc time)
-  3.017378 seconds (31 allocations: 1.244 GiB, 2.98% gc time)
-  2.934080 seconds (30 allocations: 1.244 GiB, 0.77% gc time)
-  2.977755 seconds (31 allocations: 1.244 GiB, 3.37% gc time)
-  3.169591 seconds (30 allocations: 1.244 GiB, 0.68% gc time)
-  2.963783 seconds (31 allocations: 1.244 GiB, 3.47% gc time)
-  2.892592 seconds (30 allocations: 1.244 GiB, 0.77% gc time)
-  3.099687 seconds (31 allocations: 1.244 GiB, 3.33% gc time)
-  3.018868 seconds (30 allocations: 1.244 GiB, 0.73% gc time)
-  2.958267 seconds (31 allocations: 1.244 GiB, 3.44% gc time)
-  3.130122 seconds (30 allocations: 1.244 GiB, 0.82% gc time)
-  2.917477 seconds (31 allocations: 1.244 GiB, 3.55% gc time)
-  2.990985 seconds (30 allocations: 1.244 GiB, 0.74% gc time)
-  2.959722 seconds (31 allocations: 1.244 GiB, 3.28% gc time)
-  3.100243 seconds (30 allocations: 1.244 GiB, 0.75% gc time)
-  2.895432 seconds (31 allocations: 1.244 GiB, 3.35% gc time)
-  2.835349 seconds (30 allocations: 1.244 GiB, 0.83% gc time)
-  3.005601 seconds (31 allocations: 1.244 GiB, 3.52% gc time)
-  2.837910 seconds (30 allocations: 1.244 GiB, 0.77% gc time)
-  2.923886 seconds (31 allocations: 1.244 GiB, 3.32% gc time)
-  3.190811 seconds (30 allocations: 1.244 GiB, 0.92% gc time)
-  2.915116 seconds (31 allocations: 1.244 GiB, 3.59% gc time)
-  3.209567 seconds (30 allocations: 1.244 GiB, 1.06% gc time)
-  3.166087 seconds (31 allocations: 1.244 GiB, 3.07% gc time)
-  3.460763 seconds (30 allocations: 1.244 GiB, 1.02% gc time)
-  2.973101 seconds (31 allocations: 1.244 GiB, 3.66% gc time)
-  3.040676 seconds (30 allocations: 1.244 GiB, 1.26% gc time)
-  3.101505 seconds (31 allocations: 1.244 GiB, 3.28% gc time)
-  3.333441 seconds (30 allocations: 1.244 GiB, 1.03% gc time)
-  2.943248 seconds (31 allocations: 1.244 GiB, 3.59% gc time)
-  3.103784 seconds (30 allocations: 1.244 GiB, 1.12% gc time)
-  3.100493 seconds (31 allocations: 1.244 GiB, 3.28% gc time)
-  2.939697 seconds (30 allocations: 1.244 GiB, 0.95% gc time)
-  3.058801 seconds (31 allocations: 1.244 GiB, 3.42% gc time)
-  3.141562 seconds (30 allocations: 1.244 GiB, 0.76% gc time)
-  2.949326 seconds (31 allocations: 1.244 GiB, 3.48% gc time)
-  3.038745 seconds (30 allocations: 1.244 GiB, 0.80% gc time)
-  2.946880 seconds (31 allocations: 1.244 GiB, 3.44% gc time)
-  3.141178 seconds (30 allocations: 1.244 GiB, 0.76% gc time)
-  3.005058 seconds (31 allocations: 1.244 GiB, 3.75% gc time)
+Processing WMT for all regions using instantaneous snapshots...
+Processing WMT for region: total
+Processing chunk ending at: 452.0
+  Processing timestep 6 of 6
+Processing chunk ending at: 452.5
+  Processing timestep 1 of 6
+  Processing timestep 2 of 6
+  Processing timestep 3 of 6
+  Processing timestep 4 of 6
+  Processing timestep 5 of 6
+  Processing timestep 6 of 6
+Processing chunk ending at: 453.0
+  Processing timestep 1 of 6
+  Processing timestep 2 of 6
+  Processing timestep 3 of 6
+  Processing timestep 4 of 6
+  Processing timestep 5 of 6
+  Processing timestep 6 of 6
+Processing chunk ending at: 453.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 454.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 454.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 455.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 455.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 456.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 456.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 457.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Saved WMT results for total to: /scratch/bcpi/cliu28/internal-tide-mixing/output/tilt/WMT_total_tᶠ=457.0_#bintervals=17_instantaneous.nc
+Processing WMT for region: canyon
+Processing chunk ending at: 452.0
+  Processing timestep 6 of 6
+Processing chunk ending at: 452.5
+  Processing timestep 1 of 6
+  Processing timestep 2 of 6
+  Processing timestep 3 of 6
+  Processing timestep 4 of 6
+  Processing timestep 5 of 6
+  Processing timestep 6 of 6
+Processing chunk ending at: 453.0
+  Processing timestep 1 of 6
+  Processing timestep 2 of 6
+  Processing timestep 3 of 6
+  Processing timestep 4 of 6
+  Processing timestep 5 of 6
+  Processing timestep 6 of 6
+Processing chunk ending at: 453.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 454.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 454.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 455.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 455.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 456.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 456.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 457.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Saved WMT results for canyon to: /scratch/bcpi/cliu28/internal-tide-mixing/output/tilt/WMT_canyon_tᶠ=457.0_#bintervals=17_instantaneous.nc
+Processing WMT for region: flanks
+Processing chunk ending at: 452.0
+  Processing timestep 6 of 6
+Processing chunk ending at: 452.5
+  Processing timestep 1 of 6
+  Processing timestep 2 of 6
+  Processing timestep 3 of 6
+  Processing timestep 4 of 6
+  Processing timestep 5 of 6
+  Processing timestep 6 of 6
+Processing chunk ending at: 453.0
+  Processing timestep 1 of 6
+  Processing timestep 2 of 6
+  Processing timestep 3 of 6
+  Processing timestep 4 of 6
+  Processing timestep 5 of 6
+  Processing timestep 6 of 6
+Processing chunk ending at: 453.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 454.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 454.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 455.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 455.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 456.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 456.5
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Processing chunk ending at: 457.0
+  Processing timestep 1 of 12
+  Processing timestep 2 of 12
+  Processing timestep 3 of 12
+  Processing timestep 4 of 12
+  Processing timestep 5 of 12
+  Processing timestep 6 of 12
+  Processing timestep 7 of 12
+  Processing timestep 8 of 12
+  Processing timestep 9 of 12
+  Processing timestep 10 of 12
+  Processing timestep 11 of 12
+  Processing timestep 12 of 12
+Saved WMT results for flanks to: /scratch/bcpi/cliu28/internal-tide-mixing/output/tilt/WMT_flanks_tᶠ=457.0_#bintervals=17_instantaneous.nc
+All WMT processing complete!

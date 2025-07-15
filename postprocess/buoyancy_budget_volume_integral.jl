@@ -54,34 +54,6 @@ simname = "flat"
 θ = simname == "tilt" ? 0.0036 : 0
 tᶠ = 460
 N=0.001
-# Decompose advection term
-# <∇⋅(uB)> = <u⋅∇B> = <u>⋅∇<B> + <u'⋅∇B'>
-filename_budget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget-wb.nc")
-ds_budget = Dataset(filename_budget,"r")
-
-if simname == "tilt"
-        filename_B = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_B-c.nc")
-        ds_B = Dataset(filename_B,"r")
-        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_const_dt_u-v-w-Rig.nc")
-        ds_field = Dataset(filename_field,"r")
-        t = ds_field["time"][:];
-        filename_const_dt = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=460_threeD_timeavg_const_dt_Bbudget-wb-eps-chi.nc"
-        ds_const_dt = Dataset(filename_const_dt,"r")
-else
-        filename_field = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_u-v-w-B-c.nc")
-        ds_field = Dataset(filename_field,"r")
-        filename_budget = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_timeavg_Bbudget-wb.nc")
-        ds_budget = Dataset(filename_budget,"r")
-        t = ds_budget["time"][:];
-end
-filename_3D = string("output/", simname, "/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_threeD_B-c.nc")
-ds_3D = Dataset(filename_3D,"r")
-t_3D = ds_3D["time"][:];
-xC = ds_field["xC"][:]; dx = diff(xC)[1]
-yC = ds_field["yC"][:]; dy = diff(yC)[1]
-zC = ds_field["zC"][:]
-# b = ds["b_avg"][:,:]
-# what_avg = ds["what_avg"][:,:]
 
 Lx = 15e3
 Ly = 30e3
