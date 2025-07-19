@@ -161,8 +161,8 @@ function initialize_internal_tide(
     # set tracer and particles
     if output_mode == "analysis"
         # tracer initial distribution
-        x_center_cart = 0
-        y_center_cart = 500 # in meters
+        x_center_cart = 0.25 * Lx # in meters
+        y_center_cart = 0.5 * Ly # in meters
         if analysis_round == 1
             z_center_cart = 1000
         elseif analysis_round == "all"
@@ -193,25 +193,54 @@ function initialize_internal_tide(
             # after 451.5, since we are picking up from a checkpoint file, there is no need to 
             # exclude the out-of-bounds particles (may cause particles number inconsistency). 
             # Applying periodic boundary conditions to particles is necessary; when apply periodic bounds, no vertical criterion
-            # is applied as well
+            # is applied as well. 
+            # 
         apply_periodic_bounds = tᶠ == 451.5 * 2π / ω₀ ? false : true 
-        Nparticles = 499829 # number of particles to generate (this is the number of particles in the checkpoint file of 452.5)
-        # particles are released at 1000 m above the bottom, which is about z=967 m
-        x₀, y₀, z₀ = gaussian_particle_generator(
-            Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
-            x_center_ratio=0.25, y_center_ratio=0.5, z_center=z_center_cart,
-            σ_x=σ_x, σ_y=σ_y, σ_z=σ_z, apply_periodic_bounds=apply_periodic_bounds)
-        b = 1e-5 * ones(Float64, Int(length(x₀)))
-        b = architecture == GPU() ? CuArray(b) : b
 
-        lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
         # all tracers and particles
         if tᶠ <= 451*2π/ω₀ # before 451, the model is still spinning up from the FFT solver, so we don't need c and paritcles
             tracers = (; b=CenterField(grid))
             particles = nothing
+
         elseif tᶠ > 451*2π/ω₀ # beyond 451 and included, we will always need c and particles    
+            Nparticles = 499829 # number of particles to generate (this is the number of particles in the checkpoint file of 452.5)
+            # particles are released at 1000 m above the bottom, which is about z=967 m
+            x₀, y₀, z₀ = gaussian_particle_generator(
+                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
+                x_center_ratio=0.25, y_center_ratio=0.5, z_center=z_center_cart,
+                σ_x=σ_x, σ_y=σ_y, σ_z=σ_z, apply_periodic_bounds=apply_periodic_bounds)
+            b = 1e-5 * ones(Float64, Int(length(x₀)))
+            b = architecture == GPU() ? CuArray(b) : b
             tracers = (; b=CenterField(grid), c=CenterField(grid))
             # Define tracked fields as a NamedTuple
+            lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
+            tracked_fields = (; b=tracers.b)
+            particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
+
+        elseif tᶠ > 458*2π/ω₀ && simname=="tilt"  # after 458, we want to generate additional particles at the original points and continue tracking the previous particles
+            Nparticles = 499829 # number of particles to generate (this is the number of particles in the checkpoint file of 452.5)
+            x₀1, y₀1, z₀1 = gaussian_particle_generator(
+                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
+                x_center_ratio=0.25, y_center_ratio=0.5, z_center=z_center_cart,
+                σ_x=σ_x, σ_y=σ_y, σ_z=σ_z, apply_periodic_bounds=apply_periodic_bounds)
+            b1 = 1e-5 * ones(Float64, Int(length(x₀1)))
+            b1 = architecture == GPU() ? CuArray(b1) : b1
+            # additional to the particles that have already traveled, create additional particles at the original point
+            # to compare with the new tracer release at original point
+            x₀2, y₀2, z₀2 = gaussian_particle_generator(
+                250000, Lx, Nx, Ly, Ny, z_interp, architecture, H;
+                x_center_ratio=0.25, y_center_ratio=0.5, z_center=z_center_cart,
+                σ_x=σ_x, σ_y=σ_y, σ_z=σ_z, apply_periodic_bounds=apply_periodic_bounds)
+            b2 = 1e-5 * ones(Float64, Int(length(x₀2)))
+            b2 = architecture == GPU() ? CuArray(b2) : b2
+            # concatenate both sets of particles
+            x₀ = vcat(x₀1, x₀2)
+            y₀ = vcat(y₀1, y₀2)
+            z₀ = vcat(z₀1, z₀2)
+            b = vcat(b1, b2)
+            tracers = (; b=CenterField(grid), c=CenterField(grid))
+            # Define tracked fields as a NamedTuple
+            lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
             tracked_fields = (; b=tracers.b)
             particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
         end
@@ -295,16 +324,26 @@ function initialize_internal_tide(
         if tᶠ <= 451*2π/ω₀ # without c and particles 
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
-        elseif tᶠ < 452*2π/ω₀ # still without c and particles
-                # we start from the simple save: find the last checkpoint file (doesn't matter if there is no c and particles or not)
+        elseif tᶠ < 452*2π/ω₀ 
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
                 set!(model, c=cᵢ)
-        elseif tᶠ >= 452*2π/ω₀  # c and particles are present in the checkpoint file
+        elseif tᶠ <= 458*2π/ω₀  # c and particles are present in the checkpoint file
+                checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
+                set!(model, checkpoint_file)
+        elseif tᶠ == 458.5*2π/ω₀ && simname == "tilt"
+                checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
+                set!(model, checkpoint_file) 
+                # reset initial condition for c (set to the correct position)
+                set!(model, c=cᵢ)
+        elseif tᶠ > 458.5*2π/ω₀  # no need to reset c, just use the checkpoint file to set initial condition
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
         end
     end
+
+
+
     ## Configure simulation
     Δt = 12
     # Δt = (1/N)*0.03
@@ -371,7 +410,7 @@ function initialize_internal_tide(
 
         if analysis_round !== "all"
             #1)first round output 
-            checkpoint_interval = 0.2 * 2π / ω₀
+            checkpoint_interval = 0.6 * 2π / ω₀
             threeD_diags_avg = (; b=b)
             slice_diags = (; B=B, uhat=û)
         elseif analysis_round == "all"

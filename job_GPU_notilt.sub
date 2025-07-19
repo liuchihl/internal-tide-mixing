@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="notilt" 
-#SBATCH --output="output_message/notilt_450.5.out.%j.%N.out"
+#SBATCH --output="output_message/notilt_451.5.out.%j.%N.out"
 #SBATCH --partition=gpuH200x8
 #SBATCH --mem=36G
 #SBATCH --nodes=1
@@ -14,7 +14,7 @@
 #SBATCH --mail-type="BEGIN,END" 
 ##SBATCH --exclusive  # dedicated node for this job
 ##SBATCH --no-requeue
-#SBATCH -t 48:00:00
+#SBATCH -t 30:00:00
 
 
 module restore internal-tide
