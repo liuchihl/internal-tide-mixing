@@ -202,7 +202,7 @@ function initialize_internal_tide(
             tracers = (; b=CenterField(grid))
             particles = nothing
 
-        elseif tᶠ > 451*2π/ω₀ # beyond 451 and included, we will always need c and particles    
+        elseif tᶠ <= 458*2π/ω₀ # beyond 451 and included, we will always need c and particles    
             Nparticles = 499829 # number of particles to generate (this is the number of particles in the checkpoint file of 452.5)
             # particles are released at 1000 m above the bottom, which is about z=967 m
             x₀, y₀, z₀ = gaussian_particle_generator(
@@ -332,10 +332,13 @@ function initialize_internal_tide(
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
         elseif tᶠ == 458.5*2π/ω₀ && simname == "tilt"
+                @info "Before loading checkpoint: $(length(model.particles.properties.x)) particles"
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file) 
+                @info "After loading checkpoint: $(length(model.particles.properties.x)) particles"
                 # reset initial condition for c (set to the correct position)
                 set!(model, c=cᵢ)
+                
         elseif tᶠ > 458.5*2π/ω₀  # no need to reset c, just use the checkpoint file to set initial condition
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
