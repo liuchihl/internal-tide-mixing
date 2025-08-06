@@ -80,12 +80,21 @@ function process_time_period(tᶠ_list, period_name, n_particles_to_load, simnam
     for tᶠ in tᶠ_list
         @info "Loading raw data for time $tᶠ"
         data = load_particle_data(; simname, z_center_particle=z_center_particle, tᶠ=tᶠ)
-        
-        push!(all_raw_x, data["x"][1:n_particles_to_load,:])
-        push!(all_raw_y, data["y"][1:n_particles_to_load,:])
-        push!(all_raw_z, data["z"][1:n_particles_to_load,:])
-        push!(all_raw_b, data["b"][1:n_particles_to_load,:])
-        push!(all_raw_time, data["time"][:])
+        if tᶠ < "458.5"
+            push!(all_raw_x, data["x"][1:n_particles_to_load,:])
+            push!(all_raw_y, data["y"][1:n_particles_to_load,:])
+            push!(all_raw_z, data["z"][1:n_particles_to_load,:])
+            push!(all_raw_b, data["b"][1:n_particles_to_load,:])
+            push!(all_raw_time, data["time"][:])
+        else
+            # after 458.5, there are additional 25000 particles added 
+            push!(all_raw_x, hcat(data["x"][1:n_particles_to_load,:], data["x"][end-25000+1:end,:]))
+            push!(all_raw_y, hcat(data["y"][1:n_particles_to_load,:], data["y"][end-25000+1:end,:]))
+            push!(all_raw_z, hcat(data["z"][1:n_particles_to_load,:], data["z"][end-25000+1:end,:]))
+            push!(all_raw_b, hcat(data["b"][1:n_particles_to_load,:], data["b"][end-25000+1:end,:]))
+            push!(all_raw_time, data["time"][:])
+
+        end
     end
     
     # Concatenate data
@@ -324,7 +333,7 @@ z_center_particle = 1000
 
 # Split time periods based on particle count change
 tᶠ_early = ["451.5","452.0", "452.5", "453.0", "453.5", "454.0", "454.5", "455.0", "455.5", "456.0", "456.5", "457.0", "457.5", "458.0"]
-tᶠ_late = ["458.5"]  # Add more time steps as needed
+tᶠ_late = ["458.5","459.0","459.5","460.0","460.5","461.0","461.5","462.0"]  # Add more time steps as needed
 
 θ = simname == "tilt" ? 0.0036 : 0
 
@@ -348,11 +357,11 @@ xC = ds["x_caa"][:];
 close(ds)
 
 # Process both time periods
-@info "=== Processing Early Period (451.5-458.0) ==="
-early_issues = process_time_period(tᶠ_early, "early", 499774, simname, z_center_particle, θ, B̄, ΔB, xC, zC, Lx, Ly, N)
+# @info "=== Processing Early Period (451.5-458.0) ==="
+# early_issues = process_time_period(tᶠ_early, "early", 499774, simname, z_center_particle, θ, B̄, ΔB, xC, zC, Lx, Ly, N)
 
 @info "=== Processing Late Period (458.5+) ==="
-late_issues = process_time_period(tᶠ_late, "late", 499774 + 25000, simname, z_center_particle, θ, B̄, ΔB, xC, zC, Lx, Ly, N)
+late_issues = process_time_period(tᶠ_late, "late", 499774, simname, z_center_particle, θ, B̄, ΔB, xC, zC, Lx, Ly, N)
 
 @info "=== SUMMARY ==="
 @info "Early period: $early_issues wrapping issues"
