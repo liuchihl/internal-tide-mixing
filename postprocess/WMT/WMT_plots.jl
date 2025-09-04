@@ -2,39 +2,102 @@
 using NCDatasets
 using NaNStatistics
 # load data
-simname = "flat"
+simname = "tilt"
 θ = simname == "tilt" ? 3.6e-3 : 0
-tᶠ = 460 
+tᶠ = 457.0 
 
-ds_total = Dataset(string("output/",simname,"/WMT_total_tᶠ=",tᶠ,".nc"),"r")
-∇κ∇B_t = nanmean(ds_total["∇κ∇B_t"][:,:,1:2:end],dim=3)
-#  div_uB_t = ds_total["div_uB_t"][:,:,1:2:end]
+# 5 TP average
+# total
+ds_total = Dataset(string("output/",simname,"/WMT_total_tᶠ=",tᶠ,"_#bintervals=17_instantaneous.nc"),"r")
+∇κ∇B_t = nanmean(ds_total["∇κ∇B_t"][:,:,1:end],dim=3)  # [z_TF, b_bin]
+∇κ∇B_b_t = nanmean(ds_total["∇κ∇B_b_t"][:,:],dim=2)    # [b_bin]
 #1) finding the positive values of ∇κ∇B_t would be one way 
-# E_BBL_t = sum(ifelse.(∇κ∇B_t.>0.0, ∇κ∇B_t, 0.0))*1e-3
-# E_SML_t = sum(ifelse.(∇κ∇B_t.<0.0, ∇κ∇B_t, 0.0))*1e-3
+SML_first = findfirst(nanmean(∇κ∇B_t,dim=2) .< 0.0)  # find the first negative value in the mean profile
+SML_end = SML_first + findfirst(nanmean(∇κ∇B_t[SML_first:end,:],dim=2) .>0) - 2
+E_BBL_t = nansum(nanmean(∇κ∇B_t[1:SML_first-1,:],dim=2))*1e-3
+E_SML_t = nansum(nanmean(∇κ∇B_t[SML_first:SML_end,:],dim=2))*1e-3
 #2) 
-E_BBL_t = sum(nanmean(∇κ∇B_t[1:3,:],dim=2))*1e-3
-E_SML_t = sum(nanmean(ifelse.(∇κ∇B_t[4:29,:].<0.0, ∇κ∇B_t[4:29,:], 0.0),dim=2))*1e-3
+# E_BBL_t = sum(nanmean(∇κ∇B_t[1:3,:],dim=2))*1e-3
+# E_SML_t = sum(nanmean(ifelse.(∇κ∇B_t[4:29,:].<0.0, ∇κ∇B_t[4:29,:], 0.0),dim=2))*1e-3
 
-ds_canyon = Dataset(string("output/",simname,"/WMT_canyon_tᶠ=",tᶠ,".nc"),"r")
-∇κ∇B_c = nanmean(ds_canyon["∇κ∇B_t"][:,:,1:2:end],dim=3)
-#  div_uB_c = ds_canyon["div_uB_t"][:,:,1:2:end]
-# E_BBL_c = sum(ifelse.(∇κ∇B_c.>0.0, ∇κ∇B_c, 0.0))*1e-3
-# E_SML_c = sum(ifelse.(∇κ∇B_c.<0.0, ∇κ∇B_c, 0.0))*1e-3
-E_BBL_c = sum(nanmean(∇κ∇B_c[1:3,:],dim=2))*1e-3
-E_SML_c = sum(nanmean(ifelse.(∇κ∇B_c[4:29,:].<0.0, ∇κ∇B_c[4:29,:], 0.0),dim=2))*1e-3
+ds_canyon = Dataset(string("output/",simname,"/WMT_canyon_tᶠ=",tᶠ,"_#bintervals=17_instantaneous.nc"),"r")
+∇κ∇B_c = nanmean(ds_canyon["∇κ∇B_t"][:,:,1:end],dim=3)
+∇κ∇B_b_c = nanmean(ds_canyon["∇κ∇B_b_t"][:,:],dim=2)
+SML_first = findfirst(nanmean(∇κ∇B_c,dim=2) .< 0.0)  # find the first negative value in the mean profile
+SML_end = SML_first + findfirst(nanmean(∇κ∇B_c[SML_first:end,:],dim=2) .>0) - 2
+E_BBL_c = nansum(nanmean(∇κ∇B_c[1:SML_first-1,:],dim=2))*1e-3
+E_SML_c = nansum(nanmean(∇κ∇B_c[SML_first:SML_end,:],dim=2))*1e-3
 
+ds_flank = Dataset(string("output/",simname,"/WMT_flanks_tᶠ=",tᶠ,"_#bintervals=17_instantaneous.nc"),"r")
+∇κ∇B_f = nanmean(ds_flank["∇κ∇B_t"][:,:,1:end],dim=3)
+∇κ∇B_b_f = nanmean(ds_flank["∇κ∇B_b_t"][:,:],dim=2)
+SML_first = findfirst(nanmean(∇κ∇B_f,dim=2) .< 0.0)  # find the first negative value in the mean profile
+SML_end = SML_first + findfirst(nanmean(∇κ∇B_f[SML_first:end,:],dim=2) .>0) - 2
+E_BBL_f = nansum(nanmean(∇κ∇B_f[1:SML_first-1,:],dim=2))*1e-3
+E_SML_f = nansum(nanmean(∇κ∇B_f[SML_first:SML_end,:],dim=2))*1e-3
 
-ds_flank = Dataset(string("output/",simname,"/WMT_flanks_tᶠ=",tᶠ,".nc"),"r")
-∇κ∇B_f = nanmean(ds_flank["∇κ∇B_t"][:,:,1:2:end],dim=3)
-# E_BBL_f = sum(ifelse.(∇κ∇B_f.>0.0, ∇κ∇B_f, 0.0))*1e-3
-# E_SML_f = sum(ifelse.(∇κ∇B_f.<0.0, ∇κ∇B_f, 0.0))*1e-3
-#  div_uB_f = ds_flank["div_uB_t"][:,:,1:2:end]
-E_BBL_f = sum(nanmean(∇κ∇B_f[1:3,:],dim=2))*1e-3
-E_SML_f = sum(nanmean(ifelse.(∇κ∇B_f[4:29,:].<0.0, ∇κ∇B_f[4:29,:], 0.0),dim=2))*1e-3
-
-hab = ds_total["bin_center1"][:]
+t = ds_total["t"][:]
+z_TF = ds_total["bin_center1"][:]
 b_bin = ds_total["bin_center2"][:]
+
+
+
+## plot pcolor of ∇κ∇B_t
+using PyPlot
+close(gcf())
+# Create a figure with three subplots
+fig, axs = subplots(1, 3, figsize=(9, 3), sharey=true, constrained_layout=true)
+
+# Total plot
+pc1 = axs[1].pcolor(b_bin*1e3, z_TF, ∇κ∇B_t[:,:]*1e-3, cmap="RdBu_r", shading="auto")
+pc1.set_clim((-5e2, 5e2).*1e-3)
+axs[1].set_title("Total")
+axs[1].set_xlabel("Buoyancy (×10⁻³ m/s²)")
+axs[1].set_ylabel("HAB (m)")
+
+# Canyon plot
+pc2 = axs[2].pcolor(b_bin*1e3, z_TF, ∇κ∇B_c[:,:]*1e-3, cmap="RdBu_r", shading="auto")
+pc2.set_clim((-5e2, 5e2).*1e-3)
+axs[2].set_title("Canyon")
+axs[2].set_xlabel("Buoyancy (×10⁻³ m/s²)")
+
+# Flank plot
+pc3 = axs[3].pcolor(b_bin*1e3, z_TF, ∇κ∇B_f[:,:]*1e-3, cmap="RdBu_r", shading="auto")
+pc3.set_clim((-5e2, 5e2).*1e-3)
+axs[3].set_title("Flanks")
+axs[3].set_xlabel("Buoyancy (×10⁻³ m/s²)")
+
+# Add colorbar
+cbar = fig.colorbar(pc1, ax=axs, orientation="vertical", pad=0.01, shrink=0.8)
+cbar.set_label(L"\mathcal{E}~\mathrm{(HAB,B)} [m Sv]")
+subplots_adjust(left=0.08, right=0.85, wspace=0.1)
+
+gcf()
+savefig(string("output/", simname, "/∇κ∇B_comparison.png"), dpi=250)
+
+
+
+### plot profiles of WMT vs buoyancy 
+using PyPlot
+using Statistics
+close(gcf())
+# Create a figure and an array of subplots
+figure(figsize=(7, 3.2))  # 1 row, 2 columns
+plot(∇κ∇B_b_t*1e-3, b_bin, label="", color=[71,147,175]./255, marker=".",markersize=4)
+plot(∇κ∇B_b_c*1e-3, b_bin, label="", color=[136,194,115]./255, linestyle="--", marker=".",markersize=4)
+plot(∇κ∇B_b_f*1e-3, b_bin, label="", color=[255,41,41]./255, linestyle=":", marker=".",markersize=4)
+xlabel("∇κ∇B [m³/s]")
+ylabel("Buoyancy [m/s²]")
+legend(["Total","Canyon","Flanks"], loc="upper left")
+grid(true)
+# ylim(-0.001,0.001)
+tight_layout()
+gcf()
+savefig(string("output/",simname,"/water_mass_transformation_buoyancy",".png"),dpi=250)
+
+
+
+## profiles of WMT vs HAB 
 Ly = 30e3
 Lx = Ly/2
 A = Lx*Ly
@@ -47,27 +110,21 @@ fig, axs = subplots(1, 2, figsize=(7, 3.2))  # 1 row, 2 columns
 
 colors = [150 148 255;136 194 115;255 41 41]./255
 
-# line2,=axs.plot(-dropdims(mean(div_uB_t,dims=2),dims=(2))*1e-3, hab, label="", color="red", linestyle="-",marker="",markersize=3)
-# lin2,=axs[1].plot(dropdims(mean(∇κ∇B_t,dims=2),dims=(2))*1e-3, hab, label="", color=colors[1,:], marker=".",markersize=2, alpha=0.5)
-line1,=axs[1].plot(nanmean(∇κ∇B_t,dim=2)*1e-3, hab, label="", color=colors[1,:], marker=".",markersize=4)
-
-# line4,=axs.plot(-dropdims(mean(div_uB_c,dims=2),dims=(2))*1e-3*1/3, hab, label="", color="red", linestyle="--", marker="",markersize=3)
-line3,=axs[1].plot(nanmean(∇κ∇B_c,dim=2)*1e-3, hab, label="", color=colors[2,:], linestyle="--", marker=".",markersize=4)
-
-# # line6,=axs.plot(-dropdims(mean(div_uB_f,dims=2),dims=(2))*1e-3./(2/3*A), hab, label="", color="red", linestyle=":", marker="",markersize=3)
-line5,=axs[1].plot(nanmean(∇κ∇B_f,dim=2)*1e-3, hab, label="", linestyle=":", color=colors[3,:], marker=".",markersize=4)
+line1,=axs[1].plot(nanmean(∇κ∇B_t,dim=2)*1e-3, z_TF, label="", color=colors[1,:], marker=".",markersize=4)
+line2,=axs[1].plot(nanmean(∇κ∇B_c,dim=2)*1e-3, z_TF, label="", color=colors[2,:], linestyle="--", marker=".",markersize=4)
+line3,=axs[1].plot(nanmean(∇κ∇B_f,dim=2)*1e-3, z_TF, label="", linestyle=":", color=colors[3,:], marker=".",markersize=4)
 axs[1].set_ylabel("HAB [m]")
-axs[1].set_xlabel(L"\langle\overline{\mathcal{E}^{diff}}\rangle~[mSv]")
+axs[1].set_xlabel(L"\langle\overline{\delta\mathcal{E}}\rangle_B~\mathrm{[mSv~per~8~m~bin]}")
 # axs[1].legend([line1, line3], title=L"\mathcal{E}^{diff}",
 # ["Total","Canyon"], loc="upper right")
-axs[1].legend([line1, line3, line5],
-["Total","Canyon","Flanks"], loc="upper left")
+axs[1].legend([line1, line2, line3],
+["Total","Canyon","Flanks"], loc="upper right", fontsize=8)
 axs[1].grid(true)
 axs[1].set_ylim(0,800)
 # axs[1].minorticks_on()
 axs[1].set_xscale("symlog", linthresh=10^(0))
-
-# plot histogram only includes the bottom boundary layer
+# Add (a) label to the first subplot
+axs[1].text(0.05, 0.95, "(a)", transform=axs[1].transAxes, fontsize=10, va="top")
 
 # Calculate BBL contribution after the plot
 # ∇κ∇B_t_BBL = mean(sum(mean(∇κ∇B_t[1:2,:,:],dims=3)*1e-3,dims=1))
@@ -80,23 +137,29 @@ sml_data = .-[E_SML_t, E_SML_c*3, E_SML_f*3/2]
 
 # Set up x positions for the bars
 x = [1, 2, 3]
-width = 0.35
+width = 0.26
 labels = ["Total", "Canyon", "Flanks"]
-
 # Create the side-by-side bar plot
-axs[2].bar(x .- width/2, bbl_data, width, label=L"\overline{\mathcal{E}^{diff}_{BBL}}\times A/A_\mathcal{R}", edgecolor="black", color=colors, alpha=1)
-axs[2].bar(x .+ width/2, sml_data, width, label=L"-\overline{\mathcal{E}^{diff}_{SML}}\times A/A_\mathcal{R}", edgecolor="black", color=colors, alpha=0.5)
+bars1 = axs[2].bar(x .- width/2, bbl_data, width, edgecolor="black", color=colors, alpha=1)
+bars2 = axs[2].bar(x .+ width/2, sml_data, width, edgecolor="black", color=colors, alpha=0.5)
+
+using PyCall
+patches = pyimport("matplotlib.patches")
+
+# Create legend patches 
+patch1 = patches.Patch(color="black", alpha=1, edgecolor="none")
+patch2 = patches.Patch(color="black", alpha=0.4, edgecolor="none")
 
 # Configure the plot
 axs[2].set_xticks(x)
 axs[2].set_xticklabels(labels)
-# axs[2].set_title(L"Water Mass Transformation [mSv]")
-axs[2].legend(loc="center left")
-axs[2].set_ylabel("Water Mass Transformation [mSv]")
-# data2 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL/(1/3)]
-# data1 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL,∇κ∇B_f_BBL]
-# data2 = [∇κ∇B_t_BBL,∇κ∇B_c_BBL/(1/3),∇κ∇B_f_BBL/(2/3)]
-labels = ["Total","Canyon","Flanks"]
+axs[2].legend([patch1, patch2], 
+[L"\sum_{\substack{\text{HAB} \\ \text{bins}}}\langle\overline{\delta\mathcal{E}_{BBL}}\rangle_B\times \frac{\mathcal{A}}{\mathcal{A}_\mathcal{R}}",
+ L"-\sum_{\substack{\text{HAB} \\ \text{bins}}}\langle\overline{\delta\mathcal{E}_{SML}}\rangle_B\times \frac{\mathcal{A}}{\mathcal{A}_\mathcal{R}}"],              loc="upper center", fontsize=8, edgecolor="black", facecolor="none", frameon=false, framealpha=1)
+axs[2].set_ylabel("[mSv]")
+# Add (b) label to the second subplot
+axs[2].text(0.05, 0.95, "(b)", transform=axs[2].transAxes, fontsize=10, va="top")
+
 # labels = ["Total","Canyon"]
 # bar1=axs[2].bar(labels, data2, edgecolor = "black",color=colors,alpha=0.2)
 # bar2=axs[2].bar(labels, data1, edgecolor = "black",color=colors,alpha=1, width=0.5)
@@ -104,11 +167,10 @@ labels = ["Total","Canyon","Flanks"]
 # axs[2].set_ylim(0,220)
 # axs[2].legend([bar1[1],bar2[1]],[L"\mathcal{E}_{BBL}^{diff}\times A_R/A",L"\mathcal{E}_{BBL}^{diff}"],loc="upper left")
 
-
+axs[2].set_ylim(0, 200)
 tight_layout()
 gcf()   
 savefig(string("output/",simname,"/water_mass_transformation_diffusive_flux",".png"),dpi=250)
-
 
     # Create a quick pcolor plot of ∇κ∇B_t[:,:,1]
     # bin_center2 = (b_bin[1:end-1] .+ b_bin[2:end]) ./ 2

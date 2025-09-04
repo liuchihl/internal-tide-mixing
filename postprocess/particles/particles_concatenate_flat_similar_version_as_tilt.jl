@@ -56,9 +56,9 @@ end
 
 # --- Main Processing ---
 
-simname = "tilt"
+simname = "flat"
 z_center_particle = 1000
-θ = simname == "tilt" ? 0.0036 : 0
+θ = 0
 Lx = 15kilometers
 Nx = 500
 Ny = 1000
@@ -67,18 +67,13 @@ N = 1e-3
 Lz = 2.25kilometers
 
 # File time lists
-tᶠ_all = ["451.5", "452.0", "452.5", "453.0", "453.5", "454.0", "454.5", "455.0", "455.5", "456.0", "456.5", "457.0", "457.5", "458.0",
-    "458.5", "459.0", "459.5", "460.0", "460.5", "461.0", "461.5", "462.0"]
-tᶠ_early = tᶠ_all[1:14]   # 451.5 to 458.0
-tᶠ_late = tᶠ_all[15:end]  # 458.5 to 462.0
-
+tᶠ_all = ["451.5", "452.0", "452.5", "453.0", "453.5", "454.0", "454.5", "455.0", "455.5", "456.0"]
 # Particle counts
-n_main = 499774
-n_new = 25000
+n_main = 499574
 
 # Load grid data for buoyancy calculation
 @info "Loading grid data for buoyancy calculation..."
-filename = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ_early[1], "_analysis_round=all_threeD.nc")
+filename = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ_all[1], "_analysis_round=all_threeD.nc")
 ds = Dataset(filename, "r")
 zC = ds["z_aac"][:];
 xC = ds["x_caa"][:];
@@ -103,9 +98,6 @@ end
 
 @info "Total timesteps: $total_timesteps"
 
-# Calculate timesteps for late period
-late_start_idx = 15  # Index where 458.5 starts
-total_timesteps_late = sum(timesteps_per_file[late_start_idx:end])
 
 # --- Preallocate arrays for all particles and timesteps ---
 main_x = Array{Float64}(undef, n_main, total_timesteps)
@@ -114,17 +106,10 @@ main_z = similar(main_x)
 main_b = similar(main_x)
 main_time = Vector{Float64}(undef, total_timesteps)
 
-new_x = Array{Float64}(undef, n_new, total_timesteps_late)
-new_y = similar(new_x)
-new_z = similar(new_x)
-new_b = similar(new_x)
-new_time = Vector{Float64}(undef, total_timesteps_late)
-
 # --- Load and concatenate data ---
 @info "Loading and concatenating all particle data..."
 
 global current_idx = 1
-global current_late_idx = 1
 
 for (file_idx, tᶠ) in enumerate(tᶠ_all)
     @info "Loading file $file_idx/$length(tᶠ_all): $tᶠ"
@@ -139,17 +124,6 @@ for (file_idx, tᶠ) in enumerate(tᶠ_all)
     main_z[:, idx_range] = data["z"][1:n_main, :]
     main_b[:, idx_range] = data["b"][1:n_main, :]
     main_time[idx_range] = data["time"][:]
-
-    # New particles (only for files from 458.5 onward)
-    if file_idx >= late_start_idx
-        late_idx_range = current_late_idx:(current_late_idx+n_steps-1)
-        new_x[:, late_idx_range] = data["x"][end-n_new+1:end, :]
-        new_y[:, late_idx_range] = data["y"][end-n_new+1:end, :]
-        new_z[:, late_idx_range] = data["z"][end-n_new+1:end, :]
-        new_b[:, late_idx_range] = data["b"][end-n_new+1:end, :]
-        new_time[late_idx_range] = data["time"][:]
-        global current_late_idx += n_steps
-    end
 
     global current_idx += n_steps
 end
@@ -217,20 +191,15 @@ end
 @info "Unwrapping and adjusting main particles..."
 main_unwrap_x, main_unwrap_y, main_unwrap_z, main_x_cart, main_y_cart, main_z_cart, main_B = unwrap_and_adjust!(main_x, main_y, main_z, main_b, B̄, ΔB, xC, zC, Lx, Ly, θ)
 
-@info "Unwrapping and adjusting new particles..."
-new_unwrap_x, new_unwrap_y, new_unwrap_z, new_x_cart, new_y_cart, new_z_cart, new_B = unwrap_and_adjust!(new_x, new_y, new_z, new_b, B̄, ΔB, xC, zC, Lx, Ly, θ)
-
 # --- Save to NetCDF ---
 
-output_file = string("output/", simname, "/concatenated_particle_data_z", z_center_particle, "_all.nc")
+output_file = string("output/", simname, "/concatenated_particle_data_z_flat_", z_center_particle, "_all.nc")
 @info "Saving all particles to $output_file"
 ds_output = NCDataset(output_file, "c")
 
 # Dimensions
 ds_output.dim["main_particle"] = n_main
-ds_output.dim["new_particle"] = n_new
 ds_output.dim["time"] = total_timesteps
-ds_output.dim["late_time"] = total_timesteps_late
 
 # Main particles (1:499774, all times)
 defVar(ds_output, "main_x_unwrapped", Float64, ("main_particle", "time"))[:] = main_unwrap_x
@@ -242,16 +211,6 @@ defVar(ds_output, "main_z_cartesian", Float64, ("main_particle", "time"))[:] = m
 defVar(ds_output, "main_buoyancy", Float64, ("main_particle", "time"))[:] = main_B
 defVar(ds_output, "main_time", Float64, ("time",))[:] = main_time
 
-# New particles (499775:524774, late times only)
-defVar(ds_output, "new_x_unwrapped", Float64, ("new_particle", "late_time"))[:] = new_unwrap_x
-defVar(ds_output, "new_y_unwrapped", Float64, ("new_particle", "late_time"))[:] = new_unwrap_y
-defVar(ds_output, "new_z_unwrapped", Float64, ("new_particle", "late_time"))[:] = new_unwrap_z
-defVar(ds_output, "new_x_cartesian", Float64, ("new_particle", "late_time"))[:] = new_x_cart
-defVar(ds_output, "new_y_cartesian", Float64, ("new_particle", "late_time"))[:] = new_y_cart
-defVar(ds_output, "new_z_cartesian", Float64, ("new_particle", "late_time"))[:] = new_z_cart
-defVar(ds_output, "new_buoyancy", Float64, ("new_particle", "late_time"))[:] = new_B
-defVar(ds_output, "new_time", Float64, ("late_time",))[:] = new_time
-
 # Attributes
 ds_output.attrib["title"] = "Concatenated Particle Data (main: 1-499774, new: 499775-524774)"
 ds_output.attrib["simulation"] = simname
@@ -262,9 +221,7 @@ ds_output.attrib["Ly"] = Ly
 ds_output.attrib["N"] = N
 ds_output.attrib["time_range"] = "$(tᶠ_all[1]) to $(tᶠ_all[end])"
 ds_output.attrib["main_particles"] = n_main
-ds_output.attrib["new_particles"] = n_new
 ds_output.attrib["main_time_steps"] = total_timesteps
-ds_output.attrib["late_time_steps"] = total_timesteps_late
 
 close(ds_output)
 @info "✓ All particles saved successfully to $output_file"

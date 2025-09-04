@@ -75,7 +75,7 @@ fig, ax = subplots(1, 1, figsize=(14, 8))
 
 c1 = ax.pcolor(xC[:], zC[:], ψ', cmap="coolwarm")
 c1.set_clim(-3,3)  # Set color limits for the contourf
-c1.extend="both"
+
 colorbar(c1, label="ψ [m³ s⁻¹]", extend="both")
 # Color limits are already set in the contourf call
 c2 = ax.contour(xC[:], zC[:], ψ', levels=-72:1:32, colors=[63 43 43] ./ 255, linewidth=0.8, linestyles="-")

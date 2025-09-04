@@ -172,7 +172,7 @@ function initialize_internal_tide(
         σ_y = 1000
         σ_z = 50
         C = 1.0  # Amplitude of the tracer concentration at the center
-
+        
         # Create a function that takes tilted coordinates (x', y', z') and returns concentration
         function cᵢ(x_tilted, y_tilted, z_tilted)
             # Transform tilted coordinates back to Cartesian coordinates

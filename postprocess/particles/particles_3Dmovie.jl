@@ -3,39 +3,46 @@ using MAT
 using NCDatasets
 using NaNStatistics
 using Interpolations
+using CairoMakie
+using ColorSchemes
+using Statistics
+using Printf
 # load topography and transform it into Cartesian coordinates
 file = matopen("topo.mat")
-z_topo = read(file, "z_noslope_periodic") 
+z_topo = read(file, "z_noslope_periodic")
 x_topo = read(file, "x_domain")
 y_topo = read(file, "y_domain")
 # grids has to be evenly spaced
-x_topo_lin = range(x_topo[1],x_topo[end],size(z_topo,1))
-y_topo_lin = range(y_topo[1],y_topo[end],size(z_topo,2))
+x_topo_lin = range(x_topo[1], x_topo[end], size(z_topo, 1))
+y_topo_lin = range(y_topo[1], y_topo[end], size(z_topo, 2))
 close(file)
+Nx = 500
+Ny = 1000
+θ = 0.0036
 # high-resolution grids
-x_interp = range(x_topo[1],x_topo[end], length=Nx)
-y_interp = range(y_topo[1],y_topo[end], length=Ny)
+x_interp = range(x_topo[1], x_topo[end], length=Nx)
+y_interp = range(y_topo[1], y_topo[end], length=Ny)
 
 # Interpolation object (caches coefficients and such)
 itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 # Interpolate z_topo onto a higher-resolution grid
 z_interp = [itp(x, y) for x in x_interp, y in y_interp]
-z_interp = z_interp.-minimum(z_interp)
+z_interp = z_interp .- minimum(z_interp)
 
 # create an extended topography
-dx_interp = x_interp[2]-x_interp[1]
-dy_interp = y_interp[2]-y_interp[1]
+dx_interp = x_interp[2] - x_interp[1]
+dy_interp = y_interp[2] - y_interp[1]
 Lx_interp = x_interp[end]
 Ly_interp = y_interp[end]
 
-x_interp_ext = vcat(x_interp[3Nx÷4:Nx].-Lx_interp.-dx_interp, x_interp, x_interp.+ Lx_interp.+dx_interp, x_interp.+2Lx_interp.+dx_interp)
-y_interp_ext = vcat(y_interp, y_interp.+ Ly_interp.+dy_interp)
-z_interp_ext = vcat(z_interp[3Nx÷4:Nx,:], z_interp, z_interp, z_interp )
+x_interp_ext = vcat(x_interp[3Nx÷4:Nx] .- Lx_interp .- dx_interp, x_interp, x_interp .+ Lx_interp .+ dx_interp, x_interp .+ 2Lx_interp .+ dx_interp)
+y_interp_ext = vcat(y_interp, y_interp .+ Ly_interp .+ dy_interp)
+z_interp_ext = vcat(z_interp[3Nx÷4:Nx, :], z_interp, z_interp, z_interp)
 z_interp_ext = vcat(z_interp_ext', z_interp_ext')'
 
 ## transform the topography into Cartesian coordinates
 # create a meshgrid
-X_interp_ext = repeat(x_interp_ext, 1, length(y_interp_ext)) 
+X_interp_ext = repeat(x_interp_ext, 1, length(y_interp_ext))
 Y_interp_ext = repeat(y_interp_ext', length(x_interp_ext), 1)
 Z_interp_ext = z_interp_ext
 # Transform topography to Cartesian coordinates
@@ -43,31 +50,35 @@ X_cart_interp_ext = X_interp_ext .* cos(θ) .- Z_interp_ext .* sin(θ)
 Y_cart_interp_ext = Y_interp_ext  # y-coordinate is unchanged
 Z_cart_interp_ext = X_interp_ext .* sin(θ) .+ Z_interp_ext .* cos(θ)
 
-
+simname = "tilt"
+z_center_particle = 1000  # depth at which particles are initialized
 # Now plot the animation using the saved data
-output_file = string("output/", simname, "/concatenated_particle_data_z", z_center_particle, ".nc")
+output_file = string("output/", simname, "/concatenated_particle_data_z", z_center_particle, "_all.nc")
 @info "Loading concatenated data for animation..."
 ds = NCDataset(output_file, "r")
-x_cart_full = ds["x_cartesian"][:,:]
-y_cart_full = ds["y_cartesian"][:,:]
-z_cart_full = ds["z_cartesian"][:,:]
-B_full = ds["buoyancy"][:,:]
+x_cart_full = ds["x_cartesian"][:, :]
+y_cart_full = ds["y_cartesian"][:, :]
+z_cart_full = ds["z_cartesian"][:, :]
+B_full = ds["buoyancy"][:, :]
+B_pert = B_full .- B_full[:, 1]  # Subtract initial buoyancy to get perturbation
 time_full = ds["time"][:]
 close(ds)
+B_full = nothing # Free memory
+GC.gc()  # Force garbage collection to free memory
 
 # Create a 3D figure for topography and particle trajectories
-fig = CairoMakie.Figure(resolution = (1200, 800), 
-                       layout = GridLayout(1, 2, width_ratios = [0.85, 0.15]))
+fig = CairoMakie.Figure(resolution=(1200, 800),
+    layout=GridLayout(1, 2, width_ratios=[0.85, 0.15]))
 
-ax = Axis3(fig[1, 1], 
-           xlabel = "X (m)", 
-           ylabel = "Y (m)", 
-           zlabel = "Z (m)",
-           title = "3D Particle Trajectories",
-           aspect = (3, 4, 0.6),
-           limits = (minimum(X_cart_interp_ext), maximum(X_cart_interp_ext), 
-                     minimum(Y_cart_interp_ext), maximum(Y_cart_interp_ext), 
-                     minimum(Z_cart_interp_ext), maximum(Z_cart_interp_ext)))
+ax = Axis3(fig[1, 1],
+    xlabel="X (m)",
+    ylabel="Y (m)",
+    zlabel="Z (m)",
+    title="3D Particle Trajectories",
+    aspect=(3, 4, 0.6),
+    limits=(minimum(X_cart_interp_ext), maximum(X_cart_interp_ext),
+        minimum(Y_cart_interp_ext), maximum(Y_cart_interp_ext),
+        minimum(Z_cart_interp_ext), maximum(Z_cart_interp_ext)))
 
 # Create a nested layout for the colorbars
 cbar_layout = GridLayout(2, 1)
@@ -75,23 +86,23 @@ fig[1, 2] = cbar_layout
 
 # Plot the terrain surface (static - only once)
 full_cmap = ColorSchemes.terrain.colors
-custom_cmap = full_cmap[1:floor(Int, 1*length(full_cmap))]
+custom_cmap = full_cmap[1:floor(Int, 1 * length(full_cmap))]
 
-# surface!(ax, X_cart_interp_ext, Y_cart_interp_ext, Z_cart_interp_ext, 
-#          colormap = :terrain,
-#          shading = NoShading,
-#          transparency = false)
+surface!(ax, X_cart_interp_ext, Y_cart_interp_ext, Z_cart_interp_ext,
+    colormap=:terrain,
+    shading=NoShading,
+    transparency=false)
 
 # Add static colorbars
-terrain_cbar = Colorbar(cbar_layout[1, 1], label="Terrain Elevation (m)", colormap=custom_cmap, 
-                       limits=(minimum(Z_cart_interp_ext), maximum(Z_cart_interp_ext)))
-particle_cbar = Colorbar(cbar_layout[2, 1], label="Particle Buoyancy (m/s²)", colormap=reverse(cgrad(:RdBu)), 
-                        limits=(0.001, 0.0013))
+terrain_cbar = Colorbar(cbar_layout[1, 1], label="Terrain Elevation (m)", colormap=custom_cmap,
+    limits=(minimum(Z_cart_interp_ext), maximum(Z_cart_interp_ext)))
+particle_cbar = Colorbar(cbar_layout[2, 1], label="ΔBᵖ (m/s²)", colormap=reverse(cgrad(:RdBu)),
+    limits=(-2e-5, 2e-5))
 
 # Define animation parameters
-n_particles, n_time_steps = size(x_cart_full) 
-n_frames = 1:5:n_time_steps  # Skip frames for speed
-trail_length = 8
+n_particles, n_time_steps = size(x_cart_full)
+n_frames = 1:n_time_steps  # Skip frames for speed
+trail_length = 6
 
 # Pre-calculate camera angles for smooth rotation
 camera_angles = range(1.3π, 1.6π, length=length(n_frames))
@@ -100,94 +111,98 @@ camera_angles = range(1.3π, 1.6π, length=length(n_frames))
 current_frame = Observable(1)
 current_time_idx = Observable(n_frames[1])
 
+particle_sample = 1:5:n_particles
 # Observable for particle positions and colors
-particle_x = @lift(x_cart_full[:, $current_time_idx])
-particle_y = @lift(y_cart_full[:, $current_time_idx])
-particle_z = @lift(z_cart_full[:, $current_time_idx])
-particle_colors = @lift(B_full[:, $current_time_idx])
+particle_x = @lift(x_cart_full[particle_sample, $current_time_idx])
+particle_y = @lift(y_cart_full[particle_sample, $current_time_idx])
+particle_z = @lift(z_cart_full[particle_sample, $current_time_idx])
+particle_colors = @lift(B_pert[particle_sample, $current_time_idx])
 
 # Create main particle scatter plot
 particles = scatter!(ax, particle_x, particle_y, particle_z,
-                    color = particle_colors,
-                    markersize = 5,
-                    colormap = reverse(cgrad(:RdBu)),
-                    colorrange = (0.001, 0.0013))
-
-# Pre-allocate trail data structures for efficiency
-max_trail_points = n_particles * trail_length
-trail_x = Observable(Vector{Float64}(undef, 0))
-trail_y = Observable(Vector{Float64}(undef, 0))
-trail_z = Observable(Vector{Float64}(undef, 0))
-trail_colors = Observable(Vector{Float64}(undef, 0))
-trail_segments = Observable(Vector{Int}(undef, 0))
-
-# Create trail lines using linesegments for efficiency
-trail_lines = linesegments!(ax, 
-    @lift(Point3f.(zip($trail_x, $trail_y, $trail_z))),
-    color = trail_colors,
-    colormap = reverse(cgrad(:RdBu)),
-    colorrange = (0.001, 0.0013),
-    linewidth = 1.5,
-    transparency = true,
-    alpha = 0.6)
+    color=particle_colors,
+    markersize=3,
+    colormap=reverse(cgrad(:RdBu)),
+    colorrange=(-2e-5, 2e-5),
+    alpha=0.6)
 
 # Function to update trail data efficiently
-function update_trails!(time_idx)
-    # Clear previous trail data
-    empty!(trail_x.val)
-    empty!(trail_y.val)
-    empty!(trail_z.val)
-    empty!(trail_colors.val)
-    
-    # Calculate trail indices
-    start_idx = max(1, time_idx - trail_length + 1)
-    trail_indices = start_idx:time_idx
-    
-    if length(trail_indices) > 1
-        # Sample particles for performance (every 5th particle)
-        particle_sample = 1:n_particles
-        
-        for i in particle_sample
-            for j in 1:(length(trail_indices)-1)
-                # Add line segment
-                push!(trail_x.val, x_cart_full[i, trail_indices[j]])
-                push!(trail_y.val, y_cart_full[i, trail_indices[j]])
-                push!(trail_z.val, z_cart_full[i, trail_indices[j]])
-                push!(trail_colors.val, B_full[i, time_idx])
-                
-                push!(trail_x.val, x_cart_full[i, trail_indices[j+1]])
-                push!(trail_y.val, y_cart_full[i, trail_indices[j+1]])
-                push!(trail_z.val, z_cart_full[i, trail_indices[j+1]])
-                push!(trail_colors.val, B_full[i, time_idx])
-            end
+# Pre-allocate trail data structure
+max_trail_points = length(particle_sample) * trail_length
+trail_x = Observable(fill(NaN32, max_trail_points))
+trail_y = Observable(fill(NaN32, max_trail_points))
+trail_z = Observable(fill(NaN32, max_trail_points))
+trail_colors = Observable(fill(NaN32, max_trail_points))
+
+# Single trail plot object
+trail_plot = scatter!(ax, trail_x, trail_y, trail_z,
+    color=trail_colors,
+    markersize=1,
+    colormap=reverse(cgrad(:RdBu)),
+    colorrange=(-2e-5, 2e-5),
+    alpha=0.4)
+
+function update_trails_efficient!(time_idx)
+    point_idx = 1
+
+    for pid in particle_sample
+        start_idx = max(1, time_idx - trail_length + 1)
+        npts = time_idx - start_idx + 1
+        stop_idx = min(point_idx + npts - 1, max_trail_points)
+        nfill = stop_idx - point_idx + 1
+        if nfill <= 0
+            break
+        end
+
+        # Positions for this particle's trail
+        @inbounds begin
+            trail_x.val[point_idx:stop_idx] .= x_cart_full[pid, start_idx:start_idx + nfill - 1]
+            trail_y.val[point_idx:stop_idx] .= y_cart_full[pid, start_idx:start_idx + nfill - 1]
+            trail_z.val[point_idx:stop_idx] .= z_cart_full[pid, start_idx:start_idx + nfill - 1]
+            # Color: constant for the whole trail = particle color at current time
+            color_val = B_pert[pid, time_idx]
+            trail_colors.val[point_idx:stop_idx] .= color_val
+        end
+
+        point_idx = stop_idx + 1
+        if point_idx > max_trail_points
+            break
         end
     end
-    
-    # Notify observables
-    notify(trail_x)
-    notify(trail_y)
-    notify(trail_z)
-    notify(trail_colors)
-end
 
+    # Clear any remaining slots so old points don't linger
+    if point_idx <= max_trail_points
+        trail_x.val[point_idx:end] .= NaN32
+        trail_y.val[point_idx:end] .= NaN32
+        trail_z.val[point_idx:end] .= NaN32
+        trail_colors.val[point_idx:end] .= NaN32
+    end
+
+    # Notify observables of changes
+    notify(trail_x); notify(trail_y); notify(trail_z); notify(trail_colors)
+end
 # Create the animation
 @info "Starting animation creation..."
-record(fig, string("output/", simname, "/3D_particle_trajectories_efficient_z_center=", z_center_particle, ".mp4"), 
-       enumerate(n_frames); framerate = 20) do (frame_idx, time_idx)
-    
+record(fig, string("output/", simname, "/3D_particle_trajectories_efficient_z_center=", z_center_particle, ".mp4"),
+    enumerate(n_frames); framerate=20) do (frame_idx, time_idx)
+
     # Update time index
     current_time_idx[] = time_idx
-    
+
     # Update trails
-    update_trails!(time_idx)
-    
+    update_trails_efficient!(time_idx)
+
     # Update camera angle for smooth rotation
     ax.azimuth = camera_angles[frame_idx]
-    
+
     # Update title with current time
     current_time_hours = (time_full[time_idx] - time_full[1]) / 3600
     ax.title = @sprintf("Particle Movement at t = %.2f hours", current_time_hours)
-    
+    # Force garbage collection every 10 frames
+    if frame_idx % 10 == 0
+        GC.gc()
+        @info "Frame $frame_idx - Memory usage: $(Base.gc_live_bytes() / 1024^3) GB"
+    end
     @info "Processing frame $frame_idx/$length(n_frames) - Time: $time_idx/$n_time_steps (%.2f hours)" current_time_hours
 end
 
@@ -226,7 +241,7 @@ end
 #     Nx = 500
 #     Ny = 1000
 #     Nz = 250
-    
+
 #     # Bottom-intensified stretching for vertical grid
 #     z_faces(k) = - H * ((1 + ((Nz + 1 - k) / Nz - 1) / 1.2) * 
 #                         (1 - exp(-15 * (Nz + 1 - k) / Nz)) / (1 - exp(-15)) - 1)
@@ -237,13 +252,13 @@ end
 #            z = z_faces,
 #            halo = (4, 4, 4),
 #            topology = (Oceananigans.Periodic, Oceananigans.Periodic, Oceananigans.Bounded))
-           
+
 #     model = NonhydrostaticModel(
 #         grid = grid,
 #         background_fields = (; b=B̄_field),
 #         tracers = :b
 #     )
-    
+
 #     return interior(compute!(Field(model.background_fields.tracers.b)))[:,1,:]
 # end
 
@@ -251,10 +266,10 @@ end
 # function load_particle_data(; simname,depth=depth)
 #     θ = simname == "tilt" ? 0.0036 : 0
 #     tᶠ = "460"
-    
+
 #     filename_particles = string("output/",simname,"/internal_tide_theta=",θ,"_Nx=500_Nz=250_tᶠ=",tᶠ, "_particles_z=",Int(depth),".nc")
 #     ds_particles = Dataset(filename_particles,"r")
-    
+
 #     return Dict(
 #         "x" => ds_particles["x"][:,:],
 #         "y" => ds_particles["y"][:,:],
@@ -305,7 +320,7 @@ end
 #         dx = tilt_data["x"][i, j+1] - tilt_data["x"][i, j]
 #         dy = tilt_data["y"][i, j+1] - tilt_data["y"][i, j]
 #         dz = tilt_data["z"][i, j+1] - tilt_data["z"][i, j]
-        
+
 #         # Handle periodic crossing in x direction
 #         if dx > 0.5 * Lx  # Moved left-to-right across boundary
 #             dx -= Lx
@@ -318,29 +333,29 @@ end
 #         else
 #             n_crossings[i, j+1] = n_crossings[i, j]  # No crossing
 #         end
-        
+
 #         # Handle periodic crossing in y direction
 #         if dy > 0.5 * Ly  # Moved across boundary in y-direction
 #             dy -= Ly
 #         elseif dy < -0.5 * Ly
 #             dy += Ly
 #         end
-        
+
 #         # Update unwrapped positions
 #         unwrapped_x[i, j+1] = unwrapped_x[i, j] + dx
 #         unwrapped_y[i, j+1] = unwrapped_y[i, j] + dy
 #         unwrapped_z[i, j+1] = unwrapped_z[i, j] + dz
-        
+
 #         # Grid indices for background buoyancy
 #         ind_tilt_x = argmin(abs.(xC[:] .- tilt_data["x"][i, j]))
 #         ind_tilt_z = argmin(abs.(zC[:] .- tilt_data["z"][i, j]))
-        
+
 #         # Compute total buoyancy: background + perturbation + domain crossing increment
 #         B_tilt[i, j] = (B̄_tilt[ind_tilt_x, ind_tilt_z] + 
 #                         tilt_data["b"][i, j] + 
 #                         n_crossings[i, j] * ΔB)
 #     end
-    
+
 #     # Handle the last time step
 #     ind_tilt_x = argmin(abs.(xC[:] .- tilt_data["x"][i, end]))
 #     ind_tilt_z = argmin(abs.(zC[:] .- tilt_data["z"][i, end]))
@@ -448,32 +463,32 @@ end
 # function plot_concentration_histogram(c_data)
 #     # Flatten the array and remove NaN values
 #     c_flat = filter(!isnan, c_data[:])
-    
+
 #     # Create histogram figure
 #     hist_fig = Figure(resolution = (800, 600))
 #     hist_ax = Axis(hist_fig[1, 1], 
 #                   xlabel = "Concentration",
 #                   ylabel = "Frequency",
 #                   title = "Distribution of Tracer Concentration")
-    
+
 #     # Calculate appropriate bin range based on data
 #     # Define the bin range
 #     min_val = -0.05
 #     max_val = 0.05
-    
+
 #     # Create bins with explicit range
 #     bin_edges = range(min_val, max_val, length=41)  # 41 edges for 40 bins
-    
+
 #     # Plot histogram
 #     hist!(hist_ax, c_flat, bins = bin_edges)
-    
+
 #     # Add vertical lines at important values
 #     vlines!(hist_ax, 0, color = :red, linewidth = 2, label = "c = 0")
 #     # vlines!(hist_ax, 1, color = :blue, linewidth = 2, label = "c = 1")
-    
+
 #     # Add legend
 #     axislegend(hist_ax)
-    
+
 #     return hist_fig
 # end
 

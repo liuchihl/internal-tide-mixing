@@ -1040,6 +1040,147 @@ close(ds_mask)
 
 
 
+## plot analysis periods
+using Printf
+using Oceananigans
+using Oceananigans.Units
+using Oceananigans.TurbulenceClosures: VerticallyImplicitTimeDiscretization
+using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
+using CairoMakie
+using NCDatasets
+using Statistics
+using BSplineKit
+using LinearAlgebra
+using Interpolations
+
+function deriv(z,y)
+    dydz =  diff(y[:,:,:,:],dims=3)./reshape(diff(z[:]),1,1,length(zC)-1)
+    return dydz
+end
+ 
+# include("functions/mmderiv.jl")
+simname = "tilt"
+# time_points = [452.0, 452.5, 453.0, 453.5, 454.0, 454.5, 455.0, 455.5, 456.0, 456.5, 457.0, 458.0, 458.5, 459.0, 459.5, 460.0, 460.5, 461.0, 461.5]
+# time_points = [462.0]
+time_points = [455.0, 455.5, 456.0, 456.5, 457.0, 457.5, 458.0, 458.5, 459.0, 459.5, 460.0, 460.5, 461.0, 461.5, 462.0]
+
+# Initialize arrays to hold combined data
+B_all = []
+uhat_all = []
+what_all = []
+eps_all = []
+t_all = []
+
+# Load reference file for mask
+filename_mask = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",10,"_slices_xz.nc")
+ds_mask = Dataset(filename_mask,"r")
+b_mask = ds_mask["b"][:,:,:,:]; # for mask
+
+# Loop through each time point and load data
+for tᶠ in time_points
+    @info "Loading data for tᶠ = $tᶠ"
+    slice = string("output/",simname,"/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=",tᶠ,"_analysis_round=all_slices_xz.nc")
+    ds = Dataset(slice,"r")
+    
+    # Load data for this time point
+    B = ds["B"][:,:,:,:];
+    uhat = ds["uhat"][:,:,:,:];
+    what = ds["what"][:,:,:,:];
+    eps = ds["ε"][:,:,:,:];
+    
+    # Get time values for this file
+    t = ds["time"];
+    
+    # Set topography to NaN
+    uhat[uhat.==0] .= NaN
+    what[what.==0] .= NaN
+    eps[eps.==0] .= NaN
+    
+    # Apply mask based on the reference file
+    mask_size = min(size(b_mask, 4), size(B, 4))
+    B[b_mask[:,:,:,1:mask_size].==0] .= NaN
+    
+    # Store data
+    push!(B_all, B)
+    push!(uhat_all, uhat)
+    push!(what_all, what)
+    push!(eps_all, eps)
+    push!(t_all, t[:])
+    
+    close(ds)
+end
+
+# Concatenate all data arrays along the time dimension
+B_combined = cat(B_all..., dims=4)
+uhat_combined = cat(uhat_all..., dims=4)
+what_combined = cat(what_all..., dims=4)
+eps_combined = cat(eps_all..., dims=4)
+t_combined = vcat(t_all...)
+
+# Get grid information
+zC = ds_mask["zC"][:]; Nz=length(zC)
+zF = ds_mask["zF"][:]; 
+xC = ds_mask["xC"][:]; Nx=length(xC)
+xF = ds_mask["xF"][:];
+yC = ds_mask["yC"][:]; Ny=length(yC)
+
+# Set up visualization
+D = 250 # Depth limit for zoomed view
+n = Observable(1)
+uhatₙ = @lift(uhat_combined[:,1,1:D,$n])
+εₙ = @lift(log10.(eps_combined[:,1,1:D,$n]))
+Bₙ = @lift(B_combined[:,1,1:D,$n])
+
+ω₀ = 1.4e-4
+M₂_period = 2π/ω₀
+
+fig = CairoMakie.Figure(resolution = (1000, 700), figure_padding=(10, 40, 10, 10), size=(750,600))
+axis_kwargs = (xlabel = "Zonal distance x (m)",
+              ylabel = "Elevation z (m)",
+              limits = ((0, xF[end]), (0, zF[D+1])),
+             )
+
+title = @lift @sprintf("t=%1.2f M₂ tidal periods", t_combined[$n]/M₂_period)
+fig[1, :] = Label(fig, title, fontsize=20, tellwidth=false)
+
+ax_u = Axis(fig[2, 1]; title = "u with buoyancy contours", axis_kwargs...)
+ax_ε = Axis(fig[3, 1]; title = "TKE dissipation rate (log ε) with buoyancy contours", axis_kwargs...)
+
+U₀ = 0.025
+hm_u = heatmap!(ax_u, xC[:], zC[1:D], uhatₙ,
+    colorrange = (-0.09, 0.09), 
+    colormap = :diverging_bwr_20_95_c54_n256,
+    lowclip=cgrad(:diverging_bwr_20_95_c54_n256)[1], 
+    highclip=cgrad(:diverging_bwr_20_95_c54_n256)[end],
+    nan_color = :gray)
+ct_u = contour!(ax_u, xC, zC[1:D], Bₙ,
+    levels=0.:.5e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[2,2], hm_u; label = "u [m/s]")
+
+hm_ε = heatmap!(ax_ε, xC[:], zC[1:D], εₙ,
+    colorrange = (-10, -6), colormap = :rainbow_bgyrm_35_85_c69_n256,
+    lowclip=cgrad(:rainbow_bgyrm_35_85_c69_n256)[1], 
+    highclip=cgrad(:rainbow_bgyrm_35_85_c69_n256)[end],
+    nan_color = :gray)
+ct_ε = contour!(ax_ε, xC, zC[1:D], Bₙ,
+    levels=0.:.5e-4:4.e-3, linewidth=0.6, color=:black, alpha=0.5)
+Colorbar(fig[3,2], hm_ε; label = "log₁₀(ε) [m²/s³]")
+
+frames = 1:length(t_combined)
+
+output_filename = string("output/", simname, "/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=455-462.0_uhat_eps.mp4")
+println("Saving to $output_filename")
+record(fig, output_filename, frames, framerate=13) do i
+    @info "Plotting frame $i of $(frames[end])..."
+    n[] = i
+end
+
+close(ds_mask)
+
+
+
+
+
 
 ## now that I found a strange plume near the bottom, I want to test this behavior in the beginning of the simulation, see where it arises.
 

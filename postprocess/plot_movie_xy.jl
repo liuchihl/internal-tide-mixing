@@ -926,7 +926,7 @@ fig.attributes.margin = (20, 20, 20, 20)
 
 # Define which z-levels to include in animation - use a subset for clearer visualization
 # Ensure z_levels doesn't exceed the actual data dimensions
-max_z_level = min(180, length(zC))
+max_z_level = min(200, length(zC))
 z_levels = 1:2:max_z_level
 
 # Create the animation

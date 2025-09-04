@@ -69,7 +69,7 @@ z_interp = [itp(x, y) for x in x_interp, y in y_interp]
 z_interp = z_interp .- minimum(z_interp)
 
 # Create time array - these are the file time points
-t_files = 452.0:0.5:457.0
+t_files = 452.0:0.5:461.0
 
 # Load mask data once
 filename_verification = "output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=10_threeD_timeavg.nc"
@@ -490,6 +490,126 @@ record(fig, "output/tilt/w_per_layers_animation.mp4", 1:length(all_time_points);
             heatmaps[layer][1] = xC
             heatmaps[layer][2] = yC
             heatmaps[layer][3] = what_layers[:, :, layer]
+        end
+    catch e
+        println("Error processing frame $frame_idx: $e")
+    end
+end
+
+println("Animation complete!")
+
+
+
+## Rig
+function custom_colormap(min_val=-5e-7, max_val=2e-6)
+    # Calculate the zero point position in normalized space [0,1]
+    zero_point = -min_val / (max_val - min_val)
+    
+    # Create arrays of colors for smooth transitions
+    neg_colors = range(colorant"darkblue", colorant"lightblue", length=50)
+    neg_colors = vcat(neg_colors, range(colorant"lightblue", colorant"white", length=50))
+    pos_colors = range(colorant"white", colorant"yellow", length=50)
+    pos_colors = vcat(pos_colors, range(colorant"yellow", colorant"darkred", length=50))
+    
+    # Combine the colors into a single array
+    all_colors = vcat(neg_colors[1:end-1], pos_colors)
+    
+    # Create a colormap with proper scaling
+    return cgrad(all_colors, zero_point)
+end
+
+
+fig = CairoMakie.Figure(resolution=(1200, 800))
+layer_names = ["1st point above bottom", "2nd point above bottom", 
+              "3rd point above bottom", "4th point above bottom"]
+vmin = -0.5
+vmax = 0.5
+contour_levels = range(minimum(z_interp), maximum(z_interp), length=20)
+
+# Create axes for each layer
+axes_Ri = [Axis(fig[1, i]) for i in 1:4]
+
+# Configure axes
+for (i, ax) in enumerate(axes_Ri)
+    ax.title = layer_names[i]
+    ax.xlabel = "x (km)"
+    i == 1 && (ax.ylabel = "y (km)")
+    ax.aspect = DataAspect()
+end
+
+# Create title
+title_obj = Label(fig[0, :], "", fontsize=20)
+
+# Create initial heatmaps and contours
+heatmaps = []
+for i in 1:4
+    # Create initial empty heatmap
+    h = heatmap!(axes_Ri[i], [0, 1], [0, 1], zeros(2, 2),
+                colormap=custom_colormap(vmin, vmax), colorrange=(vmin, vmax))
+    push!(heatmaps, h)
+    
+    # Add contour lines for bathymetry
+    contour!(axes_Ri[i], x_interp/1e3, y_interp/1e3, z_interp,
+             levels=contour_levels, color=:black, linewidth=0.5, alpha=0.7)
+end
+
+# Add colorbar
+Colorbar(fig[1, 5], heatmaps[1], label="w (m s⁻¹)")
+
+# Collect all time points for animation
+all_time_points = []
+all_file_info = []
+
+for tf in t_files
+    filename = @sprintf("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=%.1f_analysis_round=all_threeD.nc", tf)
+    
+    try
+        ds = Dataset(filename, "r")
+        time_in_file = ds["time"][:]
+        close(ds)
+        
+        # Add all time points from this file
+        for (time_idx, t) in enumerate(time_in_file)
+            push!(all_time_points, t)
+            push!(all_file_info, (filename, time_idx))
+        end
+        
+        println("File $filename contains $(length(time_in_file)) time points")
+    catch e
+        println("Error reading file $filename: $e")
+    end
+end
+
+println("Total animation frames: $(length(all_time_points))")
+# length(all_time_points)
+# Create the animation
+record(fig, "output/tilt/Ri_per_layers_animation.mp4", 1:length(all_time_points); framerate=8) do frame_idx
+    t_current = all_time_points[frame_idx]
+    filename, time_idx = all_file_info[frame_idx]
+    
+    title_obj.text = @sprintf("Rig at Different Levels Above Bottom (t = %.2f)", t_current/(2*pi/1.4e-4))
+    println("Processing frame $frame_idx: t = $t_current (file: $(basename(filename)), time_idx: $time_idx)")
+    
+    try
+        ds = Dataset(filename, "r")
+        
+        # Load coordinates and data for the specific time index
+        zC = ds["z_aac"][:]
+        xC = ds["x_caa"][:]./1e3
+        yC = ds["y_aca"][:]./1e3
+        Rig = ds["Rig"][:, :, :, time_idx]  # Use the specific time index
+        Rig[Rig.==0] .= NaN          # mask out zero values at topography
+        close(ds)
+        
+        # Find first 4 valid points above bottom
+        Rig_layers = find_first_valid_points(Rig, b, 4)
+        
+        # Update each layer's plot
+        for layer in 1:4
+            # Update heatmap data
+            heatmaps[layer][1] = xC
+            heatmaps[layer][2] = yC
+            heatmaps[layer][3] = Rig_layers[:, :, layer]
         end
     catch e
         println("Error processing frame $frame_idx: $e")

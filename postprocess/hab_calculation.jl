@@ -32,7 +32,7 @@ z_interp = z_interp.-minimum(z_interp)
 
 
 # compute height above bottom
-hab = ones(Nx,Ny).*reshape(zC,1,1,Nz) .- z_interp  # height above bottom [Nx,Ny,Nz]
+hab = ones(Nx,Ny).*reshape(zC[:],1,1,Nz) .- z_interp  # height above bottom [Nx,Ny,Nz]
 
 # save hab into NetCDF file 
 # The mode "c" stands for creating a new file

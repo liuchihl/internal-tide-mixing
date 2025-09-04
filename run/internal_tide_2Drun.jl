@@ -30,7 +30,7 @@ const θ = 0#3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
-architecture=CPU()
+architecture=GPU()
 closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
 ## Simulation parameters
  H = 2.25kilometers # vertical extent
@@ -105,13 +105,13 @@ v_bcs = FieldBoundaryConditions(bottom = drag_bc_v, top = FluxBoundaryCondition(
 ∂B̄∂x = N^2*sin(θ)
 # In the following comments, ẑ=slope-normal unit vector and x̂=cross-slope unit vector
 B_bcs_immersed = ImmersedBoundaryCondition(
-        bottom = GradientBoundaryCondition(0), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
+        bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
           west = GradientBoundaryCondition(-∂B̄∂x), # ∇B⋅x̂ = 0 → ∂B∂x = 0 → ∂b∂x = -∂B̄∂x
           east = GradientBoundaryCondition(-∂B̄∂x)) # ∇B⋅x̂ = 0 → ∂B∂x = 0 → ∂b∂x = -∂B̄∂x
 
 B_bcs = FieldBoundaryConditions(
-          bottom = GradientBoundaryCondition(0), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
-             top = GradientBoundaryCondition(∂B̄∂z), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
+          bottom = GradientBoundaryCondition(-∂B̄∂z), # ∇B⋅ẑ = 0 → ∂B∂z = 0 → ∂b∂z = -∂B̄∂z
+             top = GradientBoundaryCondition(0), # ∇B⋅ẑ = ∂B̄∂ẑ → ∂b∂z = 0 and ∂b∂x = 0 (periodic)
         immersed = B_bcs_immersed);
 ## Notes:
 # (1) directions are defined relative to domain coordinates.
@@ -134,7 +134,8 @@ coriolis = ConstantCartesianCoriolis(f = f₀, rotation_axis = ĝ)
 Uᵣ = U₀ * ω₀^2/(ω₀^2 - f₀^2 - (N*sin(θ))^2) # quasi-resonant linear barotropic response
 uᵢ(x, z) = -Uᵣ
 vᵢ(x, z) = 0
-Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2, ĝ=ĝ)) + 1e-9*rand()   # background + perturbation (only works in flat)
+# Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2, ĝ=ĝ)) + 1e-9*rand()   # background + perturbation (only works in flat)
+bᵢ(x, z) = 1e-9*rand()   # background + perturbation (only works in flat)
 
 tol = 1e-9
     model = NonhydrostaticModel(
@@ -151,8 +152,9 @@ tol = 1e-9
         closure = closure,
         timestepper = :RungeKutta3,
         hydrostatic_pressure_anomaly = CenterField(grid),
-    )
-set!(model, b=Bᵢ, u=uᵢ, v=vᵢ)
+        background_fields = Oceananigans.BackgroundFields(; background_closure_fluxes=true, b=B̄_field),
+            )
+set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
 Δt = (1/N)*0.03
@@ -166,9 +168,9 @@ wizard = TimeStepWizard(cfl=0.5, diffusive_cfl=0.2)
 simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(10))
 
 # Diagnostics
-B = model.tracers.b
-# B̄ = model.background_fields.tracers.b
-# B = B̄ + b # total buoyancy field
+# B = model.tracers.b
+B̄ = model.background_fields.tracers.b
+B = B̄ + b # total buoyancy field
 u, v, w = model.velocities
 û = @at (Face, Center, Center) u*ĝ[3] - w*ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w*ĝ[3] + u*ĝ[1] # true vertical velocity
@@ -220,7 +222,7 @@ progress_message(s) = @info @sprintf("[%.2f%%], iteration: %d, time: %.3f, max|w
                             ,log_gpu_memory_usage())
 
 
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))
+simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δt))
 
 ## Run the simulation
 run!(simulation)

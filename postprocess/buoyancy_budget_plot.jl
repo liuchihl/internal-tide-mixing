@@ -182,10 +182,10 @@ dBdt_avg = ds["dBdt_avg"][:, :]
 using PyPlot
 # colors = [150 148 255;136 194 115;255 41 41]./255
 # Create a new figure
-fig, ax = plt.subplots(figsize=(6, 3))
+fig, ax = plt.subplots(figsize=(6, 4))
 
 # Set font size
-plt.rcParams["font.size"] = 22
+plt.rcParams["font.size"] = 25
 end_time = 1
 # Plot each time series
 ax.plot(dropdims(mean(u_bar_∇B_bar_avg[:, 1:end_time], dims=2), dims=2), z,
