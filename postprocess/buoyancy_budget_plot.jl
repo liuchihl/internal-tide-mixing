@@ -245,3 +245,106 @@ ax.tick_params(axis="x", which="minor", length=4, width=0.8)
 ax.tick_params(axis="x", which="major", length=7, width=1.0)
 
 save(string("output/tilt/Buoyancy_budget_hab_tᶠ=", tᶠ, "_decompose.png"), fig)
+
+
+
+
+### plot the 453-462 average profile of the buoyancy budget terms
+
+# plot the buoyancy budget terms
+# ∂B/∂t = -ũ⋅∇B - ∇⋅(-κ∇B)
+using NCDatasets
+using PyPlot
+using Statistics
+using NaNStatistics
+
+simname = "tilt"
+t_start = 453.0
+t_end = 462.0
+t_range = t_start:1.0:t_end
+
+# Initialize accumulators for each term and mask count
+div_uB_accum = nothing
+u_bar_∇B_bar_accum = nothing
+u_prime∇B_prime_accum = nothing
+dBdt_accum = nothing
+∇κ∇B_accum = nothing
+mask_count = nothing
+nfiles = 0
+
+for tᶠ in t_range
+    file = string("output/", simname, "/TF_avg_tᶠ=", tᶠ, "_analysis.nc")
+    ds = Dataset(file, "r")
+    # Load each region separately
+    div_uB_avg = hcat(ds["div_uB_avg_sill"][:, 1], ds["div_uB_avg_rest"][:, 1], ds["div_uB_avg_flanks"][:, 1])
+    u_bar_∇B_bar_avg = hcat(ds["u_bar_∇B_bar_avg_sill"][:, 1], ds["u_bar_∇B_bar_avg_rest"][:, 1], ds["u_bar_∇B_bar_avg_flanks"][:, 1])
+    u_prime∇B_prime_avg = hcat(ds["u_prime∇B_prime_avg_sill"][:, 1], ds["u_prime∇B_prime_avg_rest"][:, 1], ds["u_prime∇B_prime_avg_flanks"][:, 1])
+    dBdt_avg = hcat(ds["dBdt_avg_sill"][:, 1], ds["dBdt_avg_rest"][:, 1], ds["dBdt_avg_flanks"][:, 1])
+    ∇κ∇B_avg = hcat(ds["∇κ∇B_avg_sill"][:, 1], ds["∇κ∇B_avg_rest"][:, 1], ds["∇κ∇B_avg_flanks"][:, 1])
+    mask_sill = ds["mask_sill"][:,:]
+    mask_rest = ds["mask_rest"][:,:]
+    mask_flanks = ds["mask_flanks"][:,:]
+    # Count valid points in each region
+    n_sill = nansum(mask_sill)
+    n_rest = nansum(mask_rest)
+    n_flanks = nansum(mask_flanks)
+    mask_total = [n_sill, n_rest, n_flanks]
+    # Accumulate weighted sum and mask count for each depth
+    if div_uB_accum === nothing
+        ndepth = size(div_uB_avg, 1)
+        div_uB_accum = zeros(ndepth)
+        u_bar_∇B_bar_accum = zeros(ndepth)
+        u_prime∇B_prime_accum = zeros(ndepth)
+        dBdt_accum = zeros(ndepth)
+        ∇κ∇B_accum = zeros(ndepth)
+        mask_count = zeros(ndepth)
+    end
+    for r in 1:3
+        div_uB_accum .+= div_uB_avg[:, r] .* mask_total[r]
+        u_bar_∇B_bar_accum .+= u_bar_∇B_bar_avg[:, r] .* mask_total[r]
+        u_prime∇B_prime_accum .+= u_prime∇B_prime_avg[:, r] .* mask_total[r]
+        dBdt_accum .+= dBdt_avg[:, r] .* mask_total[r]
+        ∇κ∇B_accum .+= ∇κ∇B_avg[:, r] .* mask_total[r]
+        mask_count .+= mask_total[r]
+    end
+    nfiles += 1
+    close(ds)
+end
+
+# Average over all files and all valid points
+div_uB_mean = div_uB_accum ./ mask_count ./ nfiles
+u_bar_∇B_bar_mean = u_bar_∇B_bar_accum ./ mask_count ./ nfiles
+u_prime∇B_prime_mean = u_prime∇B_prime_accum ./ mask_count ./ nfiles
+dBdt_mean = dBdt_accum ./ mask_count ./ nfiles
+∇κ∇B_mean = ∇κ∇B_accum ./ mask_count ./ nfiles
+
+# Load z for plotting (from last file)
+ds = Dataset(string("output/", simname, "/TF_avg_tᶠ=", t_end, "_analysis.nc"), "r")
+z = ds["bin_center"][:]
+close(ds)
+
+fig, ax = plt.subplots(figsize=(6, 4))
+plt.rcParams["font.size"] = 25
+
+ax.plot(-u_bar_∇B_bar_mean, z, label=L"-\nabla\cdot(\overline{\mathbf{u}}\,\overline{B})", linestyle="-", color=[150, 148, 255] / 255, linewidth=2.5)
+ax.plot(-u_prime∇B_prime_mean, z, label=L"-\nabla\cdot\overline{\mathbf{u'} B'}", linestyle="-", color=[136, 194, 115] / 255, linewidth=2.5)
+ax.plot(-div_uB_mean, z, label=L"-\overline{\nabla\cdot(\mathbf{u}B)}", color="orange", linewidth=2.5)
+ax.plot(∇κ∇B_mean, z, label=L"-\nabla\cdot(\overline{\mathcal{B}})", color="red", linestyle="--", linewidth=3)
+ax.plot(-div_uB_mean .+ ∇κ∇B_mean, z, label="RHS", color="black", linewidth=2.5)
+ax.plot([0, 0], [0, 500], color="black", linewidth=1.5)
+ax.plot(dBdt_mean, z, label=L"\partial\overline{B}/\partial t", color="gray", linewidth=2.5, linestyle="--")
+
+ax.set_ylim(0, 500)
+ax.set_ylabel("HAB [m]")
+# ax.set_xscale("symlog", linthresh=1 * 10^(-9.8))
+# ax.set_xticks([-1e-9, -1e-10,0, 1e-10, 1e-9], 
+#            labels=[L"-10^{-9}", L"-10^{-10}","0",L"10^{-10}", L"10^{-9}"])
+# ax.set_xlim(-2e-9, 2e-9)
+ax.set_xlim(-.15e-9, .15e-9)
+ax.legend(loc="right", bbox_to_anchor=(1.01, 0.86), frameon=true, ncol=2, fontsize=12,
+        handlelength=1.4, columnspacing=0.9, framealpha=0.93)
+plt.tight_layout()
+# plt.show()
+
+PyPlot.savefig(string("output/tilt/Buoyancy_budget_hab_tidalavg_", t_start, "-", t_end, "_decompose.png"))
+println(string("Saved to output/tilt/Buoyancy_budget_hab_tidalavg_", t_start, "-", t_end, "_decompose.png"))
