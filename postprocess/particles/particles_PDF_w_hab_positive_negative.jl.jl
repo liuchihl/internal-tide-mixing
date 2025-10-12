@@ -103,150 +103,9 @@ GC.gc()
 
 
 
-
-## plot 3 panels (1x3): 
-# 1: is t=0, showing initial particle distribution with upper and lower half, using different colors
-# 2: shows the t=458.0 for the upper
-# 3: shows the t=458.0 for the lower
-# Clean up memory
-GC.gc()
-# create a 4-panel figure for topography and particle trajectories in terms of buoyancy perturbation
-# Create terrain colormap
-full_cmap = ColorSchemes.terrain.colors
-custom_cmap = full_cmap[1:floor(Int, 1 * length(full_cmap))]
-# Create a properly structured figure with 1 row, 4 columns (3 plots + 1 colorbar)
-fig = CairoMakie.Figure(resolution=(1200, 400))
-
-# Define the four evenly distributed time steps
-n_particles, n_time_steps = size(x_cart_full)
-subsample = 1:1:n_particles÷2
-
-# Calculate tidal period
-T_tidal = 2 * pi / 1.4e-4
-
-# Set consistent camera angle for all subplots
-# camera_azimuth = 1.7π
-# camera_elevation = 0.15π
-camera_azimuth = 1.0π
-camera_elevation = 0.1π
-
-# Create the three subplots in positions [1,1], [1,2], [1,3]
-ax1 = Axis3(fig[1, 1],
-    xlabel="x̂ [km]",
-    ylabel="y [km]",
-    zlabel="ẑ [m]",
-    title="t = 0 (Initial)",
-    aspect=(1, 1.4, 0.6),
-    limits=((0, 30e3), (0, 40e3), (0, 1500))
-)
-
-ax2 = Axis3(fig[1, 2],
-    xlabel="x̂ [km]",
-    ylabel="y [km]",
-    zlabel="ẑ [m]",
-    title="t = $(round(time_full[end]/T_tidal, digits=1))T (Lower half)",
-    aspect=(1, 1.4, 0.6),
-    limits=((0, 30e3), (0, 40e3), (0, 1500))
-)
-
-ax3 = Axis3(fig[1, 3],
-    xlabel="x̂ [km]",
-    ylabel="y [km]",
-    zlabel="ẑ [m]",
-    title="t = $(round(time_full[end]/T_tidal, digits=1))T (Upper half)",
-    aspect=(1, 1.4, 0.6),
-    limits=((0, 30e3), (0, 40e3), (0, 1500))
-)
-y_extend = 1347
-# Set consistent camera angles
-for ax in [ax1, ax2, ax3]
-    ax.azimuth = camera_azimuth
-    ax.elevation = camera_elevation
-    ax.xticks = ([0, 10, 20, 30] .* 1e3, ["0", "10", "20", "30"])
-    ax.yticks = ([0, 10, 20, 30, 40] .* 1e3, ["0", "10", "20", "30", "40"])
-
-    surface!(ax, X_cart_interp_ext[:, 1:y_extend], Y_cart_interp_ext[:, 1:y_extend], Z_cart_interp_ext[:, 1:y_extend],
-        colormap=:terrain,
-        shading=NoShading,
-        transparency=false,
-        alpha=0.8,
-        colorrange=(0, 1500))
-end
-
-# Plot data for each subplot
-# Panel 1: Initial distribution (both upper and lower)
-scatter!(ax1,
-    x_0_negative[:, 1],
-    y_0_negative[:, 1],
-    z_0_negative[:, 1],
-    color=B_pert_0_negative[:, end],
-    markersize=5,
-    alpha=0.7,
-    label=L"B^p(t_f) < B^p(t_0)",
-    colormap=reverse(cgrad(:RdYlGn)),
-    colorrange=(-2e-5, 2e-5)
-)
-
-scatter!(ax1,
-    x_0_positive[:, 1],
-    y_0_positive[:, 1],
-    z_0_positive[:, 1],
-    color=B_pert_0_positive[:, end],
-    markersize=5,
-    alpha=0.7,
-    label=L"B^p(t_f) > B^p(t_0)",
-    colormap=reverse(cgrad(:RdYlGn)),
-    colorrange=(-2e-5, 2e-5)
-
-)
-
-# Panel 2: Final state - lower half with buoyancy perturbation
-particles2 = scatter!(ax2,
-    x_0_negative[:, end],
-    y_0_negative[:, end],
-    z_0_negative[:, end],
-    color=B_pert_0_negative[:, end],
-    markersize=5,
-    colormap=reverse(cgrad(:RdYlGn)),
-    colorrange=(-2e-5, 2e-5)
-)
-
-# Panel 3: Final state - upper half with buoyancy perturbation  
-particles3 = scatter!(ax3,
-    x_0_positive[:, end],
-    y_0_positive[:, end],
-    z_0_positive[:, end],
-    color=B_pert_0_positive[:, end],
-    markersize=5,
-    colormap=reverse(cgrad(:RdYlGn)),
-    colorrange=(-2e-5, 2e-5)
-)
-
-# Add colorbar in the 4th column
-Colorbar(fig[1, 4],
-    particles3,  # Use the last scatter plot as reference
-    label="10⁻⁵ ΔBₚ [m s⁻²]",
-    width=8,
-    height=Relative(0.6),
-    ticks=([-2e-5, -1e-5, 0, 1e-5, 2e-5], ["-2", "-1", "0", "1", "2"]),
-)
-
-# Adjust column spacing
-colgap!(fig.layout, 3, 50)
-
-# Save the figure
-save(string("output/", simname, "/3D_particle_trajectories_3panels_z_center=", z_center_particle, 
-    "_Bpert_differentregions_pos_neg_camera_azimuth=",round(camera_azimuth),"_camera_elevation=",round(camera_elevation),".png"), fig)
-println("Figure saved to output/$(simname)/3D_particle_trajectories_3panels_z_center=$(z_center_particle)_Bpert_differentregions_pos_neg_camera_azimuth=$(round(camera_azimuth))_camera_elevation=$(round(camera_elevation)).png")
-
-@info "3-panel 3D particle trajectory plot saved"
-# Final cleanup
-GC.gc()
-
-
 ###### plot pdf of the particles in the x-y plane as the first panel,
 # second panel is the mean buoyancy change over time in x-y plane in the upper portion
-# third panel is buoyancy change dB/dt over time in x-y plane in the lower portion
+# third panel is buoyancy change dZ/dt over time in x-y plane in the lower portion
 # Create a 3-panel figure for particle distribution and buoyancy evolution
 
 using StatsBase
@@ -287,66 +146,66 @@ idx_95 = findfirst(cumsum_pdf .>= 0.95)
 threshold_95 = sorted_pdf[idx_95]
 
 
-### Calculate mean buoyancy change over time in the lower half
-dBdt_neg = (B_0_negative[:, 2:end] .- B_0_negative[:, 1:end-1])./(time_full[2]-time_full[1])  # Change in buoyancy over time
-dBdt_pos = (B_0_positive[:, 2:end] .- B_0_positive[:, 1:end-1])./(time_full[2]-time_full[1])  # Change in buoyancy over time
+### Calculate mean buoyancy change over time
+w_neg = (z_0_negative[:, 2:end] .- z_0_negative[:, 1:end-1])./(time_full[2]-time_full[1])  # Change in buoyancy over time
+w_pos = (z_0_positive[:, 2:end] .- z_0_positive[:, 1:end-1])./(time_full[2]-time_full[1])  # Change in buoyancy over time
 
 using StatsBase
 # Prepare accumulator arrays
 nx, ny = length(xedges)-1, length(yedges)-1
-sum_dBdt_neg = zeros(nx, ny)
-count_dBdt_neg = zeros(nx, ny)
+sum_w_neg = zeros(nx, ny)
+count_w_neg = zeros(nx, ny)
 
 # Loop over all particles and time steps (for lower half)
 for p in 1:size(x_0_negative, 1)
     for t in 1:size(x_0_negative, 2)-1
         x = x_0_negative[p, t]
         y = y_0_negative[p, t]
-        val = dBdt_neg[p, t]
+        val = w_neg[p, t]
         # Find bin indices
         ix = searchsortedfirst(xedges, x) - 1
         iy = searchsortedfirst(yedges, y) - 1
         if 1 ≤ ix ≤ nx && 1 ≤ iy ≤ ny
-            sum_dBdt_neg[ix, iy] += val
-            count_dBdt_neg[ix, iy] += 1
+            sum_w_neg[ix, iy] += val
+            count_w_neg[ix, iy] += 1
         end
     end
     # @info "Processed particle $p of $(size(x_0_negative, 1)) in lower half"
 end
-# 4. Compute mean dBdt in each bin (avoid division by zero)
-mean_dBdt_neg = fill(NaN, nx, ny)
+# 4. Compute mean w in each bin (avoid division by zero)
+mean_w_neg = fill(NaN, nx, ny)
 for ix in 1:nx, iy in 1:ny
-    if count_dBdt_neg[ix, iy] > 60
-        mean_dBdt_neg[ix, iy] = sum_dBdt_neg[ix, iy] / count_dBdt_neg[ix, iy]
+    if count_w_neg[ix, iy] > 60
+        mean_w_neg[ix, iy] = sum_w_neg[ix, iy] / count_w_neg[ix, iy]
     end
 end
 
 
 # Prepare accumulator arrays
 nx, ny = length(xedges)-1, length(yedges)-1
-sum_dBdt_pos = zeros(nx, ny)
-count_dBdt_pos = zeros(nx, ny)
+sum_w_pos = zeros(nx, ny)
+count_w_pos = zeros(nx, ny)
 
 # Loop over all particles and time steps (for upper half)
 for p in 1:size(x_0_positive, 1)
     for t in 1:size(x_0_positive, 2)-1
         x = x_0_positive[p, t]
         y = y_0_positive[p, t]
-        val = dBdt_pos[p, t]
+        val = w_pos[p, t]
         # Find bin indices
         ix = searchsortedfirst(xedges, x) - 1
         iy = searchsortedfirst(yedges, y) - 1
         if 1 ≤ ix ≤ nx && 1 ≤ iy ≤ ny
-            sum_dBdt_pos[ix, iy] += val
-            count_dBdt_pos[ix, iy] += 1
+            sum_w_pos[ix, iy] += val
+            count_w_pos[ix, iy] += 1
         end
     end
 end
-# Compute mean dBdt in each bin (avoid division by zero)
-mean_dBdt_pos = fill(NaN, nx, ny)
+# Compute mean w in each bin (avoid division by zero)
+mean_w_pos = fill(NaN, nx, ny)
 for ix in 1:nx, iy in 1:ny
-    if count_dBdt_pos[ix, iy] > 60  # filter out bins with too few particles
-        mean_dBdt_pos[ix, iy] = sum_dBdt_pos[ix, iy] / count_dBdt_pos[ix, iy]
+    if count_w_pos[ix, iy] > 60  # filter out bins with too few particles
+        mean_w_pos[ix, iy] = sum_w_pos[ix, iy] / count_w_pos[ix, iy]
     end
 end
 
@@ -406,8 +265,8 @@ axs[1].tick_params(axis="both", labelsize=20)
 axs[1].set_aspect("equal", adjustable="box")
 axs[1].set_xticks([0, 10, 20, 30, 40])
 
-# 2. Mean dB/dt (negative buoyancy change)
-pcm = axs[2].pcolormesh(xcenters, ycenters, mean_dBdt_neg', cmap="coolwarm", shading="auto", vmin=-1e-9, vmax=1e-9)
+# 2. Mean w (negative buoyancy change)
+pcm = axs[2].pcolormesh(xcenters, ycenters, mean_w_neg', cmap="coolwarm", shading="auto", vmin=-1e-2, vmax=1e-2)
 cont = axs[2].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[2].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 axs[2].set_title(L"\in B^p(t_f)<B^p(t_0)", fontsize=20)
@@ -420,13 +279,13 @@ axs[2].set_yticklabels([])  # Turn off y-tick labels
 axs[2].set_aspect("equal", adjustable="box")
 axs[2].set_xticks([0, 10, 20, 30, 40])
 
-# 3. Mean dB/dt (positive)
-pcm = axs[3].pcolormesh(xcenters, ycenters, 1e9*mean_dBdt_pos', cmap="coolwarm", shading="auto", vmin=-1, vmax=1)
+# 3. Mean w (positive)
+pcm = axs[3].pcolormesh(xcenters, ycenters, mean_w_pos', cmap="coolwarm", shading="auto", vmin=-1e-2, vmax=1e-2)
 cont = axs[3].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[3].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 cbar = fig.colorbar(pcm, ax=axs, extend="both", shrink=0.8)
 cbar.ax.tick_params(labelsize=20)
-cbar.set_label("10⁻⁹ × ω̄ᵖ [m s⁻³]", fontsize=20)
+cbar.set_label("wᵖ [m s⁻¹]", fontsize=20)
 axs[3].set_title(L"\in B^p(t_f)>B^p(t_0)", fontsize=20)
 axs[3].set_xlabel("x̂ [km]", fontsize=20)
 # axs[3].set_ylabel("y [km]", fontsize=16)
@@ -437,8 +296,8 @@ axs[3].tick_params(axis="both", labelsize=20)
 axs[3].set_yticklabels([])  # Turn off y-tick labels
 axs[3].set_aspect("equal", adjustable="box")
 
-fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion.png", dpi=100)
-println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion.png")
+fig.savefig("output/$(simname)/combined_pdf_w_panels_pos_neg_portion.png", dpi=100)
+println("Figure saved to output/$(simname)/combined_pdf_w_panels_pos_neg_portion.png")
 close(fig)
 
 
@@ -515,42 +374,42 @@ topo_x = X_cart_interp_ext[:, 1:1000] ./ 1e3
 topo_y = Y_cart_interp_ext[:, 1:1000] ./ 1e3
 topo_z = Z_cart_interp_ext[:, 1:1000]
 
-# Compute mean dB/dt for positive particles in different hab ranges
+# Compute mean dZ/dt for positive particles in different hab ranges
 hab_edges = [0, 200, 1000]  # [lower, upper]
 nx, ny = length(xedges)-1, length(yedges)-1
-sum_dBdt_upper = zeros(nx, ny)
-count_dBdt_upper = zeros(nx, ny)
-sum_dBdt_lower = zeros(nx, ny)
-count_dBdt_lower = zeros(nx, ny)
+sum_w_upper = zeros(nx, ny)
+count_w_upper = zeros(nx, ny)
+sum_w_lower = zeros(nx, ny)
+count_w_lower = zeros(nx, ny)
 
 for p in 1:n_particles
     for t in 1:(n_times-1)
         x = x_0_positive[p, t]
         y = y_0_positive[p, t]
         hab = hab_particles[p, t]
-        dB = (B_0_positive[p, t+1] - B_0_positive[p, t]) / (time_full[t+1] - time_full[t])
+        dZ = (z_0_positive[p, t+1] - z_0_positive[p, t]) / (time_full[t+1] - time_full[t])
         ix = searchsortedfirst(xedges, x) - 1
         iy = searchsortedfirst(yedges, y) - 1
         if 1 ≤ ix ≤ nx && 1 ≤ iy ≤ ny && !isnan(hab)
             if hab ≥ hab_edges[2] && hab < hab_edges[3]   # upper portion
-                sum_dBdt_upper[ix, iy] += dB
-                count_dBdt_upper[ix, iy] += 1
+                sum_w_upper[ix, iy] += dZ
+                count_w_upper[ix, iy] += 1
             elseif hab ≥ hab_edges[1] && hab < hab_edges[2]   # lower portion
-                sum_dBdt_lower[ix, iy] += dB
-                count_dBdt_lower[ix, iy] += 1
+                sum_w_lower[ix, iy] += dZ
+                count_w_lower[ix, iy] += 1
             end
         end
     end
 end
 
-mean_dBdt_upper = fill(NaN, nx, ny)
-mean_dBdt_lower = fill(NaN, nx, ny)
+mean_w_upper = fill(NaN, nx, ny)
+mean_w_lower = fill(NaN, nx, ny)
 for ix in 1:nx, iy in 1:ny
-    if count_dBdt_upper[ix, iy] > 10
-        mean_dBdt_upper[ix, iy] = sum_dBdt_upper[ix, iy] / count_dBdt_upper[ix, iy]
+    if count_w_upper[ix, iy] > 10
+        mean_w_upper[ix, iy] = sum_w_upper[ix, iy] / count_w_upper[ix, iy]
     end
-    if count_dBdt_lower[ix, iy] > 10
-        mean_dBdt_lower[ix, iy] = sum_dBdt_lower[ix, iy] / count_dBdt_lower[ix, iy]
+    if count_w_lower[ix, iy] > 10
+        mean_w_lower[ix, iy] = sum_w_lower[ix, iy] / count_w_lower[ix, iy]
     end
 end
 
@@ -598,8 +457,8 @@ cbar.ax.tick_params(labelsize=20)
 cbar.set_label("PDF", fontsize=20)
 cbar.ax.set_yscale("log")  # Ensure log scale for colorbar
 
-# 2. Mean dB/dt (lower half, hab 0-200m)
-pcm = axs[2].pcolormesh(xcenters, ycenters, mean_dBdt_lower', cmap="coolwarm", shading="auto", vmin=-1e-9, vmax=1e-9)
+# 2. Mean dZ/dt (lower half, hab 0-200m)
+pcm = axs[2].pcolormesh(xcenters, ycenters, mean_w_lower', cmap="coolwarm", shading="auto", vmin=-1e-2, vmax=1e-2)
 cont = axs[2].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[2].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 axs[2].set_title("HAB 0-$(hab_edges[2]) m", fontsize=20)
@@ -610,8 +469,8 @@ axs[2].tick_params(axis="both", labelsize=20)
 axs[2].set_yticklabels([])
 axs[2].set_aspect("equal", adjustable="box")
 axs[2].set_xticks([0, 10, 20, 30, 40])
-# 3. Mean dB/dt (upper half, hab 200m-top)
-pcm = axs[3].pcolormesh(xcenters, ycenters, 1e9*mean_dBdt_upper', cmap="coolwarm", shading="auto", vmin=-1, vmax=1)
+# 3. Mean dZ/dt (upper half, hab 200m-top)
+pcm = axs[3].pcolormesh(xcenters, ycenters, mean_w_upper', cmap="coolwarm", shading="auto", vmin=-1e-2, vmax=1e-2)
 cont = axs[3].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[3].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 
@@ -624,8 +483,8 @@ axs[3].set_yticklabels([])
 axs[3].set_aspect("equal", adjustable="box")
 axs[3].set_xticks([0, 10, 20, 30, 40])
 
-fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_hab_$(hab_edges[2])_pos_portion.png", dpi=100)
-println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_hab_$(hab_edges[2])_pos_portion.png")
+fig.savefig("output/$(simname)/combined_pdf_w_panels_hab_$(hab_edges[2])_pos_portion.png", dpi=100)
+println("Figure saved to output/$(simname)/combined_pdf_w_panels_hab_$(hab_edges[2])_pos_portion.png")
 close(fig)
 
 
@@ -706,42 +565,42 @@ topo_x = X_cart_interp_ext[:, 1:1000] ./ 1e3
 topo_y = Y_cart_interp_ext[:, 1:1000] ./ 1e3
 topo_z = Z_cart_interp_ext[:, 1:1000]
 
-# Compute mean dB/dt for positive particles in different hab ranges
-hab_edges = [0, 300, 1000]  # [lower, upper]
+# Compute mean dZ/dt for positive particles in different hab ranges
+hab_edges = [0, 200, 1000]  # [lower, upper]
 nx, ny = length(xedges)-1, length(yedges)-1
-sum_dBdt_upper = zeros(nx, ny)
-count_dBdt_upper = zeros(nx, ny)
-sum_dBdt_lower = zeros(nx, ny)
-count_dBdt_lower = zeros(nx, ny)
+sum_w_upper = zeros(nx, ny)
+count_w_upper = zeros(nx, ny)
+sum_w_lower = zeros(nx, ny)
+count_w_lower = zeros(nx, ny)
 
 for p in 1:n_particles
     for t in 1:(n_times-1)
         x = x_0_negative[p, t]
         y = y_0_negative[p, t]
         hab = hab_particles[p, t]
-        dB = (B_0_negative[p, t+1] - B_0_negative[p, t]) / (time_full[t+1] - time_full[t])
+        dZ = (z_0_negative[p, t+1] - z_0_negative[p, t]) / (time_full[t+1] - time_full[t])
         ix = searchsortedfirst(xedges, x) - 1
         iy = searchsortedfirst(yedges, y) - 1
         if 1 ≤ ix ≤ nx && 1 ≤ iy ≤ ny && !isnan(hab)
             if hab ≥ hab_edges[2] && hab < hab_edges[3]   # upper portion
-                sum_dBdt_upper[ix, iy] += dB
-                count_dBdt_upper[ix, iy] += 1
+                sum_w_upper[ix, iy] += dZ
+                count_w_upper[ix, iy] += 1
             elseif hab ≥ hab_edges[1] && hab < hab_edges[2]   # lower portion
-                sum_dBdt_lower[ix, iy] += dB
-                count_dBdt_lower[ix, iy] += 1
+                sum_w_lower[ix, iy] += dZ
+                count_w_lower[ix, iy] += 1
             end
         end
     end
 end
 
-mean_dBdt_upper = fill(NaN, nx, ny)
-mean_dBdt_lower = fill(NaN, nx, ny)
+mean_w_upper = fill(NaN, nx, ny)
+mean_w_lower = fill(NaN, nx, ny)
 for ix in 1:nx, iy in 1:ny
-    if count_dBdt_upper[ix, iy] > 10
-        mean_dBdt_upper[ix, iy] = sum_dBdt_upper[ix, iy] / count_dBdt_upper[ix, iy]
+    if count_w_upper[ix, iy] > 10
+        mean_w_upper[ix, iy] = sum_w_upper[ix, iy] / count_w_upper[ix, iy]
     end
-    if count_dBdt_lower[ix, iy] > 10
-        mean_dBdt_lower[ix, iy] = sum_dBdt_lower[ix, iy] / count_dBdt_lower[ix, iy]
+    if count_w_lower[ix, iy] > 10
+        mean_w_lower[ix, iy] = sum_w_lower[ix, iy] / count_w_lower[ix, iy]
     end
 end
 
@@ -789,8 +648,8 @@ axs[1].set_xticks([0, 10, 20, 30, 40])
 # cbar.set_label("PDF", fontsize=20)
 # cbar.ax.set_yscale("log")  # Ensure log scale for colorbar
 
-# 2. Mean dB/dt (lower half, hab 0-40m)
-pcm = axs[2].pcolormesh(xcenters, ycenters, mean_dBdt_lower', cmap="coolwarm", shading="auto", vmin=-1e-9, vmax=1e-9)
+# 2. Mean dZ/dt (lower half, hab 0-40m)
+pcm = axs[2].pcolormesh(xcenters, ycenters, mean_w_lower', cmap="coolwarm", shading="auto", vmin=-1e-2, vmax=1e-2)
 cont = axs[2].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[2].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 axs[2].set_title("HAB 0-$(hab_edges[2]) m", fontsize=20)
@@ -802,13 +661,13 @@ axs[2].set_yticklabels([])
 axs[2].set_aspect("equal", adjustable="box")
 axs[2].set_xticks([0, 10, 20, 30, 40])
 
-# 3. Mean dB/dt (upper half, hab 40-200m)
-pcm = axs[3].pcolormesh(xcenters, ycenters, 1e9*mean_dBdt_upper', cmap="coolwarm", shading="auto", vmin=-1, vmax=1)
+# 3. Mean dZ/dt (upper half, hab 40-200m)
+pcm = axs[3].pcolormesh(xcenters, ycenters, mean_w_upper', cmap="coolwarm", shading="auto", vmin=-1e-2, vmax=1e-2)
 cont = axs[3].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[3].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 cbar3 = fig.colorbar(pcm, ax=axs, extend="both", shrink=0.8)
 cbar3.ax.tick_params(labelsize=20)
-cbar3.set_label("10⁻⁹ × ω̅ᵖ [m s⁻³]", fontsize=20)
+cbar3.set_label("10⁻⁹ × wᵖ [m s⁻³]", fontsize=20)
 axs[3].set_title("HAB $(hab_edges[2])-$(hab_edges[3]) m", fontsize=20)
 axs[3].set_xlabel("x̂ [km]", fontsize=20)
 axs[3].set_ylim(0, 45)
@@ -818,6 +677,6 @@ axs[3].set_yticklabels([])
 axs[3].set_aspect("equal", adjustable="box")
 axs[3].set_xticks([0, 10, 20, 30, 40])
 
-fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_hab_$(hab_edges[2])_neg_portion.png", dpi=100)
-println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_hab_$(hab_edges[2])_neg_portion.png")
+fig.savefig("output/$(simname)/combined_pdf_w_panels_hab_$(hab_edges[2])_neg_portion.png", dpi=100)
+println("Figure saved to output/$(simname)/combined_pdf_w_panels_hab_$(hab_edges[2])_neg_portion.png")
 close(fig)

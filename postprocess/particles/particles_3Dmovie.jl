@@ -56,12 +56,12 @@ z_center_particle = 1000  # depth at which particles are initialized
 output_file = string("output/", simname, "/concatenated_particle_data_z", z_center_particle, "_all.nc")
 @info "Loading concatenated data for animation..."
 ds = NCDataset(output_file, "r")
-x_cart_full = ds["x_cartesian"][:, :]
-y_cart_full = ds["y_cartesian"][:, :]
-z_cart_full = ds["z_cartesian"][:, :]
-B_full = ds["buoyancy"][:, :]
+x_cart_full = ds["main_x_cartesian"][:, :]
+y_cart_full = ds["main_y_cartesian"][:, :]
+z_cart_full = ds["main_z_cartesian"][:, :]
+B_full = ds["main_buoyancy"][:, :]
 B_pert = B_full .- B_full[:, 1]  # Subtract initial buoyancy to get perturbation
-time_full = ds["time"][:]
+time_full = ds["main_time"][:]
 close(ds)
 B_full = nothing # Free memory
 GC.gc()  # Force garbage collection to free memory
@@ -183,7 +183,7 @@ function update_trails_efficient!(time_idx)
 end
 # Create the animation
 @info "Starting animation creation..."
-record(fig, string("output/", simname, "/3D_particle_trajectories_efficient_z_center=", z_center_particle, ".mp4"),
+record(fig, string("output/", simname, "/3D_particle_trajectories_efficient_z_center=", z_center_particle, "_full_simulation.mp4"),
     enumerate(n_frames); framerate=20) do (frame_idx, time_idx)
 
     # Update time index
