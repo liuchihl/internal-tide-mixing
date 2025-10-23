@@ -50,7 +50,7 @@ include("functions/interpolation_z_dimension.jl")
 
 # compute mean w
 
-tᶠ = 456.0
+tᶠ = 462.0
 θ = 3.6e-3
 if θ == 3.6e-3
     simname = "tilt"
@@ -140,8 +140,8 @@ b = ds_verification["b"][:, :, :, 1:1]
 # B = B_sum ./ total_steps
 # what = what_sum ./ total_steps
 
-#### load data of 4 TP average
-ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=456.0_4tidal_periods_avg.nc")
+#### load data of 10 TP average
+ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=462.0_10tidal_periods_avg.nc")
 B = ds["B"][:,:,:,1] # B at cell centers
 what = ds["what"][:,:,:,1] # what at cell centers
 zC = ds["z_aac"][:]
@@ -179,9 +179,9 @@ interpolated_Bz = zeros(Nx, Ny, length(bin_center), 1) # interpolated_what is th
 @time interpolated_what[:,:,:],_ =  interpolate_z_dimension(what_cen, hab, bin_edge)
 @time interpolated_Bz[:,:,:],_ =  interpolate_z_dimension(Bz_center, hab, bin_edge)
 # bottom to 50 hab=50m
-z_upper = argmin(abs.(bin_edge.- 60))
-what_nearbottom_avg = nanmean(interpolated_what[:,:,2:z_upper], dim=3) # average over x and y
-Bz_nearbottom_avg = nanmean(interpolated_Bz[:,:,2:z_upper], dim=3) # average over x and y
+z_upper = argmin(abs.(bin_edge.- 40))
+what_nearbottom_avg = nanmean(interpolated_what[:,:,1:z_upper], dim=3) # average over x and y
+Bz_nearbottom_avg = nanmean(interpolated_Bz[:,:,1:z_upper], dim=3) # average over x and y
 
 
 using MAT
@@ -242,9 +242,11 @@ close("all")
 fig, ax = plt.subplots(1, 2, figsize=(18, 8))
 
 # 1. Plot the criticality map
+contour_levels = range(minimum(z_interp), maximum(z_interp), length=10)
 ax1 = ax[1]
 pcm1 = ax1.pcolor(xC, yC, γ', cmap="RdBu_r", shading="auto")
 cbar1 = fig.colorbar(pcm1, ax=ax1, label="Criticality parameter (γ)")
+c1 = ax1.contour(x_interp, y_interp, z_interp', levels=contour_levels, colors="k", linewidths=0.5, alpha=0.7)
 ax1.set_xlabel("x (m)")
 ax1.set_ylabel("y (m)")
 ax1.set_title("Topographic Criticality Parameter")
@@ -258,10 +260,13 @@ import PyPlot: matplotlib
 # Create symmetric log norm with linear region between -linthresh and linthresh
 linthresh = 0.001  # Threshold below which scale becomes linear
 # what_smooth = smooth_bathymetry(what_nearbottom_avg, ℓₑ, Δx) # use the smoothed vertical velocity 
+contour_levels = range(minimum(z_interp), maximum(z_interp), length=10)
 
 pcm2 = ax2.pcolor(xC, yC, what_nearbottom_avg[:,:,1]', 
                  cmap="RdBu_r", 
                  shading="auto")
+c2 = ax2.contour(x_interp, y_interp, z_interp', levels=contour_levels, colors="k", linewidths=0.5, alpha=0.7)
+
 pcm2.set_clim(-0.005, 0.005)  # Set color limits for better visibility                
 # pcm2 = ax2.pcolor(xC, yC, what_nearbottom_avg[:,:,1]', 
 #                  norm=matplotlib.colors.SymLogNorm(linthresh=linthresh, 
@@ -270,14 +275,14 @@ pcm2.set_clim(-0.005, 0.005)  # Set color limits for better visibility
 #                                                   vmax=0.02),
 #                  cmap="RdBu_r", 
 #                  shading="auto")
-cbar2 = fig.colorbar(pcm2, ax=ax2, label="Average vertical velocity from hab=0-60 m")
+cbar2 = fig.colorbar(pcm2, ax=ax2, label="Average vertical velocity from hab=0-40 m")
 ax2.set_xlabel("x (m)")
 ax2.set_ylabel("y (m)")
 # ax2.set_title("Near-Bottom Vertical Velocity (SymLog scale)")
 ax2.grid(true, linestyle="-", alpha=1, color="black")  # Add grid to second plot
 plt.tight_layout()
 savefig(string("output/tilt/criticality_vs_velocity_tf=",tᶠ,".png"), dpi=300)
-
+println(string("Figure saved as output/tilt/criticality_vs_velocity_tf=",tᶠ,".png"))
 # # Create a scatter plot of criticality vs vertical velocity
 # fig2, ax = plt.subplots(figsize=(10, 8))
 # scatter(γ, what_nearbottom_avg[:,:,1], alpha=0.5, s=5)
@@ -319,15 +324,23 @@ savefig(string("output/tilt/criticality_vs_velocity_tf=",tᶠ,".png"), dpi=300)
 
 
 # joint PDF of mean w and criticality 
+
+fmask = "TF_avg_tᶠ=462.0_analysis.nc"
+ds_mask = Dataset(string("output/tilt/",fmask), "r")
+mask_sill = ds_mask["mask_sill"][:,:]
+mask_flanks = ds_mask["mask_flanks"][:,:]
+mask_rest = ds_mask["mask_rest"][:,:]
+
+
 using StatsBase
 using Statistics
 using PyPlot
 # Flatten arrays for the joint histogram
-γ_flat = vec(γ)
+γ_flat = vec(γ.*mask_sill)  # Apply mask to criticality
 # w_flat = vec(what_nearbottom_avg[:, :, 1])  # Get the first element of the 3D array
 
 # Use what_nearbottom_avg which has the same dimensions as γ
-w_flat = vec(what_nearbottom_avg[:, :, 1])
+w_flat = vec(what_nearbottom_avg[:, :, 1].*mask_sill)  
 
 # Remove NaN values
 valid_idx = .!isnan.(w_flat) .& .!isnan.(γ_flat)
@@ -343,7 +356,7 @@ hist2d = StatsBase.fit(Histogram, (γ_valid, w_valid), (γ_bins, w_bins))
 
 # Normalize to get PDF
 pdf_values = normalize(hist2d, mode=:pdf).weights
-
+pdf_values[pdf_values .== 0] .= 1e-10  # Set zero values to NaN for better visualization
 # For plotting later - convert bin edges to centers
 γ_centers = (γ_bins[1:end-1] .+ γ_bins[2:end]) ./ 2
 w_centers = (w_bins[1:end-1] .+ w_bins[2:end]) ./ 2
@@ -358,7 +371,7 @@ pcm = pcolor(w_centers, γ_centers, pdf_values,  # Swapped w and γ
              cmap="plasma",  # Professional colormap - better for density visualization
              shading="auto", 
              norm=matplotlib.colors.LogNorm())
-cb = colorbar(pcm, ax=ax, label="PDF")
+cb = colorbar(pcm, ax=ax, label="PDF", extend="both")
 # Set larger tick labels for both the colorbar and the main plot axes
 cb.ax.tick_params(labelsize=16)  # Increase colorbar tick label size
 cb.ax.set_ylabel("PDF", fontsize=16)  # Increase the size of colorbar label
@@ -378,20 +391,20 @@ if sum(valid) > 0
     # Group by vertical velocity ranges and calculate mean criticality
     γ_means = zeros(length(w_centers))
     
-    # Group by criticality ranges and calculate mean vertical velocities
-    w_means = zeros(length(γ_centers))
+    # Group by criticality ranges and calculate median vertical velocities
+    w_median = zeros(length(γ_centers))
     
     for i in 1:length(γ_centers)
         in_bin = (γ_valid .>= γ_bins[i]) .& (γ_valid .< γ_bins[i+1])
         if sum(in_bin) > 0
-            w_means[i] = mean(w_valid[in_bin])
+            w_median[i] = median(w_valid[in_bin])
         else
-            w_means[i] = NaN
+            w_median[i] = NaN
         end
     end
     
-    # Plot mean w for each γ bin
-    plot(w_means, γ_centers, color="red", linewidth=2.5, label="Mean trend")
+    # Plot median w for each γ bin
+    plot(w_median, γ_centers, color="red", linewidth=2.5, label="Mean trend")
     # legend(frameon=true, framealpha=0.9, fontsize=14, loc="upper left")
 end
 
@@ -401,12 +414,14 @@ xlabel(L"\mathrm{Near~bottom~average}~ \overline{ŵ} ~ \mathrm{[m~s⁻¹]}", fon
 grid(true, linestyle="--", alpha=0.7)
 
 # Set axis limits if needed (swapped)
-ylim(minimum(γ_centers), 4)
-xlim(minimum(w_centers), maximum(w_centers))
-
+# ylim(minimum(γ_centers), 3)
+ylim(minimum(γ_centers), 2)
+# xlim(-0.01, 0.005)
+# xlim(minimum(w_centers), maximum(w_centers))
+clim(1e0,2e2)
 tight_layout()
-savefig(string("output/tilt/joint_pdf_criticality_w_tf=",tᶠ,"_z_upper=",bin_edge[z_upper],"_4TPavg.png"), dpi=300)
-
+savefig(string("output/tilt/joint_pdf_criticality_w_tf=",tᶠ,"_z_upper=",bin_edge[z_upper],"_10TPavg_sill.png"), dpi=300)
+println(string("Joint PDF figure saved as output/tilt/joint_pdf_criticality_w_tf=",tᶠ,"_z_upper=",bin_edge[z_upper],"_10TPavg_sill.png"))
 
 # Compute skewness of vertical velocity for different criticality ranges
 using StatsBase

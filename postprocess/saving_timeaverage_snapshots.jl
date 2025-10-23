@@ -3,7 +3,7 @@ using Statistics
 
 # compute mean w
 
-tᶠ = 456.0
+tᶠ = 461.0
 θ = 3.6e-3
 if θ == 3.6e-3
     simname = "tilt"
@@ -30,7 +30,8 @@ end
 
 # Define the time periods to process for 4 tidal periods (452.0 to 456.0)
 # We need the final timestep from 452.0 chunk, then all timesteps from subsequent chunks
-time_chunks = [452.0, 452.5, 453.0, 453.5, 454.0, 454.5, 455.0, 455.5, 456.0]
+# time_chunks = 452.0:0.5:462.0
+time_chunks = 451.5:0.5:461.0
 
 # Get dimensions from the first data file
 filename_first = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", time_chunks[2], "_analysis_round=all_threeD.nc")
@@ -78,15 +79,8 @@ for i in 1:length(time_chunks)
     Nt_current = length(ds_current["time"][:])
     println("  Number of timesteps in chunk: ", Nt_current)
     
-    if i == 1
-        # For the first chunk (451.0), only take the final timestep (exactly at t=451.0)
-        timestep_range = Nt_current:Nt_current
-        println("  Taking only final timestep (t=451.0)")
-    else
-        # For all subsequent chunks, take all timesteps
-        timestep_range = 1:Nt_current
-        println("  Taking all timesteps")
-    end
+    timestep_range = 1:Nt_current
+    println("  Taking all timesteps")
     
     # Process timesteps in this chunk
     for n in timestep_range
@@ -126,7 +120,7 @@ eps_avg = eps_sum ./ total_steps
 Ri_avg = Ri_sum ./ total_steps
 
 # Save the averaged quantities
-output_filename = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ, "_4tidal_periods_avg.nc")
+output_filename = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ, "_10tidal_periods_avg.nc")
 
 Dataset(output_filename, "c") do ds_out
     # Define dimensions
@@ -151,10 +145,10 @@ Dataset(output_filename, "c") do ds_out
     defVar(ds_out, "v", v_avg, ("x", "y", "z", "time"))
     defVar(ds_out, "ε", eps_avg, ("x", "y", "z", "time"))
     defVar(ds_out, "∇κ∇B", ∇κ∇B_avg, ("x", "y", "z", "time"))
-    defVar(ds_out, "Rig", Ri_avg, ("x", "y", "z", "time"))
+    defVar(ds_out, "Rig", Ri_avg, ("x", "y", "zf", "time"))
     
     # Add metadata
-    ds_out.attrib["title"] = "4 tidal period averaged quantities (t=452.0 to t=456.0)"
+    ds_out.attrib["title"] = "10 tidal period averaged quantities (t=452.0 to t=462.0)"
     ds_out.attrib["time_chunks"] = string(time_chunks)
     ds_out.attrib["total_timesteps"] = total_steps
     ds_out.attrib["theta"] = θ

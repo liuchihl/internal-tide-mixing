@@ -14,6 +14,8 @@ include("functions/weighted_bin_z_dimension.jl") # for bin_z_dimension function
 
 
 # bathymetry
+Nx = 500
+Ny = 1000
 using MAT
 file = matopen("topo.mat")
 z_topo = read(file, "z_noslope_periodic") 
@@ -36,9 +38,17 @@ itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
 z_interp = [itp(x_topo_lin, y_topo_lin) for x_topo_lin in x_interp, y_topo_lin in y_interp]
 z_interp = z_interp.-minimum(z_interp)
 
+
+## load the mask
+fmask = "TF_avg_tᶠ=462.0_analysis.nc"
+ds_mask = Dataset(string("output/tilt/",fmask), "r")
+mask_sill = ds_mask["mask_sill"][:,:]
+mask_flanks = ds_mask["mask_flanks"][:,:]
+mask_rest = ds_mask["mask_rest"][:,:]
+
 # compute mean w
 
-tᶠ = 456.0
+tᶠ = 462.0
 θ = 3.6e-3
 if θ == 3.6e-3
     simname = "tilt"
@@ -93,7 +103,7 @@ z_face = zF
 
 b = ds_verification["b"][:, :, :, 1:1]
 #### load data of 4 TP average
-ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=456.0_4tidal_periods_avg.nc")
+ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=462.0_10tidal_periods_avg.nc")
 B = ds["B"][:,:,:,1] 
 what = ds["what"][:,:,:,1] 
 uhat = ds["uhat"][:,:,:,1] 
@@ -174,21 +184,23 @@ band_width = 4.0 # bin width in meters
 @time vz_center_hab, _ = weighted_bin_z_dimension(vz_center, hab, bin_center, band_width)
 @time Bz_hab, _ = weighted_bin_z_dimension(Bz_center, hab, bin_center, band_width)
 
-z_upper = argmin(abs.(bin_edge.- 4))
-what_nearbottom_avg = nanmean(what_cen_hab[:,:,z_upper:z_upper], dim=3) # average over x and y
-ε_nearbottom_avg = nanmean(ε_hab[:,:,z_upper:z_upper], dim=3) # average over x and y
-∇κ∇B_nearbottom_avg = nanmean(∇κ∇B_hab[:,:,z_upper:z_upper], dim=3) # average over x and y
-S²_nearbottom_avg = nanmean(S²_hab[:,:,z_upper:z_upper], dim=3) # average over x and y
-Bz_nearbottom_avg = nanmean(Bz_hab[:,:,z_upper:z_upper], dim=3) # average over x and y
-uz_center_nearbottom_avg = nanmean(uz_center_hab[:,:,z_upper:z_upper], dim=3) # average over x and y
-vz_center_nearbottom_avg = nanmean(vz_center_hab[:,:,z_upper:z_upper], dim=3) # average over x and y
+# z_upper = argmin(abs.(bin_edge.- 180))
+z_upper = argmin(abs.(bin_edge.- 40))
+z_lower = argmin(abs.(bin_edge.- 40))
+what_nearbottom_avg = nanmean(what_cen_hab[:,:,z_lower:z_upper], dim=3) # average over x and y
+ε_nearbottom_avg = nanmean(ε_hab[:,:,z_lower:z_upper], dim=3) # average over x and y
+∇κ∇B_nearbottom_avg = nanmean(∇κ∇B_hab[:,:,z_lower:z_upper], dim=3) # average over x and y
+S²_nearbottom_avg = nanmean(S²_hab[:,:,z_lower:z_upper], dim=3) # average over x and y
+Bz_nearbottom_avg = nanmean(Bz_hab[:,:,z_lower:z_upper], dim=3) # average over x and y
+uz_center_nearbottom_avg = nanmean(uz_center_hab[:,:,z_lower:z_upper], dim=3) # average over x and y
+vz_center_nearbottom_avg = nanmean(vz_center_hab[:,:,z_lower:z_upper], dim=3) # average over x and y
 
 
 
 # plot pcolors of these variables
 using PyPlot
 # Create a 3x2 subplot layout (with the last spot empty)
-fig, ax = subplots(2, 3, figsize=(16, 12))
+fig, ax = subplots(2, 3, figsize=(14, 12))
 plt.subplots_adjust(hspace=0.3, wspace=0.3)
 
 # Create contour levels for bathymetry
@@ -314,13 +326,13 @@ cbar6.set_label("Depth (m)")
 ax6.set_aspect("equal")  # Set equal aspect ratio
 
 # Add a main title
-plt.suptitle("Near Bottom Averaged Properties (0-25m HAB)", fontsize=16, y=0.98)
+plt.suptitle("Near Bottom Averaged Properties (0-40m HAB)", fontsize=16, y=0.98)
 
 # Adjust the layout to accommodate the equal aspect ratio
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 
 # Save the figure
-plt.savefig("output/tilt/near_bottom_averages_bins.png", dpi=150, bbox_inches="tight")
+plt.savefig("output/tilt/near_bottom_averages_bins_452-462avg.png", dpi=150, bbox_inches="tight")
 
 
 
@@ -329,7 +341,7 @@ plt.savefig("output/tilt/near_bottom_averages_bins.png", dpi=150, bbox_inches="t
 # Create a 2x3 subplot layout for the six variables
 using PyPlot
 close("all")
-fig, ax = subplots(2, 3, figsize=(16, 12))
+fig, ax = subplots(2, 3, figsize=(14, 12))
 plt.subplots_adjust(hspace=0.3, wspace=0.3)
 
 # Create contour levels for bathymetry
@@ -351,25 +363,14 @@ ax1.set_aspect("equal")
 # 2. Plot diapycnal mixing (∇κ∇B)
 ax2 = ax[1, 2]
 mix_data = ∇κ∇B_nearbottom_avg[:, :, 1]'
-vmin = nanminimum(mix_data)
-vmax = 3e-9
+vmax = 8e-10
+vmin = -vmax
+
+# Use a SymLogNorm for symmetric logarithmic scaling
+norm = matplotlib.colors.SymLogNorm(linthresh=1e-10, linscale=1, vmin=vmin, vmax=vmax, base=10)
 
 # Create a colormap that's blue->white for negative, white->red for positive
-neg_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("neg", ["blue", "white"])
-pos_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("pos", ["white", "red"])
-
-# Find the position of zero in the range from vmin to vmax
-if vmin < 0 && vmax > 0
-    zero_pos = -vmin / (vmax - vmin)
-    neg_colors = neg_cmap(LinRange(0, 1, Int(round(256*zero_pos))))
-    pos_colors = pos_cmap(LinRange(0, 1, 256-Int(round(256*zero_pos))))
-    colors = vcat(neg_colors, pos_colors)
-    custom_cmap = matplotlib.colors.ListedColormap(colors)
-    im2 = ax2.pcolor(xC, yC, mix_data, cmap=custom_cmap, vmin=vmin, vmax=vmax)
-else
-    # Fallback if we don't have both positive and negative values
-    im2 = ax2.pcolor(xC, yC, mix_data, cmap="RdBu_r")
-end
+im2 = ax2.pcolor(xC, yC, mix_data, cmap="RdBu_r", norm=norm)
 
 c2 = ax2.contour(x_interp, y_interp, z_interp', levels=contour_levels, colors="k", linewidths=0.5, alpha=0.7)
 ax2.clabel(c2, inline=true, fontsize=8, fmt="%.0f")
@@ -405,7 +406,7 @@ neg_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("neg", ["blue", "
 pos_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("pos", ["white", "red"])
 
 # Find the position of zero in the range from vmin to vmax
-if vmin < 0 && vmax > 0
+if vmin < 0 && vmax > 0 && abs(vmin) > 1e-8
     zero_pos = -vmin / (vmax - vmin)
     neg_colors = neg_cmap(LinRange(0, 1, Int(round(256*zero_pos))))
     pos_colors = pos_cmap(LinRange(0, 1, 256-Int(round(256*zero_pos))))
@@ -452,13 +453,13 @@ cbar6.set_label(L"$\partial \overline{v} / \partial z$ (s$^{-1}$)")
 ax6.set_aspect("equal")
 
 # Add a main title
-plt.suptitle("Near Bottom Averaged Properties (0-25m HAB)", fontsize=16, y=0.98)
+plt.suptitle("Near Bottom Averaged Properties (0-40m HAB)", fontsize=16, y=0.98)
 
 # Adjust the layout to accommodate the equal aspect ratio
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 
 # Save the figure
-plt.savefig("output/tilt/near_bottom_averages_six_variables_bins.png", dpi=150, bbox_inches="tight")
+plt.savefig("output/tilt/near_bottom_averages_six_variables_bins_452-462_0-40m.png", dpi=150, bbox_inches="tight")
 
 
 
@@ -470,16 +471,18 @@ close("all") # close all previous figures
 
 # Create figure with specified size
 fig, ax = plt.subplots(figsize=(10, 6))
-
+what_nearbottom_flat = what_cen_hab[:,:,1:4][:]
+ε_nearbottom_flat = ε_hab[:,:,1:4][:]
+∇κ∇B_nearbottom_flat = ∇κ∇B_hab[:,:,1:4][:]
 # Flatten arrays to 1D for scatter plot
-valid_indices = .!isnan.(what_nearbottom_avg) .& .!isnan.(∇κ∇B_nearbottom_avg) .& .!isnan.(ε_nearbottom_avg)
-x = what_nearbottom_avg[valid_indices] 
-y = ∇κ∇B_nearbottom_avg[valid_indices]
-colors = ε_nearbottom_avg[valid_indices]
+valid_indices = .!isnan.(what_nearbottom_flat) .& .!isnan.(∇κ∇B_nearbottom_flat) .& .!isnan.(ε_nearbottom_flat)
+x = what_nearbottom_flat[valid_indices] 
+y = ∇κ∇B_nearbottom_flat[valid_indices]
+colors = ε_nearbottom_flat[valid_indices]
 
 # Create scatter plot with more impressive colormap
-scatter_plot = ax.scatter(x, y, c=colors, alpha=0.7, cmap="plasma", 
-                         s=50, edgecolors="k", linewidths=0.3,
+scatter_plot = ax.scatter(x, y, c=colors, alpha=0.5, cmap="plasma", 
+                         s=10, edgecolors="k", linewidths=0.1,
                          norm=matplotlib.colors.LogNorm())
 
 axhline(y=0, color="black", linestyle="-", linewidth=1.5)
@@ -501,7 +504,7 @@ ax.legend(pl,["y = $slope_str x + $intercept_str"], loc="lower left", fontsize=1
 
 # Add labels and title with specific fontsizes
 ax.set_xlabel(L"\mathrm{Near~bottom~average}~\overline{ŵ} ~\mathrm{[m~ s⁻¹]}", fontsize=18)
-ax.set_ylabel(L"\mathrm{Near~bottom~average}~∇⋅\overline{\mathcal{B}} ~\mathrm{[10⁻⁹~×~m~s⁻³]}", fontsize=18)
+ax.set_ylabel(L"\mathrm{Near~bottom~average}~-∇⋅\overline{\mathcal{B}} ~\mathrm{[10⁻⁹~×~m~s⁻³]}", fontsize=18)
 ax.set_yticks((-0.5:0.5:2)*1e-9) 
 ax.set_yticklabels(("-0.5","0","0.5","1","1.5","2")) # Set y-tick labels with specific fontsize
 # Set tick label sizes
@@ -523,6 +526,169 @@ plt.tight_layout()
 plt.savefig("output/tilt/downwelling_vs_upwelling_relationship.png", dpi=100)
 
 
+## same relationship but with joint pdf
+using StatsBase
+using PyPlot
+
+close("all") # close all previous figures
+
+# Flatten arrays for joint PDF
+what_flat = vec(what_nearbottom_avg[:,:,1])
+mix_flat = vec(∇κ∇B_nearbottom_avg[:,:,1])
+
+# Remove NaNs for valid joint PDF
+valid = .!isnan.(what_flat) .& .!isnan.(mix_flat)
+what_flat = what_flat[valid]
+mix_flat = mix_flat[valid]
+
+# Define bin edges
+n_bins_x = 100
+n_bins_y = 100
+what_edges = range(minimum(what_flat), maximum(what_flat), length=n_bins_x+1)
+mix_edges = range(minimum(mix_flat), maximum(mix_flat), length=n_bins_y+1)
+
+# Compute 2D histogram
+h_2d = StatsBase.fit(Histogram, (what_flat, mix_flat), (what_edges, mix_edges))
+pdf_2d = h_2d.weights ./ sum(h_2d.weights)
+
+# Bin centers for plotting
+what_centers = (what_edges[1:end-1] .+ what_edges[2:end]) ./ 2
+mix_centers = (mix_edges[1:end-1] .+ mix_edges[2:end]) ./ 2
+
+# Plot joint PDF as a 2D density with logarithmic color scale
+fig, ax = plt.subplots(figsize=(10, 7))
+pcm = ax.pcolormesh(what_centers, mix_centers, pdf_2d', cmap="plasma", 
+                    norm=matplotlib.colors.LogNorm(vmin=1e-8, vmax=maximum(pdf_2d)), shading="auto")
+cb = plt.colorbar(pcm, ax=ax)
+cb.set_label(L"\mathrm{Joint~PDF}", fontsize=18)
+cb.ax.tick_params(labelsize=16)
+
+ax.set_xlabel(L"\mathrm{Near~bottom~average}~\overline{ŵ} ~\mathrm{[m~ s^{-1}]}", fontsize=18)
+ax.set_ylabel(L"\mathrm{Near~bottom~average}~-∇⋅\overline{\mathcal{B}} ~\mathrm{[m~s^{-3}]}", fontsize=18)
+ax.tick_params(axis="both", labelsize=16)
+ax.grid(true, linestyle="--", alpha=0.3)
+ax.axhline(0, color="black", linestyle="-", linewidth=1.5)
+ax.axvline(0, color="black", linestyle="-", linewidth=1.5)
+ax.set_title("Joint PDF of Near Bottom Vertical Velocity and Diapycnal Mixing", fontsize=16)
+
+plt.tight_layout()
+plt.savefig("output/tilt/joint_pdf_vertical_velocity_diapycnal_mixing_log.png", dpi=100)
+
+
+
+## plot the relationship between turbulence diffusive flux and dissipation
+using StatsBase
+using PyPlot
+
+close("all") # close all previous figures
+
+# Flatten arrays for joint PDF
+ε_flat = vec(ε_nearbottom_avg[:,:,1])
+mix_flat = vec(∇κ∇B_nearbottom_avg[:,:,1])
+
+# Remove NaNs for valid joint PDF
+valid = .!isnan.(ε_flat) .& .!isnan.(mix_flat)
+ε_flat = ε_flat[valid]
+mix_flat = mix_flat[valid]
+
+# Define bin edges
+n_bins_x = 100
+n_bins_y = 100
+ε_edges = range(minimum(ε_flat), maximum(ε_flat), length=n_bins_x+1)
+mix_edges = range(minimum(mix_flat), maximum(mix_flat), length=n_bins_y+1)
+
+# Compute 2D histogram
+h_2d = StatsBase.fit(Histogram, (ε_flat, mix_flat), (ε_edges, mix_edges))
+pdf_2d = h_2d.weights ./ sum(h_2d.weights)
+
+# Bin centers for plotting
+ε_centers = (ε_edges[1:end-1] .+ ε_edges[2:end]) ./ 2
+mix_centers = (mix_edges[1:end-1] .+ mix_edges[2:end]) ./ 2
+
+# Plot joint PDF as a 2D density with logarithmic color scale
+fig, ax = plt.subplots(figsize=(10, 7))
+pcm = ax.pcolormesh(ε_centers, mix_centers, pdf_2d', cmap="plasma", 
+                    norm=matplotlib.colors.LogNorm(vmin=1e-8, vmax=maximum(pdf_2d)), shading="auto")
+cb = plt.colorbar(pcm, ax=ax)
+cb.set_label(L"\mathrm{Joint~PDF}", fontsize=18)
+cb.ax.tick_params(labelsize=16)
+
+ax.set_xlabel(L"\mathrm{Near~bottom~average}~\overline{ε} ~\mathrm{[m~ s^{-1}]}", fontsize=18)
+ax.set_ylabel(L"\mathrm{Near~bottom~average}~-∇⋅\overline{\mathcal{B}} ~\mathrm{[m~s^{-3}]}", fontsize=18)
+ax.tick_params(axis="both", labelsize=16)
+ax.grid(true, linestyle="--", alpha=0.3)
+ax.axhline(0, color="black", linestyle="-", linewidth=1.5)
+ax.axvline(0, color="black", linestyle="-", linewidth=1.5)
+ax.set_title("Joint PDF of Near Bottom Dissipation and Diapycnal Mixing", fontsize=16)
+
+plt.tight_layout()
+plt.savefig("output/tilt/joint_pdf_dissipation_diapycnal_mixing_log.png", dpi=100)
+
+
+
+## relationship between vertical velocity and stratification
+
+
+
+# Flatten arrays for joint PDF
+w_flat = vec(what_cen_hab[:,:,1:4].*mask_flanks[:,:])
+Bz_flat = vec(Bz_hab[:,:,1:4].*mask_flanks[:,:])
+# w_flat = vec(what_nearbottom_avg[:,:,1])
+# Bz_flat = vec(Bz_nearbottom_avg[:,:,1])
+
+# Remove NaNs for valid joint PDF
+valid = .!isnan.(w_flat) .& .!isnan.(Bz_flat)
+w_flat = w_flat[valid]
+Bz_flat = Bz_flat[valid]
+
+# Define bin edges
+n_bins_x = 200
+n_bins_y = 200
+w_edges = range(minimum(w_flat), maximum(w_flat), length=n_bins_x+1)
+Bz_edges = range(minimum(Bz_flat), maximum(Bz_flat), length=n_bins_y+1)
+# mix_edges = range(minimum(mix_flat), maximum(mix_flat), length=n_bins_y+1)
+
+# Compute 2D histogram
+h_2d = StatsBase.fit(Histogram, (w_flat, Bz_flat), (w_edges, Bz_edges))
+pdf_2d = h_2d.weights ./ sum(h_2d.weights)
+
+# Bin centers for plotting
+w_centers = (w_edges[1:end-1] .+ w_edges[2:end]) ./ 2
+Bz_centers = (Bz_edges[1:end-1] .+ Bz_edges[2:end]) ./ 2
+
+# Plot joint PDF as a 2D density with logarithmic color scale
+using PyPlot
+using StatsBase
+close("all") # close all previous figures
+vmin = 1e-5  # or 1e-8, depending on your data
+vmax = nanmaximum(pdf_2d)
+N_levels = 300  # or more for even smoother contours
+
+levels = 10 .^ range(log10(vmin), log10(vmax), length=N_levels)
+pdf_2d[pdf_2d .< 1e-5] .= NaN  # Mask values below vmin for better visualization
+fig, ax = plt.subplots(figsize=(12, 5))
+pcm = ax.contourf(
+    w_centers, Bz_centers, pdf_2d',
+    levels=levels,
+    cmap="plasma",
+    norm=matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax),
+    alpha=0.9
+)
+cb = plt.colorbar(pcm, ax=ax)
+cb.set_label(L"\mathrm{Joint~PDF}", fontsize=18)
+cb.ax.tick_params(labelsize=16)
+ax.set_ylim(-1e-6, 0.4e-5)
+ax.set_xlabel(L"\mathrm{Near~bottom~average}~\overline{ŵ} ~\mathrm{[m~ s^{-1}]}", fontsize=18)
+ax.set_ylabel(L"\mathrm{Near~bottom~average}~\overline{B_z} ~\mathrm{[s^{-2}]}", fontsize=18)
+ax.tick_params(axis="both", labelsize=16)
+ax.grid(true, linestyle="--", alpha=0.3)
+ax.axhline(0, color="black", linestyle="-", linewidth=1.5)
+ax.axvline(0, color="black", linestyle="-", linewidth=1.5)
+ax.set_title("Joint PDF of Near Bottom ŵ and Stratification", fontsize=16)
+ax.set_xlim(-0.01, 0.01)
+ax.set_ylim(-.5e-6, 0.4e-5)  
+plt.tight_layout()
+plt.savefig("output/tilt/joint_pdf_vertical_velocity_stratification_log.png", dpi=100)
 
 
 ##### Plot the relationship between vertical velocity and stratification 

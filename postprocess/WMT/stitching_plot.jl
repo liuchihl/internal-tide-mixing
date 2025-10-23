@@ -53,7 +53,7 @@ ds = Dataset("output/tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=456.0_4t
 ∇κ∇B = ds["∇κ∇B"][:,1,:,1];    # ∇⋅κ∇B: buoyancy flux divergence
 ∇κ∇B[b.==0] .= NaN;
 
-## coordinate transformation from simname-coordinate to Cartesian coordinate
+## coordinate transformation from slope-coordinate to Cartesian coordinate
 Lx = (xF[end]+dx) * cos(θ)
 Lz = (xF[end]+dx) * sin(θ)
 x = xC * cos(θ) .- zC' * sin(θ)

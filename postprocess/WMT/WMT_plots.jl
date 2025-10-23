@@ -1,4 +1,80 @@
 ## this script plots water mass transformation results computed in water_mass_transformation.jl
+
+
+using NCDatasets
+using NaNStatistics
+# load data
+simname = "tilt"
+θ = simname == "tilt" ? 3.6e-3 : 0
+
+
+# 10 TP average
+
+# total region
+# there are two files to be loaded and concatenated (because I forgot to save tf = 451.5, so I save that separately as part 1)
+
+ds_total_p1 = Dataset(string("output/",simname,"/WMT_total_tᶠ=",451.5,"_#bintervals=17_instantaneous.nc"),"r") # from 451.0 to 451.5
+ds_total_p2 = Dataset(string("output/",simname,"/WMT_total_tᶠ=",461.0,"_#bintervals=17_instantaneous.nc"),"r") # from 452.0 to 461.0
+
+# Concatenate data along the time dimension
+∇κ∇B_t_p1 = ds_total_p1["∇κ∇B_t"][:,:,:]  # [z_TF, b_bin, time]
+∇κ∇B_t_p2 = ds_total_p2["∇κ∇B_t"][:,:,:]  # [z_TF, b_bin, time]
+∇κ∇B_t = cat(∇κ∇B_t_p1, ∇κ∇B_t_p2, dims=3)  # Concatenate along the third dimension
+
+∇κ∇B_b_t_p1 = ds_total_p1["∇κ∇B_b_t"][:,:]  # [b_bin, time]
+∇κ∇B_b_t_p2 = ds_total_p2["∇κ∇B_b_t"][:,:]  # [b_bin, time]
+∇κ∇B_b_t = cat(∇κ∇B_b_t_p1, ∇κ∇B_b_t_p2, dims=2)  # Concatenate along the second dimension
+
+# Compute mean and other metrics
+∇κ∇B_t_mean = nanmean(∇κ∇B_t, dim=3)  # [z_TF, b_bin]
+∇κ∇B_b_t_mean = nanmean(∇κ∇B_b_t, dim=2)  # [b_bin]
+
+# Finding the positive values of ∇κ∇B_t
+SML_first = findfirst(nanmean(∇κ∇B_t_mean, dim=2) .< 0.0)  # Find the first negative value in the mean profile
+SML_end = SML_first + findfirst(nanmean(∇κ∇B_t_mean[SML_first:end, :], dim=2) .> 0) - 2
+E_BBL_t = nansum(nanmean(∇κ∇B_t_mean[1:SML_first-1, :], dim=2)) * 1e-3
+E_SML_t = nansum(nanmean(∇κ∇B_t_mean[SML_first:SML_end, :], dim=2)) * 1e-3
+z_TF = ds_total_p1["bin_center1"][:]
+
+
+## profiles of WMT vs HAB 
+Ly = 30e3
+Lx = Ly/2
+A = Lx*Ly
+## plot diffusive and advective terms together with respect to HAB with three different regions
+using PyPlot 
+using Statistics
+close(gcf())
+# Create a figure and an array of subplots
+fig, axs = subplots(1, 1, figsize=(4, 3))  # 1 row, 1 column
+
+axs.plot(nanmean(∇κ∇B_t_mean,dim=2)*1e-3, z_TF, color="black", marker=".",markersize=4)
+axs.set_ylabel("HAB [m]")
+axs.set_xlabel(L"\langle\overline{\delta\mathcal{E}}\rangle_B~\mathrm{[mSv~per~8~m~bin]}")
+# axs[1].legend([line1, line3], title=L"\mathcal{E}^{diff}",
+# ["Total","Canyon"], loc="upper right")
+axs.grid(true)
+axs.set_ylim(0,800)
+axs.minorticks_on()
+axs.set_xlim(-1e2,1e2)
+# axs[1].minorticks_on()
+axs.set_xscale("symlog", linthresh=10^(0))
+# Add (a) label to the first subplot
+# axs[1].text(0.05, 0.95, "(a)", transform=axs[1].transAxes, fontsize=10, va="top")
+tight_layout()
+gcf()   
+savefig(string("output/",simname,"/water_mass_transformation_diffusive_flux_HAB_totalregion",".png"),dpi=250)
+println(string("output/",simname,"/water_mass_transformation_diffusive_flux_HAB_totalregion",".png"))
+
+
+
+
+
+
+
+
+
+
 using NCDatasets
 using NaNStatistics
 # load data

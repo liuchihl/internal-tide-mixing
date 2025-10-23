@@ -18,7 +18,7 @@ include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/mmderiv.jl")
 include("/scratch/bcpi/cliu28/internal-tide-mixing/functions/bin_stat_over_xy.jl")
 
 # Parameters
-tᶠ = 457.0
+tᶠ = 451.5
 θ = 3.6e-3
 if θ==3.6e-3
     simname = "tilt"
@@ -28,8 +28,9 @@ end
 base_folder = "/scratch/bcpi/cliu28/internal-tide-mixing/"
 
 # Define the time chunks to process (from 452.0 to 457.0)
-time_chunks = [452.0, 452.5, 453.0, 453.5, 454.0, 454.5, 455.0, 455.5, 456.0, 456.5, 457.0]
-# time_chunks = [452.0]
+time_chunks = [451.5]
+# time_chunks = [451.5, 452.0, 452.5, 453.0, 453.5, 454.0, 454.5, 455.0, 455.5, 456.0, 456.5, 457.0,457.5, 458.0, 458.5, 459.0, 459.5, 460.0, 460.5, 461.0]
+
 # Get grid information from the first file
 filename_first = string(base_folder, "output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", time_chunks[1], "_analysis_round=all_threeD.nc")
 ds_first = Dataset(filename_first, "r")
@@ -233,11 +234,11 @@ println("Processing WMT for all regions using instantaneous snapshots...")
 process_wmt_region("total")
 
 # 2) Canyon region (y between 10km and 20km)
-north = argmin(abs.(yC[:] .- 20e3))
-south = argmin(abs.(yC[:] .- 10e3))
-process_wmt_region("canyon", south:north)
+# north = argmin(abs.(yC[:] .- 20e3))
+# south = argmin(abs.(yC[:] .- 10e3))
+# process_wmt_region("canyon", south:north)
 
 # 3) Flanks region (y < 10km and y > 20km)
-process_wmt_region("flanks", vcat(1:south, north:length(yC)))
+# process_wmt_region("flanks", vcat(1:south, north:length(yC)))
 
 println("All WMT processing complete!")

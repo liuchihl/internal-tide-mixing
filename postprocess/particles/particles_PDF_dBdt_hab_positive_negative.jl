@@ -78,7 +78,9 @@ b_begin = B_full[:, 1]  # Initial z positions
 
 positive_indices = findall(B_full[:,end] .> b_begin)
 negative_indices = findall(B_full[:,end] .< b_begin)
+x_0 = x_cart_full[:, :]
 x_0_positive = x_cart_full[positive_indices, :]
+y_0 = y_cart_full[:, :]
 y_0_positive = y_cart_full[positive_indices, :]
 z_0_positive = z_cart_full[positive_indices, :]
 B_0_positive = B_full[positive_indices, :]
@@ -252,12 +254,12 @@ GC.gc()
 using StatsBase
 
 # 1. Flatten all particle positions over all time steps
-x_flat = vec(x_cart_full)
-y_flat = vec(y_cart_full)
-x_0_negative_flat = vec(x_0_negative)
-y_0_negative_flat = vec(y_0_negative)
-x_0_positive_flat = vec(x_0_positive)
-y_0_positive_flat = vec(y_0_positive)
+x_flat = vec(x_cart_full[:,end])
+y_flat = vec(y_cart_full[:,end])
+x_0_negative_flat = vec(x_0_negative[:,end])
+y_0_negative_flat = vec(y_0_negative[:,end])
+x_0_positive_flat = vec(x_0_positive[:,end])
+y_0_positive_flat = vec(y_0_positive[:,end])
 
 # 2. Define bin edges using X_cart_interp_ext and Y_cart_interp_ext
 xedges = range(minimum(X_cart_interp_ext[:,1]), maximum(X_cart_interp_ext[:,1]), length=400)
@@ -437,12 +439,262 @@ axs[3].tick_params(axis="both", labelsize=20)
 axs[3].set_yticklabels([])  # Turn off y-tick labels
 axs[3].set_aspect("equal", adjustable="box")
 
-fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion.png", dpi=100)
-println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion.png")
+fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_finaltimestep_1stpanel.png", dpi=100)
+println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_finaltimestep_1stpanel.png")
 close(fig)
 
 
 
+###### first panel: plot the mean buoyancy change over time in x-y plane for all particles
+# second panel is the mean buoyancy change over time in x-y plane in the buoyancy-decreased portion
+# third panel is buoyancy change dB/dt over time in x-y plane in the buoyancy-increased portion
+# Create a 3-panel figure for particle distribution and buoyancy evolution
+
+using StatsBase
+
+# 1. Flatten all particle positions over all time steps
+x_flat = vec(x_cart_full[:,end])
+y_flat = vec(y_cart_full[:,end])
+x_0_negative_flat = vec(x_0_negative[:,end])
+y_0_negative_flat = vec(y_0_negative[:,end])
+x_0_positive_flat = vec(x_0_positive[:,end])
+y_0_positive_flat = vec(y_0_positive[:,end])
+
+# 2. Define bin edges using X_cart_interp_ext and Y_cart_interp_ext
+xedges = range(minimum(X_cart_interp_ext[:,1]), maximum(X_cart_interp_ext[:,1]), length=400)
+yedges = range(minimum(Y_cart_interp_ext[1,:]), maximum(Y_cart_interp_ext[1,:]), length=500)
+
+#for initial PDF
+xedges_init = range(minimum(X_cart_interp_ext[:,1]), maximum(X_cart_interp_ext[:,1]), length=300)
+yedges_init = range(minimum(Y_cart_interp_ext[1,:]), maximum(Y_cart_interp_ext[1,:]), length=350)
+
+
+# 3. Compute 2D histogram (counts)
+h_all = StatsBase.fit(Histogram, (x_flat, y_flat), (xedges, yedges))
+
+# 4. Normalize to get PDF (probability density)
+pdf_all = h_all.weights ./ sum(h_all.weights)
+
+## calculate the initial contour of the particle distribution 
+x_flat_init = vec(x_cart_full[:,1])
+y_flat_init = vec(y_cart_full[:,1])
+h_init = StatsBase.fit(Histogram, (x_flat_init, y_flat_init), (xedges_init, yedges_init))
+pdf_init = h_init.weights ./ sum(h_init.weights)
+# Find the 95% contour threshold for the initial PDF
+pdf_flat = vec(pdf_init)
+sorted_pdf = sort(pdf_flat, rev=true)
+cumsum_pdf = cumsum(sorted_pdf)
+idx_95 = findfirst(cumsum_pdf .>= 0.95)
+threshold_95 = sorted_pdf[idx_95]
+
+
+### Calculate mean buoyancy change over time in the lower half
+dBdt = (B_full[:, 2:end] .- B_full[:, 1:end-1])./(time_full[2]-time_full[1])  # Change in buoyancy over time
+dBdt_neg = (B_0_negative[:, 2:end] .- B_0_negative[:, 1:end-1])./(time_full[2]-time_full[1])  # Change in buoyancy over time
+dBdt_pos = (B_0_positive[:, 2:end] .- B_0_positive[:, 1:end-1])./(time_full[2]-time_full[1])  # Change in buoyancy over time
+
+using StatsBase
+# Prepare accumulator arrays
+nx, ny = length(xedges)-1, length(yedges)-1
+sum_dBdt_neg = zeros(nx, ny)
+count_dBdt_neg = zeros(nx, ny)
+
+# Loop over all particles and time steps (for negative buoyancy change)
+for p in 1:size(x_0_negative, 1)
+    for t in 1:size(x_0_negative, 2)-1
+        x = x_0_negative[p, t]
+        y = y_0_negative[p, t]
+        val = dBdt_neg[p, t]
+        # Find bin indices
+        ix = searchsortedfirst(xedges, x) - 1
+        iy = searchsortedfirst(yedges, y) - 1
+        if 1 ≤ ix ≤ nx && 1 ≤ iy ≤ ny
+            sum_dBdt_neg[ix, iy] += val
+            count_dBdt_neg[ix, iy] += 1
+        end
+    end
+    # @info "Processed particle $p of $(size(x_0_negative, 1)) in lower half"
+end
+# 4. Compute mean dBdt in each bin (avoid division by zero)
+mean_dBdt_neg = fill(NaN, nx, ny)
+for ix in 1:nx, iy in 1:ny
+    if count_dBdt_neg[ix, iy] > 60
+        mean_dBdt_neg[ix, iy] = sum_dBdt_neg[ix, iy] / count_dBdt_neg[ix, iy]
+    end
+end
+
+
+# Prepare accumulator arrays
+nx, ny = length(xedges)-1, length(yedges)-1
+sum_dBdt_pos = zeros(nx, ny)
+count_dBdt_pos = zeros(nx, ny)
+
+# Loop over all particles and time steps (for positive buoyancy change)
+for p in 1:size(x_0_positive, 1)
+    for t in 1:size(x_0_positive, 2)-1
+        x = x_0_positive[p, t]
+        y = y_0_positive[p, t]
+        val = dBdt_pos[p, t]
+        # Find bin indices
+        ix = searchsortedfirst(xedges, x) - 1
+        iy = searchsortedfirst(yedges, y) - 1
+        if 1 ≤ ix ≤ nx && 1 ≤ iy ≤ ny
+            sum_dBdt_pos[ix, iy] += val
+            count_dBdt_pos[ix, iy] += 1
+        end
+    end
+end
+# Compute mean dBdt in each bin (avoid division by zero)
+mean_dBdt_pos = fill(NaN, nx, ny)
+for ix in 1:nx, iy in 1:ny
+    if count_dBdt_pos[ix, iy] > 60  # filter out bins with too few particles
+        mean_dBdt_pos[ix, iy] = sum_dBdt_pos[ix, iy] / count_dBdt_pos[ix, iy]
+    end
+end
+
+
+# Prepare accumulator arrays for all particles
+nx, ny = length(xedges)-1, length(yedges)-1
+sum_dBdt = zeros(nx, ny)
+count_dBdt = zeros(nx, ny)
+
+# Loop over all particles and time steps (for positive buoyancy change)
+for p in 1:size(x_0, 1)
+    for t in 1:size(x_0, 2)-1
+        x = x_0[p, t]
+        y = y_0[p, t]
+        val = dBdt[p, t]
+        # Find bin indices
+        ix = searchsortedfirst(xedges, x) - 1
+        iy = searchsortedfirst(yedges, y) - 1
+        if 1 ≤ ix ≤ nx && 1 ≤ iy ≤ ny
+            sum_dBdt[ix, iy] += val
+            count_dBdt[ix, iy] += 1
+        end
+    end
+end
+# Compute mean dBdt in each bin (avoid division by zero)
+mean_dBdt = fill(NaN, nx, ny)
+for ix in 1:nx, iy in 1:ny
+    if count_dBdt[ix, iy] > 60  # filter out bins with too few particles
+        mean_dBdt[ix, iy] = sum_dBdt[ix, iy] / count_dBdt[ix, iy]
+    end
+end
+
+
+
+using PyPlot
+
+# Prepare bin centers for plotting
+xcenters = 0.5 .* (xedges[1:end-1] + xedges[2:end]) ./ 1e3  # km
+ycenters = 0.5 .* (yedges[1:end-1] + yedges[2:end]) ./ 1e3  # km
+# Prepare extended bin centers for initial PDF
+xcenters_init = 0.5 .* (xedges_init[1:end-1] + xedges_init[2:end]) ./ 1e3  # km
+ycenters_init = 0.5 .* (yedges_init[1:end-1] + yedges_init[2:end]) ./ 1e3  # km
+
+# Prepare topography for contours (crop to plotting region if needed)
+topo_x = X_cart_interp_ext[:, 1:1000] ./ 1e3  # km
+topo_y = Y_cart_interp_ext[:, 1:1000] ./ 1e3  # km
+topo_z = Z_cart_interp_ext[:, 1:1000]         # m
+close("all")
+fig, axs = subplots(1, 3, figsize=(16, 5), constrained_layout=true)
+
+# Set global font sizes
+PyPlot.rc("font", size=20)          # controls default text sizes
+PyPlot.rc("axes", titlesize=20)     # fontsize of the axes title
+PyPlot.rc("axes", labelsize=20)     # fontsize of the x and y labels
+PyPlot.rc("xtick", labelsize=20)    # fontsize of the tick labels
+PyPlot.rc("ytick", labelsize=20)    # fontsize of the tick labels
+PyPlot.rc("legend", fontsize=20)    # legend fontsize
+
+const SymLogNorm = PyPlot.matplotlib[:colors][:SymLogNorm]
+
+# 1. Particle PDF
+
+pcm = axs[1].pcolormesh(
+    xcenters, ycenters, mean_dBdt',
+    cmap="coolwarm",
+    shading="auto",
+    norm=SymLogNorm(linthresh=1e-10, vmin=-1e-9, vmax=1e-9)
+)
+cont = axs[1].contour(
+    cat(topo_x, topo_x, dims=2),
+    cat(topo_y, topo_y[:, end] .+ topo_y, dims=2),
+    cat(topo_z, topo_z, dims=2),
+    levels=10:200:1500, colors="k", linewidths=0.5
+)
+axs[1].contour(
+    xcenters_init, ycenters_init, pdf_init',
+    levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-"
+)
+axs[1].set_title("All particles", fontsize=20)
+axs[1].set_xlabel("x̂ [km]", fontsize=20)
+axs[1].set_ylabel("ŷ [km]", fontsize=20)
+axs[1].set_ylim(0, 45)
+axs[1].set_xlim(-8.5, 44)
+axs[1].tick_params(axis="both", labelsize=20)
+# axs[1].set_yticklabels([])  # Turn off y-tick labels
+axs[1].set_aspect("equal", adjustable="box")
+axs[1].set_xticks([0, 10, 20, 30, 40])
+
+# 2. Mean dB/dt (negative buoyancy change)
+pcm = axs[2].pcolormesh(
+    xcenters, ycenters, mean_dBdt_neg',
+    cmap="coolwarm",
+    shading="auto",
+    norm=SymLogNorm(linthresh=1e-10, vmin=-1e-9, vmax=1e-9)
+)
+cont = axs[2].contour(
+    cat(topo_x, topo_x, dims=2),
+    cat(topo_y, topo_y[:, end] .+ topo_y, dims=2),
+    cat(topo_z, topo_z, dims=2),
+    levels=10:200:1500, colors="k", linewidths=0.5
+)
+axs[2].contour(
+    xcenters_init, ycenters_init, pdf_init',
+    levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-"
+)
+axs[2].set_title(L"\in B^p(t_f)<B^p(t_0)", fontsize=20)
+axs[2].set_xlabel("x̂ [km]", fontsize=20)
+axs[2].set_ylim(0, 45)
+axs[2].set_xlim(-8.5, 44)
+axs[2].tick_params(axis="both", labelsize=20)
+axs[2].set_yticklabels([])  # Turn off y-tick labels
+axs[2].set_aspect("equal", adjustable="box")
+axs[2].set_xticks([0, 10, 20, 30, 40])
+
+# 3. Mean dB/dt (positive)
+pcm = axs[3].pcolormesh(
+    xcenters, ycenters, mean_dBdt_pos',
+    cmap="coolwarm",
+    shading="auto",
+    norm=SymLogNorm(linthresh=1e-10, vmin=-1e-9, vmax=1e-9)
+)
+cont = axs[3].contour(
+    cat(topo_x, topo_x, dims=2),
+    cat(topo_y, topo_y[:, end] .+ topo_y, dims=2),
+    cat(topo_z, topo_z, dims=2),
+    levels=10:200:1500, colors="k", linewidths=0.5
+)
+axs[3].contour(
+    xcenters_init, ycenters_init, pdf_init',
+    levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-"
+)
+cbar = fig.colorbar(pcm, ax=axs, extend="both", shrink=0.8)
+cbar.ax.tick_params(labelsize=20)
+cbar.set_label("ω̄ᵖ [m s⁻³]", fontsize=20)
+axs[3].set_title(L"\in B^p(t_f)>B^p(t_0)", fontsize=20)
+axs[3].set_xlabel("x̂ [km]", fontsize=20)
+axs[3].set_ylim(0, 45)
+axs[3].set_xlim(-8.5, 44)
+axs[3].set_xticks([0, 10, 20, 30, 40])
+axs[3].tick_params(axis="both", labelsize=20)
+axs[3].set_yticklabels([])  # Turn off y-tick labels
+axs[3].set_aspect("equal", adjustable="box")
+
+fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_allparticlesdBdt_1stpanel.png", dpi=100)
+println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_allparticlesdBdt_1stpanel.png")
+close(fig)
 
 
 ####### plot pdf using hab to bin  

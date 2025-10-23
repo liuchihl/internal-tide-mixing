@@ -538,7 +538,7 @@ using StatsBase
 # Select time index and flatten arrays
 it = size(z_pert_all, 2)  # last time index
 ind1 = x_final[:] .< 1e4  # only include particles that does not pass 15 km in x direction
-ind2 =  x_final[:] .> 2e4  # only include particles that move pass 15 km in x direction
+ind2 = 38e3 .> x_final[:] .> 35e3  # only include particles that move pass 15 km in x direction
 z_flat_before_sill = vec(z_pert_all[ind1, it])
 b_flat_before_sill = vec(B_pert_all[ind1, it] * 1e5)
 z_flat_after_sill = vec(z_pert_all[ind2, it])
@@ -706,7 +706,7 @@ ax_relation_before_sill = axarr[3]
 pcm = ax_relation_before_sill.pcolormesh(z_centers_before_sill, b_centers_before_sill, pdf_2d_before_sill', cmap="inferno", shading="auto", norm=matplotlib.colors.LogNorm(vmin=1e-6, vmax=maximum(pdf_2d_before_sill)*0.1))
 # cb = plt.colorbar(pcm, ax=ax_relation_before_sill)
 # cb.set_label("PDF", fontsize=20)
-cb.ax.tick_params(labelsize=18)
+# cb.ax.tick_params(labelsize=18)
 ax_relation_before_sill.set_ylabel(L"\Delta B^p ~\mathrm{[10⁻⁵~ m~ s⁻²]}", fontsize=18)
 ax_relation_before_sill.set_xlabel(L"\Delta Z^p ~\mathrm{[m]}", fontsize=18)
 ax_relation_before_sill.grid(true, linestyle="--", alpha=0.5)
@@ -739,11 +739,98 @@ ax_relation_after_sill.axvline(0, color="black", linewidth=1, linestyle="-")
 
 
 # Save combined figure
-output_file = string("output/", simname, "/combined_pdf_ratio_evolution_Z_B_z", z_center_particle, "_final_pdf_no_sill_for_fig_f_<5km.png")
+output_file = string("output/", simname, "/combined_pdf_ratio_evolution_Z_B_z", z_center_particle, "_final_pdf_no_sill_for_fig_f_35-38km.png")
 @info "Saving combined PDF and ratio figure to $output_file"
 plt.savefig(output_file, bbox_inches="tight")
 plt.close()
 
+
+
+
+## compute the correlation coefficient between ΔBᵖ and ΔZᵖ at the final time step wrt x position
+using MAT
+file = matopen("topo.mat")
+z_topo = read(file, "z_noslope_periodic") 
+x_topo = read(file, "x_domain")
+y_topo = read(file, "y_domain")
+# grids has to be evenly spaced
+x_topo_lin = range(x_topo[1],x_topo[end],size(z_topo,1))
+y_topo_lin = range(y_topo[1],y_topo[end],size(z_topo,2))
+close(file)
+# high-resolution grids
+x_interp = range(x_topo[1],x_topo[end], length=500)
+#Ny=2Nx
+y_interp = range(y_topo[1],y_topo[end], length=1000)
+
+Nx = 500
+Ny = 1000
+Nz = 250
+θ = 0.0036
+using Interpolations
+# Interpolation object (caches coefficients and such)
+itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
+# Interpolate z_topo onto a higher-resolution grid
+itp = LinearInterpolation((x_topo_lin, y_topo_lin), z_topo)
+z_interp = [itp(x_topo_lin, y_topo_lin) for x_topo_lin in x_interp, y_topo_lin in y_interp]
+z_interp = z_interp.-minimum(z_interp)
+
+# create an extended topography
+dx_interp = x_interp[2] - x_interp[1]
+dy_interp = y_interp[2] - y_interp[1]
+Lx_interp = x_interp[end]
+Ly_interp = y_interp[end]
+
+x_interp_ext = vcat(x_interp[2Nx÷5:Nx] .- Lx_interp .- dx_interp, x_interp, x_interp .+ Lx_interp .+ dx_interp, x_interp .+ 2Lx_interp .+ 2dx_interp)
+y_interp_ext = vcat(y_interp, y_interp .+ Ly_interp .+ dy_interp)
+z_interp_ext = vcat(z_interp[2Nx÷5:Nx, :], z_interp, z_interp, z_interp)
+z_interp_ext = vcat(z_interp_ext', z_interp_ext')'
+
+## transform the topography into Cartesian coordinates
+# create a meshgrid
+X_interp_ext = repeat(x_interp_ext, 1, length(y_interp_ext))
+Y_interp_ext = repeat(y_interp_ext', length(x_interp_ext), 1)
+Z_interp_ext = z_interp_ext
+# Transform topography to Cartesian coordinates
+X_cart_interp_ext = X_interp_ext .* cos(θ) .- Z_interp_ext .* sin(θ)
+Y_cart_interp_ext = Y_interp_ext  # y-coordinate is unchanged
+Z_cart_interp_ext = X_interp_ext .* sin(θ) .+ Z_interp_ext .* cos(θ)
+
+# compute the correlation coefficient between z and b at each location
+
+x_bins = range(minimum(x_final), maximum(x_final), length=150)
+corr_coef = zeros(size(x_bins)).*NaN
+for i in 1:length(x_bins)-4
+    # Get the bin edges
+    x_bin_edges = (x_bins[i], x_bins[i+3])
+    # Get the indices of particles in this bin
+    ind = findall((x_final .> x_bin_edges[1]) .& (x_final .< x_bin_edges[2]))
+    # Compute the correlation coefficient if there are enough points
+    if length(ind) > 60
+        corr_coef[i] = cor(z_pert_all[ind,end], B_pert_all[ind,end])
+        # println("Correlation coefficient for bin $(i): $corr_coef")
+    end
+end
+using PyPlot
+fig, ax1 = subplots(figsize=(10, 4))  # Create a figure with a specified size and a primary axis
+
+# Plot the correlation coefficient on the primary y-axis
+ax1.plot(x_bins*1e-3, corr_coef, alpha=1, label=L"$r_{\Delta B^p, \Delta Z^p}$", color="red")
+ax1.labelsize = 16
+ax1.set_xlabel(L"$\hat{x}$ [km]", fontsize=16)
+ax1.set_ylabel(L"$r_{\Delta B^p, \Delta Z^p}$", color="red", fontsize=16)
+ax1.tick_params(axis="y", labelcolor="red", labelsize=14)  # Increase ticklabel size
+ax1.tick_params(axis="x", labelsize=14)  # Increase ticklabel size for x-axis
+ax1.set_xlim(0, 40)
+# Create a secondary y-axis sharing the same x-axis
+ax2 = ax1.twinx()
+ax2.fill_between(nanmean(X_cart_interp_ext[:, 333:666], dim=2) * 1e-3, nanmean(Z_cart_interp_ext[:, 333:666], dim=2), color="gray", alpha=0.5, label="Topography")
+ax2.labelsize = 16
+ax2.set_ylabel("Mean topography [m]", color="gray", fontsize=16)
+ax2.tick_params(axis="y", labelcolor="gray", labelsize=14)  # Increase ticklabel size
+ax2.set_ylim(0, 1200)
+# Save the figure
+savefig("output/tilt/correlation_coefficient_z_B_with_topography.png", bbox_inches="tight")
+println("Saved correlation coefficient plot with topography to output/tilt/correlation_coefficient_z_B_with_topography.png")
 
 
 
