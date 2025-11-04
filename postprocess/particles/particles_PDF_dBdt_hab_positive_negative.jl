@@ -254,12 +254,12 @@ GC.gc()
 using StatsBase
 
 # 1. Flatten all particle positions over all time steps
-x_flat = vec(x_cart_full[:,end])
-y_flat = vec(y_cart_full[:,end])
-x_0_negative_flat = vec(x_0_negative[:,end])
-y_0_negative_flat = vec(y_0_negative[:,end])
-x_0_positive_flat = vec(x_0_positive[:,end])
-y_0_positive_flat = vec(y_0_positive[:,end])
+x_flat = vec(x_cart_full[:,:])
+y_flat = vec(y_cart_full[:,:])
+x_0_negative_flat = vec(x_0_negative[:,:])
+y_0_negative_flat = vec(y_0_negative[:,:])
+x_0_positive_flat = vec(x_0_positive[:,:])
+y_0_positive_flat = vec(y_0_positive[:,:])
 
 # 2. Define bin edges using X_cart_interp_ext and Y_cart_interp_ext
 xedges = range(minimum(X_cart_interp_ext[:,1]), maximum(X_cart_interp_ext[:,1]), length=400)
@@ -367,7 +367,7 @@ topo_y = Y_cart_interp_ext[:, 1:1000] ./ 1e3  # km
 topo_z = Z_cart_interp_ext[:, 1:1000]         # m
 
 close("all")
-fig, axs = subplots(1, 3, figsize=(16, 5), constrained_layout=true)
+fig, axs = subplots(1, 3, figsize=(14, 6.5), constrained_layout=true)
 
 # Set global font sizes
 PyPlot.rc("font", size=20)          # controls default text sizes
@@ -396,8 +396,6 @@ cont = axs[1].contour(
     levels=10:200:1500, colors="k", linewidths=0.5
 )
 
-# pcm_all = axs[1].contourf(xcenters, ycenters, pdf_all', levels=range(1e-8, stop=10^(-3.4), length=13), vmin=1e-5, vmax=10^(-3.4), cmap="afmhot_r", shading="auto", alpha=1, edgecolors="black", linewidth=1)
-# cont = axs[1].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[1].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 axs[1].set_title("All particles", fontsize=20)
 axs[1].set_xlabel("x̂ [km]", fontsize=20)
@@ -407,42 +405,54 @@ axs[1].set_xlim(-8.5, 44)
 axs[1].tick_params(axis="both", labelsize=20)
 axs[1].set_aspect("equal", adjustable="box")
 axs[1].set_xticks([0, 10, 20, 30, 40])
+axs[1].text(0.02, 0.98, "(a)", transform=axs[1].transAxes, fontsize=20, verticalalignment="top")
+
+# Add colorbar below first panel
+cbar1 = fig.colorbar(pcm_all, ax=axs[1], orientation="horizontal", pad=0.08, aspect=25)
+cbar1.ax.tick_params(labelsize=20)
+cbar1.set_label("PDF", fontsize=20)
+cbar1.ax.set_xscale("log")
 
 # 2. Mean dB/dt (negative buoyancy change)
-pcm = axs[2].pcolormesh(xcenters, ycenters, mean_dBdt_neg', cmap="coolwarm", shading="auto", vmin=-1e-9, vmax=1e-9)
+pcm = axs[2].pcolormesh(xcenters, ycenters, 1e9*mean_dBdt_neg', cmap="coolwarm", shading="auto", vmin=-1, vmax=1)
 cont = axs[2].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[2].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
 axs[2].set_title(L"\in B^p(t_f)<B^p(t_0)", fontsize=20)
 axs[2].set_xlabel("x̂ [km]", fontsize=20)
-# axs[2].set_ylabel("y [km]", fontsize=16)
 axs[2].set_ylim(0, 45)
 axs[2].set_xlim(-8.5, 44)
 axs[2].tick_params(axis="both", labelsize=20)
-axs[2].set_yticklabels([])  # Turn off y-tick labels
+axs[2].set_yticklabels([])
 axs[2].set_aspect("equal", adjustable="box")
 axs[2].set_xticks([0, 10, 20, 30, 40])
+axs[2].text(0.02, 0.98, "(b)", transform=axs[2].transAxes, fontsize=20, verticalalignment="top")
+
+# Add colorbar below second panel
+cbar2 = fig.colorbar(pcm, ax=axs[2], orientation="horizontal", pad=0.08, aspect=25, extend="both")
+cbar2.ax.tick_params(labelsize=20)
+cbar2.set_label(L"10⁹ ⋅ $\overline{\omega}^p$ [m s⁻³]", fontsize=20)
 
 # 3. Mean dB/dt (positive)
-pcm = axs[3].pcolormesh(xcenters, ycenters, 1e9*mean_dBdt_pos', cmap="coolwarm", shading="auto", vmin=-1, vmax=1)
+pcm_pos = axs[3].pcolormesh(xcenters, ycenters, 1e9*mean_dBdt_pos', cmap="coolwarm", shading="auto", vmin=-1, vmax=1)
 cont = axs[3].contour(cat(topo_x,topo_x,dims=2), cat(topo_y,topo_y[:,end].+topo_y,dims=2), cat(topo_z,topo_z,dims=2), levels=10:200:1500, colors="k", linewidths=0.5)
 axs[3].contour(xcenters_init, ycenters_init, pdf_init', levels=[threshold_95], colors="green", linewidths=1.5, linestyles="-")
-cbar = fig.colorbar(pcm, ax=axs, extend="both", shrink=0.8)
-cbar.ax.tick_params(labelsize=20)
-cbar.set_label("10⁻⁹ × ω̄ᵖ [m s⁻³]", fontsize=20)
 axs[3].set_title(L"\in B^p(t_f)>B^p(t_0)", fontsize=20)
 axs[3].set_xlabel("x̂ [km]", fontsize=20)
-# axs[3].set_ylabel("y [km]", fontsize=16)
 axs[3].set_ylim(0, 45)
 axs[3].set_xlim(-8.5, 44)
 axs[3].set_xticks([0, 10, 20, 30, 40])
 axs[3].tick_params(axis="both", labelsize=20)
-axs[3].set_yticklabels([])  # Turn off y-tick labels
+axs[3].set_yticklabels([])
 axs[3].set_aspect("equal", adjustable="box")
+axs[3].text(0.02, 0.98, "(c)", transform=axs[3].transAxes, fontsize=20, verticalalignment="top")
 
-fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_finaltimestep_1stpanel.png", dpi=100)
-println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_finaltimestep_1stpanel.png")
+# Add invisible/pseudo colorbar below third panel for alignment
+cbar3 = fig.colorbar(pcm_pos, ax=axs[3], orientation="horizontal", pad=0.1, aspect=25, extend="both")
+cbar3.ax.set_visible(false)  # Make the colorbar invisible
+
+fig.savefig("output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_alltime.png", dpi=300)
+println("Figure saved to output/$(simname)/combined_pdf_dBdt_panels_pos_neg_portion_alltime.png")
 close(fig)
-
 
 
 ###### first panel: plot the mean buoyancy change over time in x-y plane for all particles

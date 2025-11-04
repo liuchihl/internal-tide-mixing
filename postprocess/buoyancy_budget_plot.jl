@@ -94,7 +94,7 @@ axislegend(ax, position=:rt, framevisible=false, nbanks=1)
 
 # Display the figure
 display(fig)
-save(string("output/tilt/Buoyancy_budget_hab_tᶠ=",tᶠ,"_decompose.png"),fig)
+save(string("output/tilt/Buoyancy_budget_hab_tᶠ=", tᶠ, "_decompose.png"), fig)
 
 
 
@@ -208,9 +208,9 @@ ax.set_ylabel("HAB [m]")
 
 # Set x-axis to symlog scale
 ax.set_xscale("symlog", linthresh=1 * 10^(-9.8))
-ax.set_xticks([-1e-9, -1e-10,0, 1e-10, 1e-9], 
-           labels=[L"-10^{-9}", L"-10^{-10}","0",L"10^{-10}", L"10^{-9}"])
-        # Configure symlog minor ticks using matplotlib settings
+ax.set_xticks([-1e-9, -1e-10, 0, 1e-10, 1e-9],
+        labels=[L"-10^{-9}", L"-10^{-10}", "0", L"10^{-10}", L"10^{-9}"])
+# Configure symlog minor ticks using matplotlib settings
 import PyCall
 matplotlib_ticker = PyCall.pyimport("matplotlib.ticker")
 LogLocator = matplotlib_ticker.LogLocator
@@ -259,8 +259,8 @@ using Statistics
 using NaNStatistics
 
 simname = "tilt"
-t_start = 453.0
-t_end = 462.0
+t_start = 452.0
+t_end = 461.0
 t_range = t_start:1.0:t_end
 
 # Initialize accumulators for each term and mask count
@@ -273,42 +273,42 @@ mask_count = nothing
 nfiles = 0
 
 for tᶠ in t_range
-    file = string("output/", simname, "/TF_avg_tᶠ=", tᶠ, "_analysis.nc")
-    ds = Dataset(file, "r")
-    # Load each region separately
-    div_uB_avg = hcat(ds["div_uB_avg_sill"][:, 1], ds["div_uB_avg_rest"][:, 1], ds["div_uB_avg_flanks"][:, 1])
-    u_bar_∇B_bar_avg = hcat(ds["u_bar_∇B_bar_avg_sill"][:, 1], ds["u_bar_∇B_bar_avg_rest"][:, 1], ds["u_bar_∇B_bar_avg_flanks"][:, 1])
-    u_prime∇B_prime_avg = hcat(ds["u_prime∇B_prime_avg_sill"][:, 1], ds["u_prime∇B_prime_avg_rest"][:, 1], ds["u_prime∇B_prime_avg_flanks"][:, 1])
-    dBdt_avg = hcat(ds["dBdt_avg_sill"][:, 1], ds["dBdt_avg_rest"][:, 1], ds["dBdt_avg_flanks"][:, 1])
-    ∇κ∇B_avg = hcat(ds["∇κ∇B_avg_sill"][:, 1], ds["∇κ∇B_avg_rest"][:, 1], ds["∇κ∇B_avg_flanks"][:, 1])
-    mask_sill = ds["mask_sill"][:,:]
-    mask_rest = ds["mask_rest"][:,:]
-    mask_flanks = ds["mask_flanks"][:,:]
-    # Count valid points in each region
-    n_sill = nansum(mask_sill)
-    n_rest = nansum(mask_rest)
-    n_flanks = nansum(mask_flanks)
-    mask_total = [n_sill, n_rest, n_flanks]
-    # Accumulate weighted sum and mask count for each depth
-    if div_uB_accum === nothing
-        ndepth = size(div_uB_avg, 1)
-        div_uB_accum = zeros(ndepth)
-        u_bar_∇B_bar_accum = zeros(ndepth)
-        u_prime∇B_prime_accum = zeros(ndepth)
-        dBdt_accum = zeros(ndepth)
-        ∇κ∇B_accum = zeros(ndepth)
-        mask_count = zeros(ndepth)
-    end
-    for r in 1:3
-        div_uB_accum .+= div_uB_avg[:, r] .* mask_total[r]
-        u_bar_∇B_bar_accum .+= u_bar_∇B_bar_avg[:, r] .* mask_total[r]
-        u_prime∇B_prime_accum .+= u_prime∇B_prime_avg[:, r] .* mask_total[r]
-        dBdt_accum .+= dBdt_avg[:, r] .* mask_total[r]
-        ∇κ∇B_accum .+= ∇κ∇B_avg[:, r] .* mask_total[r]
-        mask_count .+= mask_total[r]
-    end
-    nfiles += 1
-    close(ds)
+        file = string("output/", simname, "/TF_avg_tᶠ=", tᶠ, "_analysis.nc")
+        ds = Dataset(file, "r")
+        # Load each region separately
+        div_uB_avg = hcat(ds["div_uB_avg_sill"][:, 1], ds["div_uB_avg_rest"][:, 1], ds["div_uB_avg_flanks"][:, 1])
+        u_bar_∇B_bar_avg = hcat(ds["u_bar_∇B_bar_avg_sill"][:, 1], ds["u_bar_∇B_bar_avg_rest"][:, 1], ds["u_bar_∇B_bar_avg_flanks"][:, 1])
+        u_prime∇B_prime_avg = hcat(ds["u_prime∇B_prime_avg_sill"][:, 1], ds["u_prime∇B_prime_avg_rest"][:, 1], ds["u_prime∇B_prime_avg_flanks"][:, 1])
+        dBdt_avg = hcat(ds["dBdt_avg_sill"][:, 1], ds["dBdt_avg_rest"][:, 1], ds["dBdt_avg_flanks"][:, 1])
+        ∇κ∇B_avg = hcat(ds["∇κ∇B_avg_sill"][:, 1], ds["∇κ∇B_avg_rest"][:, 1], ds["∇κ∇B_avg_flanks"][:, 1])
+        mask_sill = ds["mask_sill"][:, :]
+        mask_rest = ds["mask_rest"][:, :]
+        mask_flanks = ds["mask_flanks"][:, :]
+        # Count valid points in each region
+        n_sill = nansum(mask_sill)
+        n_rest = nansum(mask_rest)
+        n_flanks = nansum(mask_flanks)
+        mask_total = [n_sill, n_rest, n_flanks]
+        # Accumulate weighted sum and mask count for each depth
+        if div_uB_accum === nothing
+                ndepth = size(div_uB_avg, 1)
+                div_uB_accum = zeros(ndepth)
+                u_bar_∇B_bar_accum = zeros(ndepth)
+                u_prime∇B_prime_accum = zeros(ndepth)
+                dBdt_accum = zeros(ndepth)
+                ∇κ∇B_accum = zeros(ndepth)
+                mask_count = zeros(ndepth)
+        end
+        for r in 1:3
+                div_uB_accum .+= div_uB_avg[:, r] .* mask_total[r]
+                u_bar_∇B_bar_accum .+= u_bar_∇B_bar_avg[:, r] .* mask_total[r]
+                u_prime∇B_prime_accum .+= u_prime∇B_prime_avg[:, r] .* mask_total[r]
+                dBdt_accum .+= dBdt_avg[:, r] .* mask_total[r]
+                ∇κ∇B_accum .+= ∇κ∇B_avg[:, r] .* mask_total[r]
+                mask_count .+= mask_total[r]
+        end
+        nfiles += 1
+        close(ds)
 end
 
 # Average over all files and all valid points
@@ -348,3 +348,112 @@ plt.tight_layout()
 
 PyPlot.savefig(string("output/tilt/Buoyancy_budget_hab_tidalavg_", t_start, "-", t_end, "_decompose.png"))
 println(string("Saved to output/tilt/Buoyancy_budget_hab_tidalavg_", t_start, "-", t_end, "_decompose.png"))
+
+
+
+
+## plot buoyancy budget and vertical velocity HAB
+# plot the buoyancy budget terms (451-461 average)
+# ∂B/∂t = -ũ⋅∇B - ∇⋅(-κ∇B)
+using NCDatasets
+using PyPlot
+using Statistics
+using NaNStatistics
+
+simname = "tilt"
+t_start = 452.0
+t_end = 461.0
+t_range = t_start:1.0:t_end
+
+# Initialize accumulators for each term and mask count
+file = string("output/", simname, "/TF_avg_tᶠ=", t_start, "_analysis.nc")
+ds = Dataset(file, "r")
+z = ds["bin_center"][:]
+div_uB_accum = zeros(size(z))
+u_bar_∇B_bar_accum = zeros(size(z))
+u_prime∇B_prime_accum = zeros(size(z))
+dBdt_accum = zeros(size(z))
+∇κ∇B_accum = zeros(size(z))
+what_accum = zeros(size(z))
+mask_count = zeros(size(z))
+
+nfiles = 0
+
+for tᶠ in t_range
+        file = string("output/", simname, "/TF_avg_tᶠ=", tᶠ, "_analysis.nc")
+        ds = Dataset(file, "r")
+        # Load each region separately
+        div_uB_avg = ds["div_uB_avg"][:, :]
+        u_bar_∇B_bar_avg = ds["u_bar_∇B_bar_avg"][:, :]
+        u_prime∇B_prime_avg = ds["u_prime∇B_prime_avg"][:, :]
+        dBdt_avg = ds["dBdt_avg"][:, :]
+        ∇κ∇B_avg = ds["∇κ∇B_avg"][:, :]
+        what_avg = ds["what_avg"][:, :]
+
+        div_uB_accum .+= div_uB_avg
+        u_bar_∇B_bar_accum .+= u_bar_∇B_bar_avg
+        u_prime∇B_prime_accum .+= u_prime∇B_prime_avg
+        dBdt_accum .+= dBdt_avg
+        ∇κ∇B_accum .+= ∇κ∇B_avg
+        what_accum .+= what_avg
+
+        nfiles += 1
+        close(ds)
+end
+
+# Average over all files and all valid points
+div_uB_mean = div_uB_accum ./ nfiles
+u_bar_∇B_bar_mean = u_bar_∇B_bar_accum ./ nfiles
+u_prime∇B_prime_mean = u_prime∇B_prime_accum ./ nfiles
+dBdt_mean = dBdt_accum ./ nfiles
+∇κ∇B_mean = ∇κ∇B_accum ./ nfiles
+what_mean = what_accum ./ nfiles
+
+# Load z for plotting (from last file)
+ds = Dataset(string("output/", simname, "/TF_avg_tᶠ=", t_end, "_analysis.nc"), "r")
+z = ds["bin_center"][:]
+close(ds)
+
+fig, ax = plt.subplots(1, 2, figsize=(7, 3.5))
+plt.rcParams["font.size"] = 25
+
+# Panel (a)
+ax[1].plot(-u_bar_∇B_bar_mean*1e9, z, label=L"-\nabla\cdot(\overline{\mathbf{u}}\,\overline{B})", linestyle="-", color=[150, 148, 255] / 255, linewidth=2.2)
+ax[1].plot(-u_prime∇B_prime_mean*1e9, z, label=L"-\nabla\cdot\overline{\mathbf{u'} B'}", linestyle="-", color=[136, 194, 115] / 255, linewidth=2.2)
+ax[1].plot(∇κ∇B_mean*1e9, z, label=L"-\nabla\cdot(\overline{\mathcal{B}})", color="red", linestyle="--", linewidth=3)
+ax[1].plot(-div_uB_mean*1e9 .+ ∇κ∇B_mean*1e9, z, label="RHS", color="black", linewidth=2.2)
+ax[1].plot([0, 0], [0, 500], color="black", linewidth=1.5)
+ax[1].plot(dBdt_mean*1e9, z, label=L"\partial\overline{B}/\partial t", color="gray", linewidth=2.2, linestyle="--")
+
+ax[1].set_ylim(0, 500)
+ax[1].set_ylabel("HAB [m]")
+ax[1].set_xlabel(L"[$10^{9}\cdot$ m s⁻³]")
+ax[1].set_xlim(-1.6, 1.6)
+ax[1].legend(loc="upper right", frameon=true, ncol=1, fontsize=10,
+        handlelength=1.4, columnspacing=0.9, framealpha=0.93)
+ax[1].minorticks_on()
+ax[1].tick_params(axis="both", which="minor", length=4, width=0.8)
+ax[1].tick_params(axis="both", which="major", length=7, width=1.0)
+
+# Add annotation (a) and texts "Divergent" and "Convergent"
+ax[1].text(-1.5, 480, "(a)", fontsize=12, ha="left", va="top")
+ax[1].text(-1.5, 50, "Divergent", fontsize=12, color="blue", ha="left", va="center")
+ax[1].text(1.5, 50, "Convergent", fontsize=12, color="blue", ha="right", va="center")
+
+# Panel (b)
+ax[2].plot(what_mean * 1e3, z, color="black", linewidth=2.2)
+ax[2].axvline([0], color="black", linewidth=1.5)
+ax[2].set_ylim(0, 500)
+ax[2].set_xlim(-1, 1)
+ax[2].set_xlabel(L"$\hat{w}\cdot 10^{3}$  [m s⁻¹]")
+ax[2].minorticks_on()
+ax[2].set_yticklabels([])  # Remove y-axis labels for the second plot
+ax[2].tick_params(axis="both", which="minor", length=4, width=0.8)
+ax[2].tick_params(axis="both", which="major", length=7, width=1.0)
+
+# Add annotation (b)
+ax[2].text(-0.9, 480, "(b)", fontsize=12, ha="left", va="top")
+
+plt.tight_layout()
+PyPlot.savefig(string("output/tilt/Buoyancy_budget_hab_tidalavg_what_", t_start, "-", t_end, "_decompose.png"), dpi=300)
+println(string("Saved to output/tilt/Buoyancy_budget_hab_tidalavg_what_", t_start, "-", t_end, "_decompose.png"))

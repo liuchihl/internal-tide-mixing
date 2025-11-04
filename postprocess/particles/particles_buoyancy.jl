@@ -537,8 +537,9 @@ using StatsBase
 
 # Select time index and flatten arrays
 it = size(z_pert_all, 2)  # last time index
-ind1 = x_final[:] .< 1e4  # only include particles that does not pass 15 km in x direction
-ind2 = 38e3 .> x_final[:] .> 35e3  # only include particles that move pass 15 km in x direction
+ind1 = x_final[:] .< 1.5e4  # only include particles that does not pass 15 km in x direction
+# ind2 = 38e3 .> x_final[:] .> 35e3  # only include particles that move pass 15 km in x direction
+ind2 = x_final[:] .> 1.5e4  # only include particles that move pass 15 km in x direction
 z_flat_before_sill = vec(z_pert_all[ind1, it])
 b_flat_before_sill = vec(B_pert_all[ind1, it] * 1e5)
 z_flat_after_sill = vec(z_pert_all[ind2, it])
@@ -593,18 +594,18 @@ for t in 1:n_timesteps
         bin_width_B = step(bin_edges_B)
         bin_width_Z = step(bin_edges_Z)
         bin_width_X = step(bin_edges_X)
-        ind = findall(h_b.weights .< 100)
+        ind = findall(h_b.weights .< 10)
         h_b.weights[ind] .= 0
         pdf_data_B[:, t] = h_b.weights ./ (sum(h_b.weights) * bin_width_B)
-        ind = findall(h_z.weights .< 100)
+        ind = findall(h_z.weights .< 10)
         h_z.weights[ind] .= 0
         pdf_data_Z[:, t] = h_z.weights ./ (sum(h_z.weights) * bin_width_Z)
-        ind = findall(h_x.weights .< 100)
+        ind = findall(h_x.weights .< 10)
         h_x.weights[ind] .= 0
         pdf_data_X[:, t] = h_x.weights ./ (sum(h_x.weights) * bin_width_X)
 end
-pdf_data_B[pdf_data_B .< 1e4] .= NaN
-pdf_data_Z[pdf_data_Z .< nanmaximum(pdf_data_Z)*0.002] .= NaN
+# pdf_data_B[pdf_data_B .< 1e4] .= NaN
+# pdf_data_Z[pdf_data_Z .< nanmaximum(pdf_data_Z)*0.002] .= NaN
 # pdf_data_X[pdf_data_X .< 1e4] .= NaN
 GC.gc()
 
@@ -622,7 +623,7 @@ cmap.set_under("white")
 pcm = ax_pdf.pcolor(time_tidal, bin_centers_B * 1e5, pdf_data_B/1e4, cmap="managua", shading="nearest")
 # Place colorbar outside the right of panel a to avoid squeezing
 cbar = fig.colorbar(pcm, ax=ax_pdf, label="PDF", pad=0.02, fraction=0.046, location="right", extend="max")
-cbar.ax.set_ylabel("10⁴ × PDF", fontsize=18)
+cbar.ax.set_ylabel("10⁻⁴ ⋅ PDF", fontsize=18)
 cbar.ax.tick_params(labelsize=16)
 cbar.ax.tick_params(which="minor", labelsize=16)
 # cbar._set_scale("linear")
@@ -631,15 +632,16 @@ ax_pdf.tick_params(labelsize=16)
 ax_pdf.grid(true, linestyle="-", alpha=0.75)
 ax_pdf.set_xlim(0, time_tidal[end])
 ax_pdf.set_ylim(-3, 3)
-pcm.set_clim(1, 10)
+pcm.set_clim(0, 10)
 ax_pdf.axhline(0, color="black", linewidth=1, linestyle="-")
 
 # Superimpose median lines
 ax_pdf.plot(time_tidal, median_buoyancy_0_all * 1e5, color="#0072B2", linewidth=3, label="All", zorder=10)  # Blue
 ax_pdf.plot(time_tidal, median_buoyancy_0_negative * 1e5, color="#D55E00", linewidth=2.5, linestyle="-", label=L"$\in B^p(t_f) < B^p(t_0)$", zorder=10)  # Orange
 ax_pdf.plot(time_tidal, median_buoyancy_0_positive * 1e5, color="#009E73", linewidth=2.5, linestyle="-", label=L"$\in B^p(t_f) > B^p(t_0)$", zorder=10)  # Green
-ax_pdf.legend(fontsize=14, loc="lower left", frameon=false)
-ax_pdf.text(0.02, 0.92, "(a)", transform=ax_pdf.transAxes, fontsize=16, va="top", ha="left")
+ax_pdf.legend(fontsize=14, loc="lower left", frameon=false, handlelength=1.2, handletextpad=0.5, borderpad=0.4, labelspacing=0.2,bbox_to_anchor=(0, -0.07))
+# ax_pdf.legend(fontsize=14, loc="lower left", frameon=true)
+ax_pdf.text(0.02, 0.92, "(a)", transform=ax_pdf.transAxes, fontsize=16, va="top", ha="left", zorder=11)
 
 # Panel (b): PDF pcolor plot
 ax_pdf_Z = axarr[4]
@@ -652,7 +654,7 @@ cbar.ax.set_ylabel("PDF", fontsize=18)
 cbar.ax.tick_params(labelsize=16)
 cbar.ax.tick_params(which="minor", labelsize=16)
 # cbar._set_scale("linear")
-ax_pdf_Z.set_ylabel(L"\Delta Z^p ~\mathrm{[m]}", fontsize=18)
+ax_pdf_Z.set_ylabel(L"$\Delta \hat{Z}^p ~\mathrm{[m]}$", fontsize=18)
 ax_pdf_Z.tick_params(labelsize=16)
 ax_pdf_Z.grid(true, linestyle="-", alpha=0.75)
 ax_pdf_Z.set_xlim(0, time_tidal[end])
@@ -662,17 +664,18 @@ ax_pdf_Z.axhline(0, color="black", linewidth=1, linestyle="-")
 
 # Superimpose median lines
 ax_pdf_Z.plot(time_tidal, median_z_0_all, color="#0072B2", linewidth=3, label="All", zorder=10)  # Blue
-ax_pdf_Z.plot(time_tidal, median_z_0_negative, color="#D55E00", linewidth=2.5, linestyle="-", label=L"$\in Z^p(t_f) < Z^p(t_0)$", zorder=10)  # Orange
-ax_pdf_Z.plot(time_tidal, median_z_0_positive, color="#009E73", linewidth=2.5, linestyle="-", label=L"$\in Z^p(t_f) > Z^p(t_0)$", zorder=10)  # Green
-ax_pdf_Z.legend(fontsize=14, loc="lower left", frameon=false)
+ax_pdf_Z.plot(time_tidal, median_z_0_negative, color="#D55E00", linewidth=2.5, linestyle="-", label=L"$\in \hat{Z}^p(t_f) < \hat{Z}^p(t_0)$", zorder=10)  # Orange
+ax_pdf_Z.plot(time_tidal, median_z_0_positive, color="#009E73", linewidth=2.5, linestyle="-", label=L"$\in \hat{Z}^p(t_f) > \hat{Z}^p(t_0)$", zorder=10)  # Green
+# ax_pdf_Z.legend(fontsize=14, loc="lower left", frameon=false, zorder=10)
+ax_pdf_Z.legend(fontsize=14, loc="lower left", frameon=false, handlelength=1.2, handletextpad=0.5, borderpad=0.2, labelspacing=0.1, bbox_to_anchor=(0, -0.07))
 ax_pdf_Z.text(0.02, 0.92, "(b)", transform=ax_pdf_Z.transAxes, fontsize=16, va="top", ha="left")
 
 
 
 # Panel (c): Ratio plot (bottom)
 ax_ratio = axarr[2]
-ax_ratio.plot(time_tidal_ratio, ratio_B, color="purple", linewidth=2.5, label=L"$N_+^p~/~N_-^p$")
-ax_ratio.set_ylabel(L"$N_+^p~/~N_-^p$", fontsize=18)
+ax_ratio.plot(time_tidal_ratio, ratio_B, color="purple", linewidth=2.5, label=L"$N_{B_+}^p~/~N_{B_-}^p$")
+ax_ratio.set_ylabel(L"$N_{B_+}^p~/~N_{B_-}^p$", fontsize=18)
 ax_ratio.grid(true, linestyle="-", alpha=0.75)
 ax_ratio.set_yscale("log")
 ax_ratio.tick_params(labelsize=18)
@@ -688,8 +691,8 @@ ax_ratio.text(0.02, 0.92, "(c)", transform=ax_ratio.transAxes, fontsize=16, va="
 
 # Panel (d): Ratio plot (bottom)
 ax_ratio_Z = axarr[5]
-ax_ratio_Z.plot(time_tidal_ratio, ratio_Z, color="purple", linewidth=2.5, label=L"$N_+^p~/~N_-^p$")
-ax_ratio_Z.set_ylabel(L"$N_+^p~/~N_-^p$", fontsize=18)
+ax_ratio_Z.plot(time_tidal_ratio, ratio_Z, color="purple", linewidth=2.5, label=L"$N_{Z_+}^p~/~N_{Z_-}^p$")
+ax_ratio_Z.set_ylabel(L"$N_{Z_+}^p~/~N_{Z_-}^p$", fontsize=18)
 ax_ratio_Z.set_yscale("log")
 ax_ratio_Z.grid(true, linestyle="-", alpha=0.75)
 ax_ratio_Z.tick_params(labelsize=16)
@@ -708,14 +711,14 @@ pcm = ax_relation_before_sill.pcolormesh(z_centers_before_sill, b_centers_before
 # cb.set_label("PDF", fontsize=20)
 # cb.ax.tick_params(labelsize=18)
 ax_relation_before_sill.set_ylabel(L"\Delta B^p ~\mathrm{[10⁻⁵~ m~ s⁻²]}", fontsize=18)
-ax_relation_before_sill.set_xlabel(L"\Delta Z^p ~\mathrm{[m]}", fontsize=18)
+ax_relation_before_sill.set_xlabel(L"$\Delta \hat{Z}^p ~\mathrm{[m]}$", fontsize=18)
 ax_relation_before_sill.grid(true, linestyle="--", alpha=0.5)
 ax_relation_before_sill.tick_params(labelsize=16)
 ax_relation_before_sill.set_xlim(minimum(z_centers_before_sill), maximum(z_centers_before_sill))
 ax_relation_before_sill.set_ylim(minimum(b_centers_before_sill), maximum(b_centers_before_sill))
 ax_relation_before_sill.set_ylim(-60, 60)
 pcm.set_clim(1e-5, 1e-2)
-ax_relation_before_sill.text(0.02, 0.92, L"(e) ∈ $X^p(t_f)$ < 15 km", transform=ax_relation_before_sill.transAxes, fontsize=18, va="top", ha="left")
+ax_relation_before_sill.text(0.02, 0.92, L"(e) ∈ $\hat{X}^p(t_f)$ < 15 km", transform=ax_relation_before_sill.transAxes, fontsize=18, va="top", ha="left")
 ax_relation_before_sill.axhline(0, color="black", linewidth=1, linestyle="-")
 ax_relation_before_sill.axvline(0, color="black", linewidth=1, linestyle="-")
 
@@ -726,20 +729,21 @@ cb = plt.colorbar(pcm, ax=ax_relation_after_sill)
 cb.set_label("PDF", fontsize=18)
 cb.ax.tick_params(labelsize=18)
 ax_relation_after_sill.set_ylabel(L"\Delta B^p ~\mathrm{[10⁻⁵~ m~ s⁻²]}", fontsize=18)
-ax_relation_after_sill.set_xlabel(L"\Delta Z^p ~\mathrm{[m]}", fontsize=18)
+ax_relation_after_sill.set_xlabel(L"$\Delta \hat{Z}^p ~\mathrm{[m]}$", fontsize=18)
 ax_relation_after_sill.grid(true, linestyle="--", alpha=0.5)
 ax_relation_after_sill.tick_params(labelsize=16)
 ax_relation_after_sill.set_xlim(minimum(z_centers_before_sill), maximum(z_centers_before_sill))
 # ax_relation_after_sill.set_ylim(minimum(b_centers_after_sill), maximum(b_centers_after_sill))
 ax_relation_after_sill.set_ylim(-60, 60)
 pcm.set_clim(1e-5, 1e-2)
-ax_relation_after_sill.text(0.02, 0.92, L"(f) ∈ $X^p(t_f)$ > 15 km", transform=ax_relation_after_sill.transAxes, fontsize=18, va="top", ha="left")
+ax_relation_after_sill.text(0.02, 0.92, L"(f) ∈ $\hat{X}^p(t_f)$ > 15 km", transform=ax_relation_after_sill.transAxes, fontsize=18, va="top", ha="left")
 ax_relation_after_sill.axhline(0, color="black", linewidth=1, linestyle="-")
 ax_relation_after_sill.axvline(0, color="black", linewidth=1, linestyle="-")
 
 
 # Save combined figure
-output_file = string("output/", simname, "/combined_pdf_ratio_evolution_Z_B_z", z_center_particle, "_final_pdf_no_sill_for_fig_f_35-38km.png")
+output_file = string("output/", simname, "/combined_pdf_ratio_evolution_Z_B_z", z_center_particle, "_final_pdf_15km_cutoff.png")
+# output_file = string("output/", simname, "/combined_pdf_ratio_evolution_Z_B_z", z_center_particle, "_final_pdf_no_sill_for_fig_f_35-38km.png")
 @info "Saving combined PDF and ratio figure to $output_file"
 plt.savefig(output_file, bbox_inches="tight")
 plt.close()
@@ -814,10 +818,10 @@ using PyPlot
 fig, ax1 = subplots(figsize=(10, 4))  # Create a figure with a specified size and a primary axis
 
 # Plot the correlation coefficient on the primary y-axis
-ax1.plot(x_bins*1e-3, corr_coef, alpha=1, label=L"$r_{\Delta B^p, \Delta Z^p}$", color="red")
+ax1.plot(x_bins*1e-3, corr_coef, alpha=1, label=L"$r_{\Delta B^p, \Delta \hat{Z}^p}$", color="red")
 ax1.labelsize = 16
 ax1.set_xlabel(L"$\hat{x}$ [km]", fontsize=16)
-ax1.set_ylabel(L"$r_{\Delta B^p, \Delta Z^p}$", color="red", fontsize=16)
+ax1.set_ylabel(L"$r_{\Delta B^p, \Delta \hat{Z}^p}$", color="red", fontsize=16)
 ax1.tick_params(axis="y", labelcolor="red", labelsize=14)  # Increase ticklabel size
 ax1.tick_params(axis="x", labelsize=14)  # Increase ticklabel size for x-axis
 ax1.set_xlim(0, 40)

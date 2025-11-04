@@ -474,10 +474,18 @@ B_weighted_residual_tilt = int_2ω .+ B_weighted_tilt[1]
 
 file_p = "output/tilt/concatenated_particle_data_z1000_all.nc"
 ds_p_tilt = Dataset(file_p, "r")
+# second part
 Bp_tilt = ds_p_tilt["new_buoyancy"][:,:]
 Bp_tilt_med = median(Bp_tilt, dims=1)
 ΔBp_tilt = Bp_tilt_med[:].-Bp_tilt_med[1]
 tp_tilt = ds_p_tilt["new_time"][:]
+
+# first part
+Bp_tilt_main = ds_p_tilt["main_buoyancy"][:,:]
+Bp_tilt_med_main = median(Bp_tilt_main, dims=1)
+ΔBp_tilt_main = Bp_tilt_med_main[:].-Bp_tilt_med_main[1]
+tp_tilt_main = ds_p_tilt["main_time"][:]
+
 
 file = "output/flat/tracer_weighted_vertical_velocity_flat_451.5-456.0.nc"
 ds = Dataset(file, "r")
@@ -543,13 +551,12 @@ tp_flat = ds_p_flat["main_time"][:]
 # println("Saved tracer-weighted buoyancy comparison plot: output/flat/tracer_weighted_buoyancy_comparison.png")
 
 
-
 using CairoMakie
 
 fig = Figure(resolution=(800, 400), fontsize=22)
 
 ax = Axis(fig[1, 1];
-    xlabel="Tidal cycles",
+    xlabel="Time after release [tidal cycles]",
     ylabel="[10⁻⁵ m s⁻²]",
     xminorticksvisible=true,
     yminorticksvisible=true,
@@ -561,6 +568,10 @@ ax = Axis(fig[1, 1];
     xlabelsize=22,
     ylabelsize=22,
     titlesize=24,
+    xticksvisible=(:bottom, :top),
+    yticksvisible=(:left, :right)
+    # xticksvisible=:all,   # <-- show ticks on bottom and top
+    # yticksvisible=:all   # <-- show ticks on left and right
 )
 
 # Tilt case
@@ -571,9 +582,11 @@ flat_color = "#D55E00"      # Orange/red (colorblind safe)
 flat_dash_color = "#E69F00" # Yellow/orange (colorblind safe)
 
 lines!(ax, (t_tilt.-t_tilt[1]) ./ (2*pi/1.4e-4), 1e5*(B_weighted_residual_tilt[:,1].-B_weighted_residual_tilt[1,1]),
-    linewidth=3, color=tilt_color, label=L"\Delta\bar{B}^c_{tilt}")
+    linewidth=3, color=tilt_color, label=L"\Delta\bar{B}^{c}_{tilt}")
 lines!(ax, (tp_tilt.-tp_tilt[1]) ./ (2*pi/1.4e-4), 1e5*ΔBp_tilt[:],
-    linewidth=3, color=tilt_dash_color, linestyle=:dash, label=L"\Delta\bar{B}^p_{tilt}")
+    linewidth=3, color=tilt_dash_color, linestyle=:dash, label=L"\Delta\bar{B}^{p2}_{tilt}")
+lines!(ax, (tp_tilt_main.-tp_tilt_main[1]) ./ (2*pi/1.4e-4), 1e5*ΔBp_tilt_main[:],
+    linewidth=3, color=tilt_dash_color, linestyle=:dot, label=L"\Delta\bar{B}^{p1}_{tilt}")
 
 # Flat case
 lines!(ax, (t_flat.-t_flat[1]) ./ (2*pi/1.4e-4), 1e5*(B_weighted_residual_flat[:,1].-B_weighted_residual_flat[1,1]),

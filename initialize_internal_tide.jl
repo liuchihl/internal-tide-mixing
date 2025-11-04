@@ -216,6 +216,20 @@ function initialize_internal_tide(
             lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
             tracked_fields = (; b=tracers.b)
             particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
+        elseif tᶠ > 458*2π/ω₀ && simname=="flat"
+            Nparticles = 499829 # number of particles to generate (this is the number of particles in the checkpoint file of 452.5)
+            # particles are released at 1000 m above the bottom, which is about z=967 m
+            x₀, y₀, z₀ = gaussian_particle_generator(
+                Nparticles, Lx, Nx, Ly, Ny, z_interp, architecture, H;
+                x_center_ratio=0.25, y_center_ratio=0.5, z_center=z_center_cart,
+                σ_x=σ_x, σ_y=σ_y, σ_z=σ_z, apply_periodic_bounds=apply_periodic_bounds)
+            b = 1e-5 * ones(Float64, Int(length(x₀)))
+            b = architecture == GPU() ? CuArray(b) : b
+            tracers = (; b=CenterField(grid), c=CenterField(grid))
+            # Define tracked fields as a NamedTuple
+            lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b))
+            tracked_fields = (; b=tracers.b)
+            particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)                
 
         elseif tᶠ > 458*2π/ω₀ && simname=="tilt"  # after 458, we want to generate additional particles at the original points and continue tracking the previous particles
             Nparticles = 499829 # number of particles to generate (this is the number of particles in the checkpoint file of 452.5)
@@ -339,7 +353,7 @@ function initialize_internal_tide(
                 # reset initial condition for c (set to the correct position)
                 set!(model, c=cᵢ)
                 
-        elseif tᶠ > 458.5*2π/ω₀  # no need to reset c, just use the checkpoint file to set initial condition
+        elseif tᶠ >= 458.5*2π/ω₀  # no need to reset c, just use the checkpoint file to set initial condition
                 checkpoint_file = find_checkpoint_by_rank(string("output/", simname),1)
                 set!(model, checkpoint_file)
         end
@@ -351,7 +365,7 @@ function initialize_internal_tide(
     Δt = 12
     # Δt = (1/N)*0.03
     simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
-    # add 50Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
+    # add 20Δt to ensure the simulation runs past the final time average window to avoid missing averaged data
     # minimum_relative_step=0.1: eliminates the possibility of the time-step being too small.
     
     # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy

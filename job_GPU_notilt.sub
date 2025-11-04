@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="notilt" 
-#SBATCH --output="output_message/notilt_454.0.out.%j.%N.out"
+#SBATCH --output="output_message/notilt_460.5.out.%j.%N.out"
 #SBATCH --partition=gpuH200x8
 #SBATCH --mem=36G
 #SBATCH --nodes=1
@@ -9,6 +9,7 @@
 #SBATCH --constraint="scratch"
 #SBATCH --gpus-per-node=1
 #SBATCH --gpu-bind=closest   # select a cpu close to gpu on pci bus topology
+## SBATCH --account=beeh-delta-gpu    # <- match to a "Project" returned by the "accounts" command
 #SBATCH --account=bcpi-delta-gpu    # <- match to a "Project" returned by the "accounts" command
 #SBATCH --mail-user=chihlul1@uci.edu
 #SBATCH --mail-type="BEGIN,END" 

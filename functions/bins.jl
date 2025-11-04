@@ -5,9 +5,8 @@ using StatsBase
     bin_center = @. (bin_edge[1:end-1] + bin_edge[2:end]) / 2
     
     # Calculate volume elements
-    z_diff = diff(z_face)
-    ΔV = dx * dy * z_diff  # This might be [nz] or [nx, nz] depending on z_face shape
-    
+    z_diff = ndims(z_face) > 1 ? diff(z_face, dims=2) : diff(z_face)
+    ΔV = dx .* dy .* z_diff  # Shape: [nx, nz]    
     # Initialize output arrays
     nt = size(var, 4)
     integrand = zeros(length(bin_center), nt)

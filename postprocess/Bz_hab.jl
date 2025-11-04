@@ -42,26 +42,36 @@ fig = Figure(resolution=(1000, 700))
 
 ax1 = Axis(fig[1, 1], ylabel="HAB [m]",
     xticklabelsize=22, yticklabelsize=22, limits=((0, 450), nothing))
-hm1 = heatmap!(ax1, t_tilt / T_tide, z, Bz_tilt', colormap=reverse(cgrad(:batlow, 100)), colorrange=(0, 1e-6))
-contour!(ax1, t_tilt / T_tide, z, Bz_tilt', levels=0:1e-7:1e-6, color=:black, linewidth=1.5)
-text!(ax1, 0.01, 0.98, text="(a) tilt", align=(:left, :top), fontsize=32, space=:relative, color=:white)
+hm1 = heatmap!(ax1, t_tilt / T_tide, z, 1e6*Bz_tilt', colormap=reverse(cgrad(:batlow, 100)), colorrange=(0, 1))
+contour!(ax1, t_tilt / T_tide, z, 1e6*Bz_tilt', levels=0:.1:1, color=:black, linewidth=1.5)
+text!(ax1, 0.01, 0.98, text="(a) tilt", align=(:left, :top), fontsize=26, space=:relative, color=:white)
 
 
 ax2 = Axis(fig[2, 1], ylabel="HAB [m]", xlabel="Time [Tidal Period]",
     xticklabelsize=22, yticklabelsize=22, limits=((0, 450), nothing))
-hm2 = heatmap!(ax2, t_flat / T_tide, z, Bz_flat', colormap=reverse(cgrad(:batlow, 100)), colorrange=(0, 1e-6))
-contour!(ax2, t_flat / T_tide, z, Bz_flat', levels=0:1e-7:1e-6, color=:black, linewidth=1.5)
-text!(ax2, 0.01, 0.98, text="(b) flat", align=(:left, :top), fontsize=32, space=:relative, color=:white)
+hm2 = heatmap!(ax2, t_flat / T_tide, z, 1e6*Bz_flat', colormap=reverse(cgrad(:batlow, 100)), colorrange=(0, 1))
+contour!(ax2, t_flat / T_tide, z, 1e6*Bz_flat', levels=0:.1:1, color=:black, linewidth=1.5)
+text!(ax2, 0.01, 0.98, text="(b) flat", align=(:left, :top), fontsize=26, space=:relative, color=:white)
 
-Colorbar(fig[2, 2], hm1, label="∂B/∂z [s⁻²]", width=30, ticklabelsize=22, labelsize=26)
+Colorbar(fig[2, 2], hm1, label=L"$10^{6}\cdot\partial B/\partial z ~[s^{-2}]$", width=20, ticklabelsize=22, labelsize=26)
 
-# Add minor ticks to x-axis
+# # Add minor ticks to x-axis
+# ax1.xticksmirrored = true
+# ax2.xticksmirrored = true
+# ax1.xminorgridvisible = true
+# ax2.xminorgridvisible = true
+# ax1.xminorticksvisible = true
+# ax2.xminorticksvisible = true
+
 ax1.xticksmirrored = true
-ax2.xticksmirrored = true
-ax1.xminorgridvisible = true
-ax2.xminorgridvisible = true
+ax1.yticksmirrored = true
 ax1.xminorticksvisible = true
+ax1.yminorticksvisible = true
+
+ax2.xticksmirrored = true
+ax2.yticksmirrored = true
 ax2.xminorticksvisible = true
+ax2.yminorticksvisible = true
 
 fig
 save("output/Bz_compare_timeseries.png", fig)

@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="tilt" 
-#SBATCH --output="output_message/tilt-CG.out-461.5-462.0-maxiter=500.%j.%N.out"
+#SBATCH --job-name="notilt-2D-CG" 
+#SBATCH --output="output_message/notilt-2D-idealized_tilt.%j.%N.out"
 #SBATCH --partition=gpuH200x8 ##gpuA100x4
 #SBATCH --mem=36G
 #SBATCH --nodes=1
@@ -9,8 +9,7 @@
 #SBATCH --constraint="scratch"
 #SBATCH --gpus-per-node=1
 #SBATCH --gpu-bind=closest   # select a cpu close to gpu on pci bus topology
-##SBATCH --account=beeh-delta-gpu    # <- match to a "Project" returned by the "accounts" command
-# SBATCH --account=bcpi-delta-gpu    # <- match to a "Project" returned by the "accounts" command
+#SBATCH --account=bcpi-delta-gpu    # <- match to a "Project" returned by the "accounts" command
 #SBATCH --mail-user=chihlul1@uci.edu
 #SBATCH --mail-type="BEGIN,END" 
 ##SBATCH --exclusive  # dedicated node for this job
@@ -18,17 +17,16 @@
 #SBATCH -t 48:00:00
 
 module restore internal-tide
-# for a specific version of julia 1.10.8, since Oceananigans is not stable to run on Julia 1.11
 export PATH=$HOME/software/julia/current/bin:$PATH
 date
-rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_tilt.jl
+rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun.jl
 # rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_notilt.jl
+
 # Run fix_cuda.jl first
 echo "Running CUDA fix script..."
 julia --project fix_cuda.jl
 echo "CUDA fix completed, starting main script..."
 julia --project $rundir
-
 
 
 #julia --project $rundir > ${rundir}_out.txt &

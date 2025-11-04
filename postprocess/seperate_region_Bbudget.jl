@@ -123,15 +123,15 @@ for tᶠ in [453.0]#:1.0:462.0
     # Load two consecutive half tidal periods for full cycle averaging from snapshots
     # because the time average outputs are not calculated correctly, so we decided to just use 3D snapshots
     global total_steps
-    tᶠ_0 = tᶠ - 1
+    # tᶠ_0 = tᶠ - 1
     tᶠ_first = tᶠ - 0.5
     tᶠ_second = tᶠ
 
-    filename_3D_0 = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ_0, "_analysis_round=all_threeD.nc")
+    # filename_3D_0 = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ_0, "_analysis_round=all_threeD.nc")
     filename_3D_first = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ_first, "_analysis_round=all_threeD.nc")
     filename_3D_second = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tᶠ_second, "_analysis_round=all_threeD.nc")
     filename_verification = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", 10, "_threeD_timeavg.nc")
-    ds_3D_0 = Dataset(filename_3D_0, "r")
+    # ds_3D_0 = Dataset(filename_3D_0, "r")
     ds_3D_first = Dataset(filename_3D_first, "r")
     ds_3D_second = Dataset(filename_3D_second, "r")
     ds_verification = Dataset(filename_verification, "r")
@@ -159,14 +159,23 @@ for tᶠ in [453.0]#:1.0:462.0
     # Combined running sums
     # first define the variables using the final timestep of tf-0.5 chunk 
     # (for example, the first timestep of 452.5 chunk is 452.0833, but we want 452.0 and it is at the final timestep  in tf-0.5 chunk)
-    B_sum = ds_3D_0["B"][:, :, :, end:end]
-    uhat_sum = ds_3D_0["uhat"][:, :, :, end:end]
-    what_sum = ds_3D_0["what"][:, :, :, end:end]
-    v_sum = ds_3D_0["v"][:, :, :, end:end]
-    ∇κ∇B_sum = ds_3D_0["∇κ∇B"][:, :, :, end:end]
-    div_uB_sum = ds_3D_0["div_uB"][:, :, :, end:end]
-    ε_sum = ds_3D_0["ε"][:, :, :, end:end]
-    χ_sum = ds_3D_0["χ"][:, :, :, end:end]
+    # B_sum = ds_3D_0["B"][:, :, :, end:end]
+    # uhat_sum = ds_3D_0["uhat"][:, :, :, end:end]
+    # what_sum = ds_3D_0["what"][:, :, :, end:end]
+    # v_sum = ds_3D_0["v"][:, :, :, end:end]
+    # ∇κ∇B_sum = ds_3D_0["∇κ∇B"][:, :, :, end:end]
+    # div_uB_sum = ds_3D_0["div_uB"][:, :, :, end:end]
+    # ε_sum = ds_3D_0["ε"][:, :, :, end:end]
+    # χ_sum = ds_3D_0["χ"][:, :, :, end:end]
+    B_sum = zeros(Nx, Ny, Nz, 1)
+    uhat_sum = zeros(Nx, Ny, Nz, 1)
+    what_sum = zeros(Nx, Ny, Nz, 1)
+    v_sum = zeros(Nx, Ny, Nz, 1)
+    ∇κ∇B_sum = zeros(Nx, Ny, Nz, 1)
+    div_uB_sum = zeros(Nx, Ny, Nz, 1)
+    ε_sum = zeros(Nx, Ny, Nz, 1)
+    χ_sum = zeros(Nx, Ny, Nz, 1)
+
     # Count total timesteps processed
     total_steps = 1   # already have one timestep from the first dataset
 
@@ -332,7 +341,7 @@ for tᶠ in [453.0]#:1.0:462.0
     @time ε_avg_sill = bin_stat_over_xy(ε .* mask_sill, bin_edge, bin_var; stat="mean")
     @time χ_avg_sill = bin_stat_over_xy(χ .* mask_sill, bin_edge, bin_var; stat="mean")
 
-    dBdt = (ds_3D_second["B"][:, :, :, end] .- ds_3D_0["B"][:, :, :, end]) ./ (ds_3D_second["time"][end] .- ds_3D_0["time"][end])
+    dBdt = (ds_3D_second["B"][:, :, :, end] .- ds_3D_first["B"][:, :, :, 1]) ./ (ds_3D_second["time"][end] .- ds_3D_first["time"][1])
     @time dBdt_avg_rest = bin_stat_over_xy(dBdt .* mask_rest, bin_edge, bin_var; stat="mean")
     @time dBdt_avg_flanks = bin_stat_over_xy(dBdt .* mask_flanks, bin_edge, bin_var; stat="mean")
     @time dBdt_avg_sill = bin_stat_over_xy(dBdt .* mask_sill, bin_edge, bin_var; stat="mean")
