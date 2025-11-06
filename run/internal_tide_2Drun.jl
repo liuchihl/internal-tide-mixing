@@ -26,7 +26,7 @@ const Ny = 1
 const Nz = 250
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
-const tᶠ = 200 * 2π / ω₀    # endtime of the simulation
+const tᶠ = 100 * 2π / ω₀    # endtime of the simulation
 const θ = 3.6e-3      # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
@@ -184,7 +184,7 @@ simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative
 b = model.tracers.b
 B̄ = model.background_fields.tracers.b
 B = B̄ + b # total buoyancy field
-u, w = model.velocities
+u, v, w = model.velocities
 û = @at (Face, Center, Center) u * ĝ[3] - w * ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w * ĝ[3] + u * ĝ[1] # true vertical velocity
 νₑ = simulation.model.diffusivity_fields[1].νₑ    # eddy viscosity
@@ -192,13 +192,14 @@ Bz = @at (Center, Center, Center) ∂z(B)
 # Oceanostics
 ε = KineticEnergyDissipationRate(model)
 χ = TracerVarianceDissipationRate(model, :b)
+Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
 # Manually compute Richardson number to avoid KernelFunctionOperation on GPU
 # Ri = N² / S² where N² = -g/ρ₀ * ∂B/∂z and S² = (∂u/∂z)² + (∂v/∂z)²
-N² = @at (Center, Center, Face) -∂z(B)
-S² = @at (Center, Center, Face) (∂z(u))^2 + (∂z(model.velocities.v))^2
-Rig = Field(N² / (S² + 1e-10))  # Add small number to avoid division by zero
+# N² = @at (Center, Center, Face) -∂z(B)
+# S² = @at (Center, Center, Face) (∂z(u))^2 + (∂z(model.velocities.v))^2
+# Rig = Field(N² / (S² + 1e-10))  # Add small number to avoid division by zero
 Bbudget = get_budget_outputs_tuple(model;)
-twoD_diags = merge(Bbudget, (; ε=ε, Rig=Rig, χ=χ, uhat=û, what=ŵ, B=B, Bz=Bz, b=b))
+twoD_diags = merge(Bbudget, (; νₑ=νₑ, ε=ε, Rig=Rig, χ=χ, uhat=û, what=ŵ, B=B, Bz=Bz, b=b))
 
 checkpoint_interval = tᶠ/2 * 2π / ω₀
 fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2 * pi / 1.4e-4), digits=1))
@@ -243,10 +244,6 @@ function progress_message(s)
         cg_residual = maximum(abs, cg.residual)
         memory_usage = "CPU"
     else
-        CUDA.synchronize()
-        # Force cleanup before checking memory usage
-        GC.gc()
-        CUDA.reclaim()
         CUDA.@allowscalar begin
             maximum_w = maximum(abs, w)
             cg_residual = maximum(abs, cg.residual)
@@ -256,16 +253,12 @@ function progress_message(s)
         memory_usage = log_gpu_memory_usage()
     end
 
-    # @info @sprintf(
-    #     "[%.2f%%], iteration: %d, time: %.3f, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s \n",
-    #     progress, iteration, current_time, current_dt, adv_cfl, diff_cfl, memory_usage
-    # )
     @info @sprintf(
         "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
         progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
         cg_residual, cg_iter, cg_maxiter
     )
 end
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(10Δt))    # interval is 110s
+simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))    # interval is 110s
 ## Run the simulation
 run!(simulation)
