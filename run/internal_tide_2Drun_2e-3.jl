@@ -20,17 +20,18 @@ function log_gpu_memory_usage()
     return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
-simname = "2D_idealized_tilt"
 const Nx = 1e3
 const Ny = 1
 const Nz = 300
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
 const tᶠ = 50 * 2π / ω₀    # endtime of the simulation
-const θ = 4e-3       # slope angle
+const θ = 2e-3       # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
+simname = "2D_idealized_tilt_$(θ)"
+
 architecture = GPU()
 closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
 ## Simulation parameters
@@ -150,7 +151,7 @@ vᵢ(x, z) = 0
 # Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2, ĝ=ĝ)) + 1e-9*rand()   # background + perturbation (only works in flat)
 bᵢ(x, z) = 1e-9 * rand()   # background + perturbation (only works in flat)
 
-tol = 1e-9
+# tol = 1e-9
 model = NonhydrostaticModel(
     grid=grid,
     # pressure_solver=ConjugateGradientPoissonSolver(

@@ -19,23 +19,21 @@
 module restore internal-tide
 export PATH=$HOME/software/julia/current/bin:$PATH
 date
-rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun.jl
-# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/run/run_internal_tide_notilt.jl
+rundir1=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_0.jl
+rundir2=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_2e-3.jl
+rundir3=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_4e-3.jl
+rundir4=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_8e-3.jl
 
 # Run fix_cuda.jl first
 echo "Running CUDA fix script..."
 julia --project fix_cuda.jl
-echo "CUDA fix completed, starting main script..."
-julia --project $rundir
+echo "Launching parallel Julia jobs on same GPU..."
 
+CUDA_VISIBLE_DEVICES=0 julia --project $rundir1 > run1.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 julia --project $rundir2 > run2.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 julia --project $rundir3 > run3.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 julia --project $rundir4 > run4.log 2>&1 &
 
-#julia --project $rundir > ${rundir}_out.txt &
-#pid=$!  # Get the PID of the background Julia process
-#nvidia-smi >> ${rundir}_out.txt
-#wait $pid  # Wait for the Julia process to finish before exiting the script
-
-#julia --project $rundir > ${rundir}_out.txt &
-#nvidia-smi >> ${rundir}_out.txt &
-#wait
-
+wait
+echo "All runs completed."
 date
