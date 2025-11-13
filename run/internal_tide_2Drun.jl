@@ -21,13 +21,13 @@ function log_gpu_memory_usage()
 end
 
 simname = "2D_idealized_tilt"
-const Nx = 500
+const Nx = 1e3
 const Ny = 1
-const Nz = 250
+const Nz = 300
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
-const tᶠ = 100 * 2π / ω₀    # endtime of the simulation
-const θ = 3.6e-3      # slope angle
+const tᶠ = 50 * 2π / ω₀    # endtime of the simulation
+const θ = 4e-3       # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
@@ -153,9 +153,9 @@ bᵢ(x, z) = 1e-9 * rand()   # background + perturbation (only works in flat)
 tol = 1e-9
 model = NonhydrostaticModel(
     grid=grid,
-    pressure_solver=ConjugateGradientPoissonSolver(
-        grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
-        reltol=tol, abstol=tol),
+    # pressure_solver=ConjugateGradientPoissonSolver(
+    #     grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
+    #     reltol=tol, abstol=tol),
     advection=WENO(),
     buoyancy=buoyancy,
     coriolis=coriolis,
@@ -257,7 +257,7 @@ function progress_message(s)
         "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
         progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
         cg_residual, cg_iter, cg_maxiter
-    )
+        )
 end
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))    # interval is 110s
 ## Run the simulation

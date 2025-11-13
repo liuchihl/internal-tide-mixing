@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name="notilt-2D-CG" 
-#SBATCH --output="output_message/notilt-2D-idealized_tilt.%j.%N.out"
-#SBATCH --partition=gpuH200x8 ##gpuA100x4
+#SBATCH --job-name="tilt-2D-CG" 
+#SBATCH --output="output_message/2D-idealized_tilt.%j.%N.out"
+#SBATCH --partition=gpuA100x4 ##gpuH200x8
 #SBATCH --mem=36G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1 # could be 1 for py-torch
