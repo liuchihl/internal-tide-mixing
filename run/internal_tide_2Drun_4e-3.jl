@@ -20,11 +20,11 @@ function log_gpu_memory_usage()
     return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
-const Nx = 1e3
+const Nx = 1000
 const Ny = 1
 const Nz = 300
 const ω₀ = 1.4e-4     # tidal freq.
-const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
+const Δtᵒ = 1 / 24 * 2π / ω₀ # interval for saving output
 const tᶠ = 50 * 2π / ω₀    # endtime of the simulation
 const θ = 4e-3       # slope angle
 const U₀ = 0.025      # tidal amplitude
@@ -202,7 +202,7 @@ Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
 Bbudget = get_budget_outputs_tuple(model;)
 twoD_diags = merge(Bbudget, (; νₑ=νₑ, ε=ε, Rig=Rig, χ=χ, uhat=û, what=ŵ, B=B, Bz=Bz, b=b))
 
-checkpoint_interval = tᶠ/2 * 2π / ω₀
+checkpoint_interval = tᶠ / 2
 fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2 * pi / 1.4e-4), digits=1))
 dir = string("output/", simname, "/")
 ## checkpoint  
@@ -234,31 +234,34 @@ function progress_message(s)
     current_dt = s.Δt
 
     # Get CG solver parameters
-    cg = model.pressure_solver.conjugate_gradient_solver
-    cg_iter = cg.iteration
-    cg_maxiter = cg.maxiter
+    # cg = model.pressure_solver.conjugate_gradient_solver
+    # cg_iter = cg.iteration
+    # cg_maxiter = cg.maxiter
 
     if arch isa CPU
         maximum_w = maximum(abs, w)
         adv_cfl = AdvectiveCFL(s.Δt)(model)
         diff_cfl = DiffusiveCFL(s.Δt)(model)
-        cg_residual = maximum(abs, cg.residual)
+        # cg_residual = maximum(abs, cg.residual)
         memory_usage = "CPU"
     else
         CUDA.@allowscalar begin
             maximum_w = maximum(abs, w)
-            cg_residual = maximum(abs, cg.residual)
+            # cg_residual = maximum(abs, cg.residual)
             adv_cfl = AdvectiveCFL(s.Δt)(model)
             diff_cfl = DiffusiveCFL(s.Δt)(model)
         end
         memory_usage = log_gpu_memory_usage()
     end
-
     @info @sprintf(
-        "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
-        progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
-        cg_residual, cg_iter, cg_maxiter
-        )
+        "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
+        progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
+    )
+    # @info @sprintf(
+    #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
+    #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
+    #     cg_residual, cg_iter, cg_maxiter
+    #     )
 end
 simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))    # interval is 110s
 ## Run the simulation
