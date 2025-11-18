@@ -20,33 +20,22 @@ function log_gpu_memory_usage()
     return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
-simname = "2D_idealized_tilt"
-const Nx = 500
+
+const Nx = 2000
 const Ny = 1
-const Nz = 250
+const Nz = 500
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
 const tᶠ = 200 * 2π / ω₀    # endtime of the simulation
-const θ = 3.6e-3      # slope angle
+const θ = 0.02       # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
-
+simname = "2D_idealized_tilt_$(θ)"
 architecture = GPU()
-# time averaged turbulent viscosity from 2D_idealized_tilt run
-if θ == 0
-    fname = "output/2D_idealized_notilt/internal_tide_theta=0_Nx=500_Nz=250_tᶠ=200.0_snapshot.nc"
-    ds = NCDataset(fname)
-    ν = ds["νₑ"][:,:,:]
-else
-    fname = "output/2D_idealized_tilt/internal_tide_theta=0.0036_Nx=500_Nz=250_tᶠ=200.0_snapshot.nc"
-    ds = NCDataset(fname)
-    ν = ds["νₑ"][:,:,:]
-end
-
-closure = ScalarDiffusivity(ν=ν)
+closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
 ## Simulation parameters
-H = 2.25kilometers # vertical extent
+H = 3kilometers # vertical extent
 Lx = 15kilometers # along-canyon extent
 
 ## Create vertical grid
@@ -58,7 +47,7 @@ kwarp(k, N) = (N + 1 - k) / N
 # Bottom-intensified stretching function
 Σ(k, N, stretching) = (1 - exp(-stretching * kwarp(k, N))) / (1 - exp(-stretching))
 # Generating function
-z_faces(k) = -H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 15) - 1)
+z_faces(k) = -H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 10) - 1)
 
 grid = RectilinearGrid(architecture, size=(Nx, Nz),
     x=(0, Lx),
@@ -141,6 +130,11 @@ B_bcs = FieldBoundaryConditions(
 # (1) directions are defined relative to domain coordinates.
 # (2) Gradients are positive in the direction of the coordinate.
 
+# Tidal forcing
+@inline u_tidal_forcing(x, z, t) = U₀ * ω₀ * sin(ω₀ * t)
+
+# s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
+
 # Rotate gravity vector
 buoyancy = BuoyancyForce(BuoyancyTracer(), gravity_unit_vector=-[ĝ...])
 coriolis = ConstantCartesianCoriolis(f=f₀, rotation_axis=ĝ)
@@ -157,16 +151,17 @@ vᵢ(x, z) = 0
 # Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2, ĝ=ĝ)) + 1e-9*rand()   # background + perturbation (only works in flat)
 bᵢ(x, z) = 1e-9 * rand()   # background + perturbation (only works in flat)
 
-tol = 1e-9
+# tol = 1e-9
 model = NonhydrostaticModel(
     grid=grid,
-    pressure_solver=ConjugateGradientPoissonSolver(
-        grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
-        reltol=tol, abstol=tol),
+    # pressure_solver=ConjugateGradientPoissonSolver(
+    #     grid; maxiter=500, preconditioner=AsymptoticPoissonPreconditioner(),
+    #     reltol=tol, abstol=tol),
     advection=WENO(),
     buoyancy=buoyancy,
     coriolis=coriolis,
     boundary_conditions=(u=u_bcs, v=v_bcs, b=B_bcs,),
+    forcing=(u=u_tidal_forcing,),
     tracers=:b,
     closure=closure,
     timestepper=:RungeKutta3,
@@ -176,7 +171,7 @@ model = NonhydrostaticModel(
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-Δt = 12#(1 / N) * 0.03
+Δt =6#(1 / N) * 0.03
 simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
@@ -207,7 +202,7 @@ Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
 Bbudget = get_budget_outputs_tuple(model;)
 twoD_diags = merge(Bbudget, (; νₑ=νₑ, ε=ε, Rig=Rig, χ=χ, uhat=û, what=ŵ, B=B, Bz=Bz, b=b))
 
-checkpoint_interval = tᶠ/2 * 2π / ω₀
+checkpoint_interval = tᶠ / 2
 fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2 * pi / 1.4e-4), digits=1))
 dir = string("output/", simname, "/")
 ## checkpoint  
@@ -239,40 +234,35 @@ function progress_message(s)
     current_dt = s.Δt
 
     # Get CG solver parameters
-    cg = model.pressure_solver.conjugate_gradient_solver
-    cg_iter = cg.iteration
-    cg_maxiter = cg.maxiter
+    # cg = model.pressure_solver.conjugate_gradient_solver
+    # cg_iter = cg.iteration
+    # cg_maxiter = cg.maxiter
 
     if arch isa CPU
         maximum_w = maximum(abs, w)
         adv_cfl = AdvectiveCFL(s.Δt)(model)
         diff_cfl = DiffusiveCFL(s.Δt)(model)
-        cg_residual = maximum(abs, cg.residual)
+        # cg_residual = maximum(abs, cg.residual)
         memory_usage = "CPU"
     else
-        CUDA.synchronize()
-        # Force cleanup before checking memory usage
-        GC.gc()
-        CUDA.reclaim()
         CUDA.@allowscalar begin
             maximum_w = maximum(abs, w)
-            cg_residual = maximum(abs, cg.residual)
+            # cg_residual = maximum(abs, cg.residual)
             adv_cfl = AdvectiveCFL(s.Δt)(model)
             diff_cfl = DiffusiveCFL(s.Δt)(model)
         end
         memory_usage = log_gpu_memory_usage()
     end
-
-    # @info @sprintf(
-    #     "[%.2f%%], iteration: %d, time: %.3f, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s \n",
-    #     progress, iteration, current_time, current_dt, adv_cfl, diff_cfl, memory_usage
-    # )
     @info @sprintf(
-        "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
-        progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
-        cg_residual, cg_iter, cg_maxiter
+        "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
+        progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
     )
+    # @info @sprintf(
+    #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
+    #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
+    #     cg_residual, cg_iter, cg_maxiter
+    #     )
 end
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(10Δt))    # interval is 110s
+simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))    # interval is 110s
 ## Run the simulation
 run!(simulation)

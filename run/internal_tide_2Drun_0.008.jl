@@ -27,7 +27,7 @@ const Nz = 500
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
 const tᶠ = 200 * 2π / ω₀    # endtime of the simulation
-const θ = 0       # slope angle
+const θ = 0.008       # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
@@ -48,17 +48,6 @@ kwarp(k, N) = (N + 1 - k) / N
 Σ(k, N, stretching) = (1 - exp(-stretching * kwarp(k, N))) / (1 - exp(-stretching))
 # Generating function
 z_faces(k) = -H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 10) - 1)
-
-
-k=1:Nz
-diff(z_faces.(k))
-using PyPlot
-
-close("all")
-figure()
-plot(diff(z_faces.(k)),z_faces.(k)[1:end-1])
-savefig("output/Plots_2D_idealized_tilt_mean_flow_tide_1/vertical_grid_stretching.png")
-
 
 grid = RectilinearGrid(architecture, size=(Nx, Nz),
     x=(0, Lx),
@@ -182,7 +171,7 @@ model = NonhydrostaticModel(
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-Δt =6#(1 / N) * 0.03
+Δt = 6#(1 / N) * 0.03
 simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
@@ -213,7 +202,7 @@ Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
 Bbudget = get_budget_outputs_tuple(model;)
 twoD_diags = merge(Bbudget, (; νₑ=νₑ, ε=ε, Rig=Rig, χ=χ, uhat=û, what=ŵ, B=B, Bz=Bz, b=b))
 
-checkpoint_interval = tᶠ/2
+checkpoint_interval = tᶠ / 2
 fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2 * pi / 1.4e-4), digits=1))
 dir = string("output/", simname, "/")
 ## checkpoint  
@@ -222,7 +211,7 @@ simulation.output_writers[:checkpointer] = Checkpointer(
     schedule=TimeInterval(checkpoint_interval),
     dir=dir,
     prefix="checkpoint",
-    cleanup=false)
+    cleanup=true)
 ## output particles
 # simulation.output_writers[:particles] = NetCDFOutputWriter(model, model.particles, filename=string(dir, fname, "_particles.nc"), schedule=TimeInterval(Δtᵒ))
 ## output field 
@@ -264,11 +253,10 @@ function progress_message(s)
         end
         memory_usage = log_gpu_memory_usage()
     end
-
     @info @sprintf(
         "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
         progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
-        )
+    )
     # @info @sprintf(
     #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
     #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,

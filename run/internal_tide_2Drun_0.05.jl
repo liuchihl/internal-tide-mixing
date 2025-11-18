@@ -20,22 +20,22 @@ function log_gpu_memory_usage()
     return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
-const Nx = 1000
+
+const Nx = 2000
 const Ny = 1
-const Nz = 300
+const Nz = 500
 const ω₀ = 1.4e-4     # tidal freq.
-const Δtᵒ = 1 / 24 * 2π / ω₀ # interval for saving output
-const tᶠ = 50 * 2π / ω₀    # endtime of the simulation
-const θ = 4e-3       # slope angle
+const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
+const tᶠ = 200 * 2π / ω₀    # endtime of the simulation
+const θ = 0.05       # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
 simname = "2D_idealized_tilt_$(θ)"
-
 architecture = GPU()
 closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
 ## Simulation parameters
-H = 2.25kilometers # vertical extent
+H = 3kilometers # vertical extent
 Lx = 15kilometers # along-canyon extent
 
 ## Create vertical grid
@@ -47,7 +47,7 @@ kwarp(k, N) = (N + 1 - k) / N
 # Bottom-intensified stretching function
 Σ(k, N, stretching) = (1 - exp(-stretching * kwarp(k, N))) / (1 - exp(-stretching))
 # Generating function
-z_faces(k) = -H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 15) - 1)
+z_faces(k) = -H * (ζ(k, Nz, 1.2) * Σ(k, Nz, 10) - 1)
 
 grid = RectilinearGrid(architecture, size=(Nx, Nz),
     x=(0, Lx),
@@ -171,7 +171,7 @@ model = NonhydrostaticModel(
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-Δt = 12#(1 / N) * 0.03
+Δt =6#(1 / N) * 0.03
 simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy

@@ -4,6 +4,7 @@ using Oceananigans.Units
 using Oceananigans.TurbulenceClosures
 using Oceananigans.ImmersedBoundaries: ImmersedBoundaryGrid, GridFittedBoundary
 using Oceananigans.Solvers: ConjugateGradientPoissonSolver, fft_poisson_solver, FourierTridiagonalPoissonSolver, AsymptoticPoissonPreconditioner
+using Oceananigans.BoundaryConditions: fill_halo_regions!
 using LinearAlgebra
 using Adapt
 using MAT
@@ -20,20 +21,21 @@ function log_gpu_memory_usage()
     return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
+
 const Nx = 1000
 const Ny = 1
 const Nz = 300
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1 / 24 * 2π / ω₀ # interval for saving output
 const tᶠ = 50 * 2π / ω₀    # endtime of the simulation
-const θ = 2e-3       # slope angle
-const U₀ = 0.025      # tidal amplitude
+const θ = 0.004       # slope angle
 const N = 1.e-3       # Buoyancy frequency
 const f₀ = -0.53e-4   # Coriolis frequency
-simname = "2D_idealized_tilt_$(θ)"
+simname = "2D_idealized_tilt_notide_$(θ)"
 
 architecture = GPU()
-closure = (SmagorinskyLilly(), ScalarDiffusivity(ν=1.05e-6, κ=1.46e-7))
+
+# We'll add a callback after model creation to update ν_field based on time
 ## Simulation parameters
 H = 2.25kilometers # vertical extent
 Lx = 15kilometers # along-canyon extent
@@ -56,6 +58,14 @@ grid = RectilinearGrid(architecture, size=(Nx, Nz),
     topology=(Oceananigans.Periodic, Oceananigans.Flat, Oceananigans.Bounded)
 )
 
+
+# Molecular values at t=0
+const ν₀ = 1.05e-6
+const κ₀ = 1.46e-7
+
+# Placeholder - will load target after grid is created
+# (need to know grid layout before creating field)
+closure = ScalarDiffusivity(ν=ν₀, κ=κ₀)
 # topography: similar scale to topo.mat but smoothed triangle
 
 function smooth_triangle(x; h=1000, w=3000, edge=400, tip_width=4000, tip_smoothness=1)
@@ -90,6 +100,15 @@ ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vect
 # Create immersed boundary grid
 z_triangle = architecture == CPU() ? z_triangle : CuArray(z_triangle)
 grid = ImmersedBoundaryGrid(grid, GridFittedBottom(z_triangle))
+
+# Load target turbulent viscosity from 2D_idealized_tilt run (previous run)
+fname_nu = "output/2D_idealized_tilt_$(θ)/internal_tide_theta=$(θ)_Nx=1000_Nz=300_tᶠ=50.0_snapshot.nc"
+ds_nu = Dataset(fname_nu)
+ν_target_raw = ds_nu["νₑ"][:, :, end]
+# Ensure shape matches (Nx, Ny, Nz) with Ny=1 for 2D run
+ν_target = ndims(ν_target_raw) == 2 ? reshape(ν_target_raw, Nx, 1, Nz) : ν_target_raw
+ν_target = architecture == CPU() ? ν_target : CuArray(ν_target)
+κ_target = ν_target  # Same ramping for κ
 
 # setting quadratic drag BC at domain bottom and top of the immersed boundary
 z₀ = 0.1 # m (roughness length)
@@ -130,11 +149,6 @@ B_bcs = FieldBoundaryConditions(
 # (1) directions are defined relative to domain coordinates.
 # (2) Gradients are positive in the direction of the coordinate.
 
-# Tidal forcing
-@inline u_tidal_forcing(x, z, t) = U₀ * ω₀ * sin(ω₀ * t)
-
-# s = sqrt((ω₀^2-f₀^2)/(N^2-ω₀^2))
-
 # Rotate gravity vector
 buoyancy = BuoyancyForce(BuoyancyTracer(), gravity_unit_vector=-[ĝ...])
 coriolis = ConstantCartesianCoriolis(f=f₀, rotation_axis=ĝ)
@@ -144,12 +158,19 @@ coriolis = ConstantCartesianCoriolis(f=f₀, rotation_axis=ĝ)
 @inline constant_stratification(x, z, t, p) = p.N² * ẑ(x, z, p.ĝ)
 B̄_field = BackgroundField(constant_stratification, parameters=(; ĝ, N²=N^2))
 
-# IC such that flow is in phase with predicted linear response, but otherwise quiescent
-Uᵣ = U₀ * ω₀^2 / (ω₀^2 - f₀^2 - (N * sin(θ))^2) # quasi-resonant linear barotropic response
-uᵢ(x, z) = -Uᵣ
+
+uᵢ(x, z) = 1e-9 * rand() 
 vᵢ(x, z) = 0
-# Bᵢ(x, z) = constant_stratification(x, z, 0, (; N² = N^2, ĝ=ĝ)) + 1e-9*rand()   # background + perturbation (only works in flat)
 bᵢ(x, z) = 1e-9 * rand()   # background + perturbation (only works in flat)
+
+# Create Fields for time-dependent viscosity/diffusivity
+ν_field = Field{Center, Center, Center}(grid)
+κ_field = Field{Center, Center, Center}(grid)
+set!(ν_field, ν₀)
+set!(κ_field, κ₀)
+
+# Update closure to use Fields
+closure = ScalarDiffusivity(ν=ν_field, κ=κ_field)
 
 # tol = 1e-9
 model = NonhydrostaticModel(
@@ -161,7 +182,6 @@ model = NonhydrostaticModel(
     buoyancy=buoyancy,
     coriolis=coriolis,
     boundary_conditions=(u=u_bcs, v=v_bcs, b=B_bcs,),
-    forcing=(u=u_tidal_forcing,),
     tracers=:b,
     closure=closure,
     timestepper=:RungeKutta3,
@@ -188,7 +208,7 @@ B = B̄ + b # total buoyancy field
 u, v, w = model.velocities
 û = @at (Face, Center, Center) u * ĝ[3] - w * ĝ[1] # true zonal velocity
 ŵ = @at (Center, Center, Face) w * ĝ[3] + u * ĝ[1] # true vertical velocity
-νₑ = simulation.model.diffusivity_fields[1].νₑ    # eddy viscosity
+# νₑ = simulation.model.diffusivity_fields[1].νₑ    # eddy viscosity
 Bz = @at (Center, Center, Center) ∂z(B)
 # Oceanostics
 ε = KineticEnergyDissipationRate(model)
@@ -200,7 +220,7 @@ Rig = RichardsonNumber(model, u, v, w, B, .-model.buoyancy.gravity_unit_vector)
 # S² = @at (Center, Center, Face) (∂z(u))^2 + (∂z(model.velocities.v))^2
 # Rig = Field(N² / (S² + 1e-10))  # Add small number to avoid division by zero
 Bbudget = get_budget_outputs_tuple(model;)
-twoD_diags = merge(Bbudget, (; νₑ=νₑ, ε=ε, Rig=Rig, χ=χ, uhat=û, what=ŵ, B=B, Bz=Bz, b=b))
+twoD_diags = merge(Bbudget, (; ε=ε, Rig=Rig, χ=χ, uhat=û, what=ŵ, B=B, Bz=Bz, b=b))
 
 checkpoint_interval = tᶠ / 2
 fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2 * pi / 1.4e-4), digits=1))
@@ -241,28 +261,62 @@ function progress_message(s)
     if arch isa CPU
         maximum_w = maximum(abs, w)
         adv_cfl = AdvectiveCFL(s.Δt)(model)
-        diff_cfl = DiffusiveCFL(s.Δt)(model)
+        # Skip diffusive CFL when using Field-based closures
+        # diff_cfl = DiffusiveCFL(s.Δt)(model)
         # cg_residual = maximum(abs, cg.residual)
         memory_usage = "CPU"
     else
+        CUDA.synchronize()
+        # Force cleanup before checking memory usage
+        GC.gc()
+        CUDA.reclaim()
         CUDA.@allowscalar begin
             maximum_w = maximum(abs, w)
             # cg_residual = maximum(abs, cg.residual)
             adv_cfl = AdvectiveCFL(s.Δt)(model)
-            diff_cfl = DiffusiveCFL(s.Δt)(model)
+            # diff_cfl = DiffusiveCFL(s.Δt)(model)
         end
         memory_usage = log_gpu_memory_usage()
     end
+
     @info @sprintf(
-        "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s\n",
-        progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage
+        "[%.2f%%], iteration: %d, time: %.3f, Δt: %.3f, advective CFL: %.2e, memory_usage: %s \n",
+        progress, iteration, current_time, current_dt, adv_cfl, memory_usage
     )
     # @info @sprintf(
     #     "[%.2f%%], iteration: %d, time: %.3f, max|w|: %.2e, Δt: %.3f, advective CFL: %.2e, diffusive CFL: %.2e, memory_usage: %s, CG residual: %.2e, CG iteration: %d/%d\n",
     #     progress, iteration, current_time, maximum_w, current_dt, adv_cfl, diff_cfl, memory_usage,
     #     cg_residual, cg_iter, cg_maxiter
-    #     )
+    # )
 end
-simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(Δtᵒ))    # interval is 110s
+simulation.callbacks[:progress] = Callback(progress_message, TimeInterval(10Δt))    # interval is 110s
+
+# Ramp ν and κ from molecular to target values over one tidal period
+T_ramp = 2π / ω₀
+function ramp_viscosity!(sim)
+    t = sim.model.clock.time
+    α = min(t / T_ramp, 1.0)
+    
+    # Access the closure - handle both single closure and tuple of closures
+    closure = sim.model.closure
+    
+    # Get the viscosity and diffusivity fields from the closure
+    ν_field = closure.ν
+    κ_field = closure.κ.b
+
+    # Update interior points only (avoids halo mismatch)
+    interior(ν_field) .= (1 - α) * ν₀ .+ α * ν_target
+    interior(κ_field) .= (1 - α) * κ₀ .+ α * κ_target
+    
+    # Fill halo regions
+    fill_halo_regions!(ν_field)
+    fill_halo_regions!(κ_field)
+    
+    return nothing
+end
+
+# Update viscosity every iteration during ramp period
+simulation.callbacks[:viscosity_ramp] = Callback(ramp_viscosity!, IterationInterval(1))
+
 ## Run the simulation
 run!(simulation)
