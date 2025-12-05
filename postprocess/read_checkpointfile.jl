@@ -1,7 +1,7 @@
 using JLD2
 using FileIO
 
-filepath = "output/tilt/checkpoint_iteration862442.jld2"
+filepath = "output/2D_idealized_tilt_notide_0/checkpoint_iteration188177.jld2"
 data = jldopen(filepath, "r")
 # Access the NonhydrostaticModel and then the clock
 model = data["NonhydrostaticModel"]

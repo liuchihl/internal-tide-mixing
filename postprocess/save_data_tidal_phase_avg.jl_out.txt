@@ -1,1 +1,0 @@
-Data saved to: output/tilt/tidal_phase_average_w_Bz_theta=0.0036_tᶠ=460_part-2.nc

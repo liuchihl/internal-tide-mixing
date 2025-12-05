@@ -23,6 +23,7 @@ B_all = Float64[]
 uhat_all = Float64[]
 v_all = Float64[]
 what_all = Float64[]
+eps_all = Float64[]
 time_all = Float64[]
 for i in eachindex(tf)
     fname = string("output/", simname, "/internal_tide_theta=", θ, "_Nx=500_Nz=250_tᶠ=", tf[i], "_analysis_round=all_slices_xz.nc")
@@ -31,6 +32,7 @@ for i in eachindex(tf)
     uhat = ds["uhat"][:, 1, :, :]
     vhat = ds["v"][:, 1, :, :]
     what = ds["what"][:, 1, :, :]
+    eps = ds["ε"][:, 1, :, :]
     time = ds["time"][:]
     close(ds)
     if i == 1
@@ -38,12 +40,14 @@ for i in eachindex(tf)
         uhat_all = uhat
         v_all = vhat
         what_all = what
+        eps_all = eps
         time_all = time
     else
         B_all = cat(B_all, B, dims=3)
         uhat_all = cat(uhat_all, uhat, dims=3)
         v_all = cat(v_all, vhat, dims=3)
         what_all = cat(what_all, what, dims=3)
+        eps_all = cat(eps_all, eps, dims=3)
         time_all = vcat(time_all, time)
     end
     println("Processed tᶠ=$(tf[i])")
@@ -277,6 +281,32 @@ close(ds_out)
 
 
 
+
+## check the distribution of epsilon
+left = 1
+right = argmin(abs.(xC .- 5000.0))
+low = argmin(abs.(zC .- 600.0))
+up = argmin(abs.(zC .- 1750.0))
+# eps_range = eps_all[:, :, :]
+eps_range = eps_all[left:right, low:up, :]
+eps_range = eps_range[eps_range .> 1e-10]  # only keep positive values
+# Flatten the eps_range array and remove NaN values
+eps_values = filter(!isnan, vec(eps_range))
+bins = 10 .^ range(-10, log10(maximum(eps_values)), length=100)
+
+# Plot the PDF in log scale
+close("all")
+fig, ax = subplots(figsize=(8, 5))
+ax.hist(eps_values, bins=bins, density=true, color="blue", alpha=0.7, edgecolor="black")
+ax.set_xscale("log")
+# ax.set_yscale("log")
+ax.set_xlabel(L"$\epsilon$ [m²/s³]", fontsize=16)
+ax.set_ylabel("Probability Density", fontsize=16)
+ax.tick_params(axis="x", labelsize=14)
+ax.tick_params(axis="y", labelsize=14)
+ax.grid(true, which="both", linestyle="--", alpha=0.5)
+# ax.set_title(L"PDF of $\epsilon$", fontsize=18)
+savefig("output/tilt/pdf_eps_log.png", dpi=300)
 
 
 

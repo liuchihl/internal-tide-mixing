@@ -78,7 +78,7 @@ c1.set_clim(-3,3)  # Set color limits for the contourf
 
 colorbar(c1, label="ψ [m³ s⁻¹]", extend="both")
 # Color limits are already set in the contourf call
-c2 = ax.contour(xC[:], zC[:], ψ', levels=-72:1:32, colors=[63 43 43] ./ 255, linewidth=0.8, linestyles="-")
+c2 = ax.contour(xC[:], zC[:], B', levels=-72:1:32, colors=[63 43 43] ./ 255, linewidth=0.8, linestyles="-")
 PyPlot.quiver(xC[1:8:end], zC[1:6:end], U[1:8:end, 1:6:end]', W[1:8:end, 1:6:end]',
     angles="xy", scale_units="xy", scale=5e-5)  # Adjust scale value to suit your velocity magnitudes
 # Add reference velocity arrow
