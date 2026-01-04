@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="notilt" 
-#SBATCH --output="output_message/notilt_460.5.out.%j.%N.out"
+#SBATCH --output="output_message/notilt_461.0.out.%j.%N.out"
 #SBATCH --partition=gpuH200x8
 #SBATCH --mem=36G
 #SBATCH --nodes=1

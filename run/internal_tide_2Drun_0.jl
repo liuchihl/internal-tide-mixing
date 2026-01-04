@@ -94,7 +94,25 @@ function smooth_triangle(x; h=1000, w=3000, edge=400, tip_width=4000, tip_smooth
 end
 x_symm = range(-Lx / 2, stop=Lx / 2, length=Nx)
 z_triangle = smooth_triangle(x_symm, h=850, w=3600, edge=1600, tip_width=3000, tip_smoothness=1.4)
+x = range(0, stop=Lx, length=Nx)
+# Save z_triangle and x as a NetCDF file
+using NCDatasets
 
+output_file = "output/terrain_data.nc"
+@printf("Saving terrain data to %s\n", output_file)
+
+NCDatasets.Dataset(output_file, "c") do ds
+    # Define dimensions
+    defDim(ds, "x", length(x))
+    
+    # Define variables
+    defVar(ds, "x", eltype(x), ("x",))
+    defVar(ds, "z_triangle", eltype(z_triangle), ("x",))
+    
+    # Write data
+    ds["x"][:] = x
+    ds["z_triangle"][:] = z_triangle
+end
 # Environmental parameters
 ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vector in rotated coordinates
 

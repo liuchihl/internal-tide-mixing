@@ -39,7 +39,7 @@ ind_begin = findfirst(t / (2 * pi / 1.4e-4) .>= 50)
 time_range = ind_begin:length(t)
 
 div_uB = nanmean(ds["div_uB"][:, :, time_range], dim=3);
-div_uB[div_uB .== 0] .= NaN
+div_uB[div_uB.==0] .= NaN
 using PyPlot
 # Plot a pcolor of div_uB
 # figure(figsize=(10, 6))
@@ -61,8 +61,8 @@ using PyPlot
 b = ds["b"][:, :, 1];
 
 # compute height above bottom grids
-mask = [findfirst(b[i,:] .> 0) for i in 1:Nx]
-hab = repeat(zC, 1, Nx)' .- zC[mask] 
+mask = [findfirst(b[i, :] .> 0) for i in 1:Nx]
+hab = repeat(zC, 1, Nx)' .- zC[mask]
 # Initialize variables for running sums
 dB̄dx = zeros(Nx, Nz, 1)
 dB̄dz = zeros(Nx, Nz, 1)
@@ -88,7 +88,7 @@ div_uB_avg = nanmean(ds["div_uB"][:, :, time_range], dim=3)
 
 u_bar_∇B_bar = zeros(Nx, Nz)
 u_prime∇B_prime = zeros(Nx, Nz)
-
+u_prime∇B_prime_dir = zeros(Nx, Nz)
 # take the tidal average first, then take the long time average (this only applies to u_bar∇B_bar and u'_∇B')
 global total_steps = 0
 for n in 1:100
@@ -101,22 +101,81 @@ for n in 1:100
     what_temp = nanmean(ds["what"][:, :, start:final], dim=3)
     div_uB_temp = nanmean(ds["div_uB"][:, :, start:final], dim=3)
     what_cen = (what_temp[:, 1:end-1] .+ what_temp[:, 2:end]) ./ 2 # what at center
-    uhat_cen = (uhat_temp[:,:].+ vcat(uhat_temp[2:end, :], uhat_temp[end:end, :])) ./ 2
-    u = uhat_cen * cos(θ) .+ what_cen * sin(θ) # cross-slope velocity
-    w = -uhat_cen * sin(θ) .+ what_cen * cos(θ)# slope-normal velocity
+    uhat_cen = (uhat_temp[:, :] .+ vcat(uhat_temp[2:end, :], uhat_temp[end:end, :])) ./ 2
+    u = uhat_cen * cos(θ) .+ what_cen * sin(θ)  # cross-slope tidal average velocity
+    w = -uhat_cen * sin(θ) .+ what_cen * cos(θ) # slope-normal tidal average velocity
     # mask B to avoid erroneous derivatives
     B_temp[b.==0] .= NaN
     dB̄dx = mmderiv(xC[:], B_temp)
     u_bar_∇B_bar_temp = u .* dB̄dx .+ w .* Bz_temp
     u_prime∇B_prime_temp = div_uB_temp .- u_bar_∇B_bar_temp
-
     u_bar_∇B_bar .+= u_bar_∇B_bar_temp
     u_prime∇B_prime .+= u_prime∇B_prime_temp
+    # compute perturbation quantities
+    uhat_prime = ds["uhat"][:, :, start:final] .- uhat_temp
+    what_prime = ds["what"][:, :, start:final] .- what_temp
+    uhat_prime_cen = (uhat_prime[:, :, :] .+ vcat(uhat_prime[2:end, :, :], uhat_prime[end:end, :, :])) ./ 2
+    what_prime_cen = (what_prime[:, 1:end-1, :] .+ what_prime[:, 2:end, :]) ./ 2
+    u_prime = uhat_prime_cen * cos(θ) .+ what_prime_cen * sin(θ)
+    w_prime = -uhat_prime_cen * sin(θ) .+ what_prime_cen * cos(θ)
+    B_prime = ds["B"][:, :, start:final] .- B_temp
+    Bz_prime = ds["Bz"][:, :, start:final] .- Bz_temp
+    Bx_prime = similar(B_prime)
+    for i in 1:(final - start + 1)
+        Bx_prime[:, :, i] = mmderiv(xC[:], B_prime[:, :, i])
+    end
+    u_prime∇B_prime_dir_temp = nanmean(u_prime .* Bx_prime .+ w_prime .* Bz_prime, dim=3)
+    u_prime∇B_prime_dir .+= u_prime∇B_prime_dir_temp
     global total_steps += 1
     println(total_steps)
 end
-u_bar_∇B_bar_avg = u_bar_∇B_bar./total_steps
-u_prime∇B_prime_avg = u_prime∇B_prime./total_steps
+u_bar_∇B_bar_avg = u_bar_∇B_bar ./ total_steps
+u_prime∇B_prime_avg = u_prime∇B_prime ./ total_steps
+u_prime∇B_prime_dir_avg = u_prime∇B_prime_dir ./ total_steps
+
+# make a quick plot 
+using PyPlot
+
+# Create a figure with two panels
+figure(figsize=(18, 6))
+
+# Panel 1: u_prime∇B_prime_avg
+subplot(1, 3, 1)
+pcolormesh(xC, zC, u_prime∇B_prime_dir_avg', shading="auto", cmap="RdBu_r")
+clim(-1e-8, 1e-8)
+colorbar(label="u_prime∇B_prime_avg (m/s³)")
+xlabel("x (m)")
+ylabel("z (m)")
+title("u_prime∇B_prime_avg")
+grid(true)
+
+# Panel 2: u_bar∇B_bar_avg
+subplot(1, 3, 2)
+pcolormesh(xC, zC, u_bar_∇B_bar_avg', shading="auto", cmap="RdBu_r")
+clim(-1e-8, 1e-8)
+colorbar(label="u_bar∇B_bar_avg (m/s³)")
+xlabel("x (m)")
+ylabel("z (m)")
+title("u_bar∇B_bar_avg")
+grid(true)
+
+# Panel 3: ∇κ∇B_avg
+subplot(1, 3, 3)
+pcolormesh(xC, zC, ∇κ∇B_avg', shading="auto", cmap="RdBu_r")
+clim(-1e-10, 1e-10)
+colorbar(label="∇κ∇B_avg (m/s³)")
+xlabel("x (m)")
+ylabel("z (m)")
+title("∇κ∇B_avg")
+grid(true)
+
+# Save and show the figure
+tight_layout()
+savefig(string("output/", simname, "/u_prime_u_bar_and_kappa_gradient_buoyancy_pcolor.png"), dpi=150)
+println("Saved figure to ", string("output/", simname, "/u_prime_u_bar_and_kappa_gradient_buoyancy_pcolor.png"))
+show()
+
+
 # terrain following quantities:
 bin_start = 0
 bin_stop = 1200
@@ -312,7 +371,7 @@ simname = "2D_idealized_tilt_$(θ)"
 ds = Dataset(string("output/", simname, "/TF_avg_analysis_$(θ).nc"), "r")
 # load data
 B_avg_hab1 = ds["B_avg"][:];
-Bz_avg_hab1  = ds["Bz_avg"][:];
+Bz_avg_hab1 = ds["Bz_avg"][:];
 uhat_avg_hab1 = ds["uhat_avg"][:];
 what_avg_hab1 = ds["what_avg"][:];
 dBdt_avg_hab1 = ds["dBdt_avg"][:];
@@ -329,7 +388,7 @@ simname = "2D_idealized_tilt_$(θ)"
 ds = Dataset(string("output/", simname, "/TF_avg_analysis_$(θ).nc"), "r")
 # load data
 B_avg_hab2 = ds["B_avg"][:];
-Bz_avg_hab2  = ds["Bz_avg"][:];
+Bz_avg_hab2 = ds["Bz_avg"][:];
 uhat_avg_hab2 = ds["uhat_avg"][:];
 what_avg_hab2 = ds["what_avg"][:];
 dBdt_avg_hab2 = ds["dBdt_avg"][:];
@@ -346,7 +405,7 @@ simname = "2D_idealized_tilt_$(θ)"
 ds = Dataset(string("output/", simname, "/TF_avg_analysis_$(θ).nc"), "r")
 # load data
 B_avg_hab3 = ds["B_avg"][:];
-Bz_avg_hab3  = ds["Bz_avg"][:];
+Bz_avg_hab3 = ds["Bz_avg"][:];
 uhat_avg_hab3 = ds["uhat_avg"][:];
 what_avg_hab3 = ds["what_avg"][:];
 dBdt_avg_hab3 = ds["dBdt_avg"][:];

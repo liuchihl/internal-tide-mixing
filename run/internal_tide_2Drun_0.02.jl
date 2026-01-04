@@ -25,7 +25,7 @@ const Nx = 2000
 const Ny = 1
 const Nz = 500
 const ω₀ = 1.4e-4     # tidal freq.
-const Δtᵒ = 1/24*2π / ω₀ # interval for saving output
+const Δtᵒ = 1 / 24 * 2π / ω₀ # interval for saving output
 const tᶠ = 200 * 2π / ω₀    # endtime of the simulation
 const θ = 0.02       # slope angle
 const U₀ = 0.025      # tidal amplitude
@@ -56,33 +56,84 @@ grid = RectilinearGrid(architecture, size=(Nx, Nz),
     topology=(Oceananigans.Periodic, Oceananigans.Flat, Oceananigans.Bounded)
 )
 
-# topography: similar scale to topo.mat but smoothed triangle
+function asymmetric_triangle_slope(x; h=1000, w_left=3000, w_right=3000,
+    edge_fraction=0.4, tip_fraction=0.8,
+    tip_smoothness=1.4)
+    """
+    Create an asymmetric triangle in slope coordinates with adaptive smoothing
+    w_left: width on left side (upstream)
+    w_right: width on right side (downstream)
+    edge_fraction: edge smoothing width as fraction of the respective side width
+    tip_fraction: tip smoothing width as fraction of average width
+    tip_smoothness: controls sharpness of tip (higher = sharper)
+    """
+    x_mutable = collect(x)  # Convert x to a mutable array
 
-function smooth_triangle(x; h=1000, w=3000, edge=400, tip_width=4000, tip_smoothness=1)
-    tri = h * (1 .- abs.(x) ./ w)
+    # Basic triangular shape
+    # Left side (negative x)
+    tri_left = h * (1 .+ x_mutable ./ w_left)
+    tri_left[x_mutable.>0] .= 0
+
+    # Right side (positive x)
+    tri_right = h * (1 .- x_mutable ./ w_right)
+    tri_right[x_mutable.<0] .= 0
+
+    # Combine
+    tri = tri_left .+ tri_right
     tri = max.(tri, 0)
-    left = exp.(-((x .+ w) ./ edge) .^ 2)
-    right = exp.(-((x .- w) ./ edge) .^ 2)
 
-    # Tanh-based tip smoothing
-    # The tanh function creates a smooth transition near x=0
-    # tip_smoothness controls how sharp/smooth the tip is (lower = smoother)
+    # Adaptive edge smoothing - scale with the actual width on each side
+    edge_left = edge_fraction * w_left
+    edge_right = edge_fraction * w_right
+
+    # Left edge: smooth transition starting at -w_left
+    left_smooth = exp.(-((x .+ w_left) ./ edge_left) .^ 2)
+
+    # Right edge: smooth transition starting at +w_right
+    right_smooth = exp.(-((x .- w_right) ./ edge_right) .^ 2)
+
+    # Adaptive tip smoothing - use average width as reference
+    w_avg = (w_left + w_right) / 2
+    tip_width = tip_fraction * w_avg
+
+    # Tip smoothing using tanh
     tip_smooth = h * (1 .- tanh.((abs.(x) ./ tip_width) .^ tip_smoothness))
 
-    # Blend between the triangular shape and the smooth tip
-    # Use tanh to create a smooth mask
-    blend_factor = 0.5 * (1 .+ tanh.((tip_width .- abs.(x)) ./ (tip_width * 0.2)))
+    # Blend between triangular shape and smooth tip
+    # Create smooth transition zone around x=0
+    blend_width = tip_width * 0.3
+    blend_factor = 0.5 * (1 .+ tanh.((tip_width .- abs.(x)) ./ blend_width))
 
-    # Combine: use smooth tip near center, transition to triangle further out
+    # Apply tip smoothing
     tri_smooth = blend_factor .* tip_smooth .+ (1 .- blend_factor) .* tri
 
-    # Apply edge smoothing as before
-    topo = tri_smooth .* (1 .- left) .* (1 .- right) .+ h .* left .* right
+    # Apply edge smoothing
+    # At the edges, transition smoothly to h (the baseline value)
+    topo = tri_smooth .* (1 .- left_smooth) .* (1 .- right_smooth) .+
+           h .* left_smooth .* right_smooth
 
     return topo
 end
-x_symm = range(-Lx / 2, stop=Lx / 2, length=Nx)
-z_triangle = smooth_triangle(x_symm, h=850, w=3600, edge=1600, tip_width=3000, tip_smoothness=1.4)
+
+# Coordinates
+x_centered = range(-Lx / 2, stop=Lx / 2, length=Nx)
+# the height and the half width of the triangle without the slope yet
+h = 850
+width = 3600
+ϕ = atan(h / width)
+# Calculate asymmetric widths based on desired slopes
+α_left = ϕ - θ
+α_right = ϕ + θ
+w_left = h / tan(α_left)    # Wider = gentler slope
+w_right = h / tan(α_right)  # Narrower = steeper slope
+# Generate topography with adaptive smoothing
+z_triangle = asymmetric_triangle_slope(x_centered;
+    h=h,
+    w_left=w_left,
+    w_right=w_right,
+    edge_fraction=0.35,  # Adjust these for smoothness
+    tip_fraction=0.7,
+    tip_smoothness=1.4)
 
 # Environmental parameters
 ĝ = (sin(θ), 0, cos(θ)) # the vertical (oriented opposite gravity) unit vector in rotated coordinates
@@ -171,7 +222,7 @@ model = NonhydrostaticModel(
 set!(model, b=bᵢ, u=uᵢ, v=vᵢ)
 
 ## Configure simulation
-Δt =6#(1 / N) * 0.03
+Δt = 6#(1 / N) * 0.03
 simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
 
 # # The `TimeStepWizard` manages the time-step adaptively, keeping the Courant-Freidrichs-Lewy
