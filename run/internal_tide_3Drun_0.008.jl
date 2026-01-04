@@ -20,7 +20,7 @@ struct particles_analysis_period
     x::Float64  # x-coordinate
     y::Float64  # y-coordinate
     z::Float64  # z-coordinate
-    b::Float64  # buoyancy
+    B::Float64  # total buoyancy
     ε::Float64  # KE dissipation rate
     χ::Float64  # scalar dissipation rate
 end
@@ -31,12 +31,12 @@ function log_gpu_memory_usage()
 end
 
 
-const Nx = 2000
-const Ny = 100
-const Nz = 500
+const Nx = 200
+const Ny = 10
+const Nz = 50
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1 / 24 * 2π / ω₀ # interval for saving output
-const tᶠ = 40 * 2π / ω₀    # endtime of the simulation
+const tᶠ = 2 * 2π / ω₀    # endtime of the simulation
 const θ = 0.008       # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
@@ -229,22 +229,21 @@ function sample_particles_above_topo(Nparticles, Lx, Ly, H, z_triangle)
     return x₀, y₀, z₀
 end
 
-if tᶠ <= 200 * 2π / ω₀
+if tᶠ <= 1 * 2π / ω₀
     particles = nothing
 else
-    Nparticles = 1000000 # number of particles
+    Nparticles = 1000 # number of particles
     x₀, y₀, z₀ = sample_particles_above_topo(Nparticles, Lx, Ly, H, z_triangle)
-    b = 1e-5 * ones(Float64, Nparticles)
-    b = CUDA.has_cuda() ? CuArray(b) : b
+    B = 1e-5 * ones(Float64, Nparticles)
+    B = CUDA.has_cuda() ? CuArray(B) : B
     ε = zeros(Float64, Nparticles)
     ε = CUDA.has_cuda() ? CuArray(ε) : ε
     χ = zeros(Float64, Nparticles)
     χ = CUDA.has_cuda() ? CuArray(χ) : χ
-
     # Define tracked fields as a NamedTuple
-    lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, b, ε, χ))
-    fields = (; b=CenterField(grid), ε=CenterField(grid), χ=CenterField(grid))
-    tracked_fields = (; b=fields.b, ε=fields.ε, χ=fields.χ)
+    lagrangian_particles = StructArray{particles_analysis_period}((x₀, y₀, z₀, B, ε, χ))
+    fields = (; B=CenterField(grid), ε=CenterField(grid), χ=CenterField(grid))
+    tracked_fields = (; B=fields.B, ε=fields.ε, χ=fields.χ)
     particles = LagrangianParticles(lagrangian_particles; tracked_fields=tracked_fields, restitution=1)
 end
 
@@ -301,7 +300,7 @@ v_avg = Average(v, dims=2)
 ŵ_avg = Average(ŵ, dims=2)
 ε_avg = Average(ε, dims=2)
 χ_avg = Average(χ, dims=2)
-if tᶠ <= 200 * 2π / ω₀
+if tᶠ <= 1 * 2π / ω₀
     twoD_diags = (; ε=ε, uhat=û, B=B)
     y_average_diags = merge(Bbudget_avg, (; uhat_avg=û_avg, what_avg=ŵ_avg, B=B_avg))
 else
@@ -336,11 +335,11 @@ simulation.output_writers[:nc_slice_yavg] = NetCDFWriter(model, y_average_diags,
     filename=string(dir, fname, "_yavg.nc"),
     overwrite_existing=true)
 
-if tᶠ > 200 * 2π / ω₀
+if tᶠ > 1 * 2π / ω₀
     #3D snapshots
     simulation.output_writers[:nc_snapshot] = NetCDFWriter(model, threeD_diags,
         verbose=true,
-        filename=string(dir, fname, "3Dsnapshot.nc"),
+        filename=string(dir, fname, "_3Dsnapshot.nc"),
         overwrite_existing=true,
         schedule=TimeInterval(Δtᵒ)
     )
