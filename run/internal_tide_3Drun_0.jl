@@ -329,11 +329,12 @@ end
 
 ## Configure simulation
 Δt = 6#(1 / N) * 0.03
-simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
+simulation = Simulation(model, Δt=Δt, stop_time=tᶠ)
+# simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
 
 #--------------
 
-checkpoint_interval = 10
+checkpoint_interval = 10 * 2*pi/1.4e-4
 fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2 * pi / 1.4e-4), digits=1))
 dir = string("output/", simname, "/")
 ## checkpoint  

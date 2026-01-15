@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --job-name="tilt-2D-FFT" 
+#SBATCH --output="output_message/2D-idealized_tilt.%j.%N.out"
+#SBATCH --partition=gpuA100x4 ##gpuH200x8
+#SBATCH --mem=36G
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1 # could be 1 for py-torch
+#SBATCH --cpus-per-task=4   # spread out to use 1 core per numa, set to 64 if tasks is 1
+#SBATCH --constraint="scratch"
+#SBATCH --gpus-per-node=1
+#SBATCH --gpu-bind=closest   # select a cpu close to gpu on pci bus topology
+#SBATCH --account=bcpi-delta-gpu    # <- match to a "Project" returned by the "accounts" command
+#SBATCH --mail-user=chihlul1@uci.edu
+#SBATCH --mail-type="BEGIN,END" 
+##SBATCH --exclusive  # dedicated node for this job
+##SBATCH --no-requeue
+#SBATCH -t 48:00:00
+
+module restore internal-tide
+export PATH=$HOME/software/julia/current/bin:$PATH
+date
+# rundir1=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_notide_0.jl
+# rundir2=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_notide_2e-3.jl
+# rundir3=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_notide_4e-3.jl
+# rundir4=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_notide_8e-3.jl
+
+# rundir1=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_0.jl
+rundir2=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_0.008.jl
+rundir3=/scratch/bcpi/cliu28/internal-tide-mixing/run/internal_tide_2Drun_0.02.jl
+
+# Run fix_cuda.jl first
+echo "Running CUDA fix script..."
+fixfile=/scratch/bcpi/cliu28/internal-tide-mixing/fix_cuda.jl
+julia --project $fixfile
+echo "Launching parallel Julia jobs on same GPU..."
+
+# CUDA_VISIBLE_DEVICES=0 julia --project=/scratch/bcpi/cliu28/internal-tide-mixing $rundir1 > output_message/2D-idealized_tilt.run1.${SLURM_JOB_ID}.${SLURM_NODELIST}.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 julia --project=/scratch/bcpi/cliu28/internal-tide-mixing $rundir2 > output_message/2D-idealized_tilt.run2.${SLURM_JOB_ID}.${SLURM_NODELIST}.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 julia --project=/scratch/bcpi/cliu28/internal-tide-mixing $rundir3 > output_message/2D-idealized_tilt.run3.${SLURM_JOB_ID}.${SLURM_NODELIST}.log 2>&1 &
+# CUDA_VISIBLE_DEVICES=0 julia --project=/scratch/bcpi/cliu28/internal-tide-mixing $rundir4 > output_message/2D-idealized_tilt.run4.${SLURM_JOB_ID}.${SLURM_NODELIST}.log 2>&1 &
+
+wait
+tail -n 50 run*.log
+echo "All runs completed."
+date

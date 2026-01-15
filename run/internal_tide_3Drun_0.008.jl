@@ -30,7 +30,6 @@ function log_gpu_memory_usage()
     return @capture_out CUDA.memory_status()  # retrieve raw string status
 end
 
-
 const Nx = 2000
 const Ny = 100
 const Nz = 500
@@ -259,7 +258,6 @@ if tᶠ >= 200 * 2π / ω₀
     b = model.tracers.b
     B̄ = model.background_fields.tracers.b
     B = B̄ + b
-
     Nparticles = 1000000 # number of particles
     x₀, y₀, z₀ = sample_particles_above_topo(Nparticles, Lx, Ly, H, z_triangle)
     # Initialize particle-carried properties (distinct names to avoid clobbering Eulerian fields)
@@ -331,11 +329,12 @@ end
 
 ## Configure simulation
 Δt = 6#(1 / N) * 0.03
-simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
+simulation = Simulation(model, Δt=Δt, stop_time=tᶠ)
+# simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
 
 #--------------
 
-checkpoint_interval = 10
+checkpoint_interval = 9.989304787824226 * 2*pi/1.4e-4
 fname = string("internal_tide_theta=", θ, "_Nx=", Nx, "_Nz=", Nz, "_tᶠ=", round(tᶠ / (2 * pi / 1.4e-4), digits=1))
 dir = string("output/", simname, "/")
 ## checkpoint  
@@ -344,7 +343,7 @@ simulation.output_writers[:checkpointer] = Checkpointer(
     schedule=TimeInterval(checkpoint_interval),
     dir=dir,
     prefix="checkpoint",
-    cleanup=true)
+    cleanup=false)
 
 ## output 2D slices
 # xz
