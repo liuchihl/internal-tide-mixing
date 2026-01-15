@@ -1,0 +1,39 @@
+#!/bin/bash
+#SBATCH --output="output_message/internal-tide-realtopo-CPU-tilt-hab.out.%j.%N.out"
+#SBATCH --mail-user=chihlul1@uci.edu
+#SBATCH --mail-type="BEGIN,END"
+#SBATCH --mem=75g
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=1    # <- match to OMP_NUM_THREADS
+#SBATCH --partition=cpu      # <- or one of: gpuA100x4 gpuA40x4 gpuA100x8 gpuMI100x8
+#SBATCH --account=bcpi-delta-cpu    # <- match to a "Project" returned by the "accounts" command
+#SBATCH --job-name=myjobtest
+#SBATCH --time=24:00:00      # hh:mm:ss for the job
+#SBATCH --constraint="scratch"
+
+#module reset # drop modules and explicitly load the ones needed
+#module load julia/1.11.1
+export PATH=$HOME/software/julia/current/bin:$PATH
+
+# module restore internal-tide
+# rm output/supercritical_tilt/TF_avg.nc
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/terrain_following_avg_func.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/test_background_diffusive_flux_divergence/tilted_oneD_analytical_comparison.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/save_data_tidal_phase_avg.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/diapycnal_velocity.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/3D_tracer_particles.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/seperate_region_Bbudget.jl
+#  rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/WMT/water_mass_transformation.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/saving_timeaverage_snapshots.jl
+#  rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/volumeplot_tracer.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/particles/particles_concatenate_flat_similar_version_as_tilt.jl
+#rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/particles/particles_3Dmovie.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/tracer_weighted_values.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/streamfunction_xz.jl
+rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/3D_idealized_simulation_diags/slice_animation.jl
+# rundir=/scratch/bcpi/cliu28/internal-tide-mixing/postprocess/spectrum/spectrum_2D_idealized_simulation_omega_m.jl
+echo "Running $rundir"
+date
+julia --project $rundir > ${rundir}_out.txt 
+date
