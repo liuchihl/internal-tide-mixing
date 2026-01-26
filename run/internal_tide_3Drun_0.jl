@@ -35,7 +35,7 @@ const Ny = 100
 const Nz = 500
 const ω₀ = 1.4e-4     # tidal freq.
 const Δtᵒ = 1 / 24 * 2π / ω₀ # interval for saving output
-const tᶠ = 20 * 2π / ω₀    # endtime of the simulation
+const tᶠ = 60 * 2π / ω₀    # endtime of the simulation
 const θ = 0       # slope angle
 const U₀ = 0.025      # tidal amplitude
 const N = 1.e-3       # Buoyancy frequency
@@ -329,8 +329,8 @@ end
 
 ## Configure simulation
 Δt = 6#(1 / N) * 0.03
-simulation = Simulation(model, Δt=Δt, stop_time=tᶠ)
-# simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
+#simulation = Simulation(model, Δt=Δt, stop_time=tᶠ)
+simulation = Simulation(model, Δt=Δt, stop_time=tᶠ + 20Δt, minimum_relative_step=0.01)
 
 #--------------
 
@@ -347,34 +347,34 @@ simulation.output_writers[:checkpointer] = Checkpointer(
 
 ## output 2D slices
 # xz
-# simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, twoD_diags,
-#     schedule=TimeInterval(Δtᵒ),
-#     indices=(:, Ny ÷ 2, :),
-#     verbose=true,
-#     filename=string(dir, fname, "_slices_xz.nc"),
-#     overwrite_existing=true)
-# # y-average quantities
-# simulation.output_writers[:nc_slice_yavg] = NetCDFWriter(model, y_average_diags,
-#     schedule=TimeInterval(Δtᵒ),
-#     verbose=true,
-#     filename=string(dir, fname, "_yavg.nc"),
-#     overwrite_existing=true)
+#simulation.output_writers[:nc_slice_xz] = NetCDFWriter(model, twoD_diags,
+#    schedule=TimeInterval(Δtᵒ),
+#    indices=(:, Ny ÷ 2, :),
+#    verbose=true,
+#    filename=string(dir, fname, "_slices_xz.nc"),
+#    overwrite_existing=true)
+# y-average quantities
+#simulation.output_writers[:nc_slice_yavg] = NetCDFWriter(model, y_average_diags,
+#    schedule=TimeInterval(Δtᵒ),
+#    verbose=true,
+#    filename=string(dir, fname, "_yavg.nc"),
+#    overwrite_existing=true)
 
-# if tᶠ > 200 * 2π / ω₀
-#     #3D snapshots
-#     simulation.output_writers[:nc_snapshot] = NetCDFWriter(model, threeD_diags,
-#         verbose=true,
-#         filename=string(dir, fname, "_3Dsnapshot.nc"),
-#         overwrite_existing=true,
-#         schedule=TimeInterval(Δtᵒ)
-#     )
-#     ## output particles
-#     simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
-#         verbose=true,
-#         filename=string(dir, fname, "_particles_z=", ".nc"),
-#         schedule=TimeInterval(Δtᵒ / 3),
-#         overwrite_existing=true)
-# end
+if tᶠ > 200 * 2π / ω₀
+    #3D snapshots
+    simulation.output_writers[:nc_snapshot] = NetCDFWriter(model, threeD_diags,
+        verbose=true,
+        filename=string(dir, fname, "_3Dsnapshot.nc"),
+        overwrite_existing=true,
+        schedule=TimeInterval(Δtᵒ)
+    )
+    ## output particles
+    simulation.output_writers[:particles] = NetCDFWriter(model, (particles=model.particles,),
+        verbose=true,
+        filename=string(dir, fname, "_particles_z=", ".nc"),
+        schedule=TimeInterval(Δtᵒ / 3),
+        overwrite_existing=true)
+end
 ## Progress messages
 
 
