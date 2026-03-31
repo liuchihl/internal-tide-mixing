@@ -20,8 +20,8 @@ function deriv(z,y)
 θ=0.008
 # include("functions/mmderiv.jl")
 simname = "3D_idealized_tilt_$(θ)"
-tᶠ = 10.0
-filename_slice = string("output/",simname,"/internal_tide_theta=$(θ)_Nx=2000_Nz=500_tᶠ=",tᶠ,"_slices_xz.nc")
+tᶠ = 160.0
+filename_slice = string("output/",simname,"/internal_tide_theta=$(θ)_Nx=2000_Nz=500_tᶠ=",tᶠ,"_slices_xz_wrongtime.nc")
 ds_slice = Dataset(filename_slice,"r")
 
 # grids
