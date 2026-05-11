@@ -50,7 +50,9 @@ function average_fields(simname, tfs, ranges=ranges)
     what_int = nansum(what_avg * dy, dims=2)  # (x, z)
 
     # Take center slice in y for B
-    B_avg_center = B_avg[:, div(size(B_avg, 2), 2), :]  # (x, z)
+    # B_avg_center = B_avg[:, div(size(B_avg, 2), 2), :]  # (x, z)
+    # the y average
+    B_avg_center = nanmean(B_avg, dim=2)  # (x, z)
 
     Nz = length(zC)
     dz = abs.(zF[1:end-1] - zF[2:end])
@@ -75,9 +77,10 @@ tfs_tilt = 451.5:0.5:461.0
 tfs_flat = 451.5:0.5:461.0
 
 # --- Compute averages ---
-ranges = 333:666
-# xC_tilt, zC_tilt, ψ_tilt, U_tilt, W_tilt, Bavg_tilt = average_fields("tilt", tfs_tilt, ranges)
-xC_flat, zC_flat, ψ_flat, U_flat, W_flat, Bavg_flat = average_fields("flat", tfs_flat, ranges)
+ranges =1:1000
+# ranges = 333:666
+xC_tilt, zC_tilt, ψ_tilt, U_tilt, W_tilt, Bavg_tilt = average_fields("tilt", tfs_tilt, ranges)
+# xC_flat, zC_flat, ψ_flat, U_flat, W_flat, Bavg_flat = average_fields("flat", tfs_flat, ranges)
 
 function save_to_nc(filename, xC, zC, ψ, U, W, Bavg)
     ds = Dataset(filename, "c")
@@ -101,11 +104,12 @@ function save_to_nc(filename, xC, zC, ψ, U, W, Bavg)
     close(ds)
 end
 
-# save_to_nc("output/tilt/streamfunction_tilt_avg_$(ranges[1])_$(ranges[end]).nc", xC_tilt, zC_tilt, ψ_tilt, U_tilt, W_tilt, Bavg_tilt)
-save_to_nc("output/flat/streamfunction_flat_avg_$(ranges[1])_$(ranges[end]).nc", xC_flat, zC_flat, ψ_flat, U_flat, W_flat, Bavg_flat)
+save_to_nc("output/tilt/streamfunction_tilt_avg_$(ranges[1])_$(ranges[end])_Bavg.nc", xC_tilt, zC_tilt, ψ_tilt, U_tilt, W_tilt, Bavg_tilt)
+# save_to_nc("output/flat/streamfunction_flat_avg_$(ranges[1])_$(ranges[end])_Bavg.nc", xC_flat, zC_flat, ψ_flat, U_flat, W_flat, Bavg_flat)
 
 using NCDatasets
 using PyPlot
+using NaNStatistics
 # read the data that has the mask of buoyancy
 filename_b = string("output/", "tilt", "/internal_tide_theta=",0.0036,"_Nx=500_Nz=250_tᶠ=",10, "_threeD_timeavg.nc")
 ds_b = Dataset(filename_b,"r")
@@ -113,7 +117,7 @@ b = ds_b["b"][:,500,:,1]
 
 ranges = 1:1000
 # Read tilt data
-ds_tilt = Dataset("output/tilt/streamfunction_tilt_avg_$(ranges[1])_$(ranges[end]).nc", "r")
+ds_tilt = Dataset("output/tilt/streamfunction_tilt_avg_$(ranges[1])_$(ranges[end])_Bavg.nc", "r")
 xC_tilt = ds_tilt["x"][:]
 zC_tilt = ds_tilt["z"][:]
 ψ_tilt = ds_tilt["psi"][:, :]
@@ -123,13 +127,14 @@ B_tilt_center = ds_tilt["Bavg"][:, :]
 close(ds_tilt)
 
 # Read flat data
+ds_flat_Bavg = Dataset("output/flat/streamfunction_flat_avg_$(ranges[1])_$(ranges[end])_Bavg.nc", "r")
 ds_flat = Dataset("output/flat/streamfunction_flat_avg_$(ranges[1])_$(ranges[end]).nc", "r")
 xC_flat = ds_flat["x"][:]
 zC_flat = ds_flat["z"][:]
 ψ_flat = ds_flat["psi"][:, :]
 U_flat = ds_flat["U"][:, :]
 W_flat = ds_flat["W"][:, :]
-B_flat_center = ds_flat["Bavg"][:, :]
+B_flat_center = ds_flat_Bavg["Bavg"][:, :]
 close(ds_flat)
 
 ψ_tilt[ψ_tilt.==0] .= NaN
@@ -175,8 +180,9 @@ c2 = ax[1].contour(xC_tilt[:], zC_tilt[:], ψ_tilt', levels=-1e7:2e4:1e7, colors
 
 # colorbar(c1, ax=ax[1], label="ψ [m³/s]")
 ax[1].quiver(xC_tilt[1:12:end], zC_tilt[1:6:end], U_tilt[1:12:end, 1:6:end]', W_tilt[1:12:end, 1:6:end]', angles="xy", scale_units="xy")
-c3 = ax[1].contour(xC_tilt, zC_tilt, B_tilt_center[:,:]', colors="green", levels=0.0007:0.0001:0.0025, linewidth=0.8, linestyles="-")
-ax[1].plot(xC_tilt[:], z_interp_y, linewidth=2.5, color="brown")
+c3 = ax[1].contour(xC_tilt, zC_tilt, B_tilt_center[:,:]', colors="red", levels=0.00022:0.00025:0.0025, linewidth=0.8, linestyles="-")
+c3.set_alpha(0.8)
+ax[1].plot(xC_tilt[:], z_interp_y, linewidth=2.5, color="gray")
 ax[1].set_title("(a) tilt", loc="left", fontsize=18)
 ax[1].set_facecolor("gray")
 ax[1].set_ylabel("z [m]")
@@ -200,13 +206,14 @@ c2 = ax[2].pcolor(xC_flat, zC_flat, 1e-3*ψ_flat', cmap="coolwarm", vmin=-50, vm
 c5 = ax[2].contour(xC_flat[:], zC_flat[:], ψ_flat', levels=-1e7:2e4:1e7, colors=[63 43 43]./255, linewidth=0.8, linestyles="-")
 colorbar(c2, ax=ax[2], label="ψ [mSv]",shrink=0.8, pad=0.02, extend="both")
 ax[2].quiver(xC_flat[1:12:end], zC_flat[1:6:end], U_flat[1:12:end, 1:6:end]', W_flat[1:12:end, 1:6:end]', angles="xy", scale_units="xy")
-ax[2].plot(xC_tilt[:], z_interp_y, linewidth=2.5, color="brown")
-c3 = ax[2].contour(xC_tilt, zC_tilt, B_flat_center[:,:]', colors="green", levels=0.0007:0.0001:0.0025, linewidth=0.8, linestyles="-")
+ax[2].plot(xC_tilt[:], z_interp_y, linewidth=2.5, color="gray")
+c3 = ax[2].contour(xC_tilt, zC_tilt, B_flat_center[:,:]', colors="red", levels=1e-6:1e-6:1e-5, linewidth=0.8, linestyles="-")
+c3.set_alpha(0.8)
 ax[2].set_title("(b) flat", loc="left", fontsize=18)
 ax[2].set_facecolor("gray")
 ax[2].set_ylabel("z [m]")
 ax[2].set_xlabel("x [km]")
 ax[2].set_xticks(0:2500:15000)
 ax[2].set_xticklabels(["0","2.5","5","7.5","10","12.5","15"])
-savefig("output/comparison_streamfunction_tilt_vs_flat_avg_$(ranges[1])_$(ranges[end]).png", dpi=200, bbox_inches="tight")
-println("Figure saved to output/comparison_streamfunction_tilt_vs_flat_avg_$(ranges[1])_$(ranges[end]).png")
+savefig("output/comparison_streamfunction_tilt_vs_flat_avg_$(ranges[1])_$(ranges[end])_Bavg.png", dpi=200, bbox_inches="tight")
+println("Figure saved to output/comparison_streamfunction_tilt_vs_flat_avg_$(ranges[1])_$(ranges[end])_Bavg.png")
